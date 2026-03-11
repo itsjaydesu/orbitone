@@ -4,10 +4,12 @@ import { NoteEvent, generateBeautifulPianoPiece, parseMidiFile } from '../lib/mu
 
 export interface MusicSettings {
   reverbRoomSize: number;
+  volumePercent: number;
 }
 
 export const useMusic = (settings: MusicSettings) => {
-  const { reverbRoomSize } = settings;
+  const { reverbRoomSize, volumePercent } = settings;
+  const baseOutputGain = 1.25;
   const defaultMusic = useMemo(() => generateBeautifulPianoPiece(32, 100), []);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -19,6 +21,7 @@ export const useMusic = (settings: MusicSettings) => {
   const reverbToneRef = useRef<Tone.Filter | null>(null);
   const wetGainRef = useRef<Tone.Gain | null>(null);
   const eqRef = useRef<Tone.EQ3 | null>(null);
+  const masterGainRef = useRef<Tone.Gain | null>(null);
   const reverbRef = useRef<Tone.Freeverb | null>(null);
   const limiterRef = useRef<Tone.Limiter | null>(null);
   const meterRef = useRef<Tone.Meter | null>(null);
@@ -78,8 +81,10 @@ export const useMusic = (settings: MusicSettings) => {
         limiterRef.current = new Tone.Limiter(-1.5).toDestination();
         meterRef.current = new Tone.Meter({ channelCount: 2, normalRange: false, smoothing: 0.85 });
         eqRef.current = new Tone.EQ3({ low: 0, mid: 0, high: 0 });
-        eqRef.current.connect(limiterRef.current);
-        eqRef.current.connect(meterRef.current);
+        masterGainRef.current = new Tone.Gain(baseOutputGain * (volumePercent / 100));
+        eqRef.current.connect(masterGainRef.current);
+        masterGainRef.current.connect(limiterRef.current);
+        masterGainRef.current.connect(meterRef.current);
 
         dryGainRef.current = new Tone.Gain(0.42).connect(eqRef.current);
         wetGainRef.current = new Tone.Gain(0.18).connect(eqRef.current);
@@ -147,7 +152,7 @@ export const useMusic = (settings: MusicSettings) => {
     }
 
     await initPromiseRef.current;
-  }, [reverbRoomSize]);
+  }, [baseOutputGain, reverbRoomSize, volumePercent]);
 
   useEffect(() => {
     return () => {
@@ -159,6 +164,7 @@ export const useMusic = (settings: MusicSettings) => {
       wetGainRef.current?.dispose();
       reverbRef.current?.dispose();
       eqRef.current?.dispose();
+      masterGainRef.current?.dispose();
       meterRef.current?.dispose();
       limiterRef.current?.dispose();
       initPromiseRef.current = null;
@@ -207,6 +213,12 @@ export const useMusic = (settings: MusicSettings) => {
       reverbRef.current.roomSize.value = reverbRoomSize;
     }
   }, [reverbRoomSize]);
+
+  useEffect(() => {
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = baseOutputGain * (volumePercent / 100);
+    }
+  }, [baseOutputGain, volumePercent]);
 
   useEffect(() => {
     if (notes.length === 0) return;

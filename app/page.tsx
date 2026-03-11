@@ -1,6 +1,7 @@
 'use client';
 
 import { Visualizer, VisualizerSettings } from '@/components/Visualizer';
+import { MIDI_LIBRARY, MidiLibraryItem } from '@/lib/library';
 import { useMusic } from '@/hooks/useMusic';
 import {
   Play,
@@ -20,6 +21,7 @@ import * as Tone from 'tone';
 
 type AppSettings = VisualizerSettings & {
   reverbRoomSize: number;
+  volumePercent: number;
 };
 
 const CAMERA_VIEWS: VisualizerSettings['cameraView'][] = [
@@ -36,6 +38,7 @@ const CAMERA_VIEWS: VisualizerSettings['cameraView'][] = [
 
 const DEFAULT_SETTINGS: AppSettings = {
   reverbRoomSize: 0.8,
+  volumePercent: 100,
   bloomIntensity: 2.0,
   showMidiRoll: false,
   cameraView: 'front',
@@ -51,6 +54,7 @@ export default function Home() {
 
   const { isPlaying, isAudioLoading, togglePlay, notes, loadMidi, duration, seek, bpm, setBpm, resetBpm } = useMusic({
     reverbRoomSize: settings.reverbRoomSize,
+    volumePercent: settings.volumePercent,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,14 +131,14 @@ export default function Home() {
     e.target.blur();
   };
 
-  const loadLibraryMidi = async (url: string, filename: string) => {
+  const loadLibraryMidi = async (item: MidiLibraryItem) => {
     setIsLoadingLibrary(true);
     setShowLibrary(false);
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(item.url);
       const blob = await response.blob();
-      const file = new File([blob], filename, { type: 'audio/midi' });
+      const file = new File([blob], item.fileName, { type: 'audio/midi' });
       setProgress(0);
       await loadMidi(file);
     } catch (error) {
@@ -211,30 +215,28 @@ export default function Home() {
                 </button>
 
                 {showLibrary && (
-                  <div className="pointer-events-auto absolute top-12 right-0 z-50 flex w-64 flex-col gap-2 rounded-xl border border-white/10 bg-black/90 p-3 shadow-2xl backdrop-blur-xl">
+                  <div className="pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-2 rounded-xl border border-white/10 bg-black/90 p-3 shadow-2xl backdrop-blur-xl">
                     <h3 className="mb-1 border-b border-white/10 px-2 py-1 text-sm font-semibold text-white">
-                      Example MIDI Files
+                      MIDI Library
                     </h3>
-                    <button
-                      onClick={() => loadLibraryMidi('https://magenta.github.io/magenta-js/music/demos/melody.mid', 'melody.mid')}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
-                    >
-                      <Music className="h-4 w-4 text-emerald-400" />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">Melody</span>
-                        <span className="text-xs text-gray-500">Magenta Demo</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => loadLibraryMidi('https://magenta.github.io/magenta-js/music/demos/trio.mid', 'trio.mid')}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
-                    >
-                      <Music className="h-4 w-4 text-blue-400" />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">Trio</span>
-                        <span className="text-xs text-gray-500">Magenta Demo</span>
-                      </div>
-                    </button>
+                    {MIDI_LIBRARY.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => loadLibraryMidi(item)}
+                        className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
+                      >
+                        <Music className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="truncate text-sm font-medium">{item.title}</span>
+                            <span className="shrink-0 text-[11px] uppercase tracking-[0.16em] text-gray-500">
+                              {item.durationLabel}
+                            </span>
+                          </div>
+                          <span className="truncate text-xs text-gray-500">{item.artist}</span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -301,6 +303,22 @@ export default function Home() {
                       step={0.05}
                       value={settings.reverbRoomSize}
                       onChange={(e) => updateSetting('reverbRoomSize', parseFloat(e.target.value))}
+                      className="accent-white"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>Volume</span>
+                      <span>{settings.volumePercent}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={150}
+                      step={1}
+                      value={settings.volumePercent}
+                      onChange={(e) => updateSetting('volumePercent', parseInt(e.target.value, 10))}
                       className="accent-white"
                     />
                   </div>
