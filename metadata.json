@@ -1,0 +1,5 @@
+{
+  "name": "Circular MIDI Visualizer",
+  "description": "A 3D MIDI visualizer where musical notes are played in a spinning circle.",
+  "requestFramePermissions": []
+}
