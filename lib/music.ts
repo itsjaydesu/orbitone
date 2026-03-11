@@ -73,7 +73,7 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
     });
   }
 
-  const bpm = midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120;
+  const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120);
 
   return { notes, bpm };
 };

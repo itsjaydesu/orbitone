@@ -3,13 +3,13 @@ import * as Tone from 'tone';
 import { NoteEvent, generateBeautifulPianoPiece, parseMidiFile } from '../lib/music';
 
 export interface MusicSettings {
-  reverbRoomSize: number;
   volumePercent: number;
 }
 
 export const useMusic = (settings: MusicSettings) => {
-  const { reverbRoomSize, volumePercent } = settings;
+  const { volumePercent } = settings;
   const baseOutputGain = 1.25;
+  const defaultReverbRoomSize = 0.8;
   const defaultMusic = useMemo(() => generateBeautifulPianoPiece(32, 100), []);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -34,7 +34,7 @@ export const useMusic = (settings: MusicSettings) => {
 
   const [originalNotes, setOriginalNotes] = useState<NoteEvent[]>(defaultMusic.notes);
   const [originalBpm, setOriginalBpm] = useState(defaultMusic.bpm);
-  const [bpm, setBpm] = useState(defaultMusic.bpm);
+  const [bpm, setBpmState] = useState(defaultMusic.bpm);
 
   const prevSpeedRef = useRef(1);
 
@@ -68,6 +68,10 @@ export const useMusic = (settings: MusicSettings) => {
     bpmRef.current = bpm;
   }, [bpm]);
 
+  const setBpm = useCallback((value: number) => {
+    setBpmState(Math.round(value));
+  }, []);
+
   const ensureAudioReady = useCallback(async () => {
     await Tone.start();
 
@@ -97,7 +101,7 @@ export const useMusic = (settings: MusicSettings) => {
 
         reverbRef.current = new Tone.Freeverb({
           dampening: 2200,
-          roomSize: reverbRoomSize,
+          roomSize: defaultReverbRoomSize,
         });
         reverbRef.current.wet.value = 1;
         reverbRef.current.connect(reverbToneRef.current);
@@ -152,7 +156,7 @@ export const useMusic = (settings: MusicSettings) => {
     }
 
     await initPromiseRef.current;
-  }, [baseOutputGain, reverbRoomSize, volumePercent]);
+  }, [baseOutputGain, defaultReverbRoomSize, volumePercent]);
 
   useEffect(() => {
     return () => {
@@ -207,12 +211,6 @@ export const useMusic = (settings: MusicSettings) => {
 
     return () => window.clearInterval(monitorId);
   }, []);
-
-  useEffect(() => {
-    if (reverbRef.current) {
-      reverbRef.current.roomSize.value = reverbRoomSize;
-    }
-  }, [reverbRoomSize]);
 
   useEffect(() => {
     if (masterGainRef.current) {
@@ -278,8 +276,8 @@ export const useMusic = (settings: MusicSettings) => {
         partStartedRef.current = false;
         prevSpeedRef.current = 1;
         setIsPlaying(false);
-        setOriginalBpm(parsedBpm);
-        setBpm(parsedBpm);
+        setOriginalBpm(Math.round(parsedBpm));
+        setBpm(Math.round(parsedBpm));
         setOriginalNotes(parsedNotes);
       }
     } catch (error) {
@@ -293,8 +291,8 @@ export const useMusic = (settings: MusicSettings) => {
   }, []);
 
   const resetBpm = useCallback(() => {
-    setBpm(originalBpm);
-  }, [originalBpm]);
+    setBpm(Math.round(originalBpm));
+  }, [originalBpm, setBpm]);
 
   return {
     isPlaying,

@@ -20,7 +20,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import * as Tone from 'tone';
 
 type AppSettings = VisualizerSettings & {
-  reverbRoomSize: number;
   volumePercent: number;
 };
 
@@ -37,9 +36,7 @@ const CAMERA_VIEWS: VisualizerSettings['cameraView'][] = [
 ];
 
 const DEFAULT_SETTINGS: AppSettings = {
-  reverbRoomSize: 0.8,
   volumePercent: 100,
-  bloomIntensity: 2.0,
   showMidiRoll: false,
   cameraView: 'front',
 };
@@ -53,7 +50,6 @@ export default function Home() {
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
   const { isPlaying, isAudioLoading, togglePlay, notes, loadMidi, duration, seek, bpm, setBpm, resetBpm } = useMusic({
-    reverbRoomSize: settings.reverbRoomSize,
     volumePercent: settings.volumePercent,
   });
 
@@ -293,22 +289,6 @@ export default function Home() {
 
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-xs text-gray-400">
-                      <span>Reverb Size</span>
-                      <span>{settings.reverbRoomSize.toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={settings.reverbRoomSize}
-                      onChange={(e) => updateSetting('reverbRoomSize', parseFloat(e.target.value))}
-                      className="accent-white"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-xs text-gray-400">
                       <span>Volume</span>
                       <span>{settings.volumePercent}%</span>
                     </div>
@@ -319,22 +299,6 @@ export default function Home() {
                       step={1}
                       value={settings.volumePercent}
                       onChange={(e) => updateSetting('volumePercent', parseInt(e.target.value, 10))}
-                      className="accent-white"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Bloom Intensity</span>
-                      <span>{settings.bloomIntensity.toFixed(1)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={5}
-                      step={0.1}
-                      value={settings.bloomIntensity}
-                      onChange={(e) => updateSetting('bloomIntensity', parseFloat(e.target.value))}
                       className="accent-white"
                     />
                   </div>
