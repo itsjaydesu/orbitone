@@ -31,21 +31,21 @@ export interface VisualizerSettings {
 
 const DEFAULT_TIME_WINDOW = 10;
 const DEFAULT_BLOOM_INTENSITY = 2.0;
-const INTRO_RING_DRAW_DURATION = 0.82;
-const INTRO_RING_STAGGER = 0.05;
-const INTRO_NOTE_BASE_DELAY = 1.18;
-const INTRO_NOTE_SWEEP_SPAN = 0.6;
-const INTRO_NOTE_DURATION = 0.62;
-const INTRO_PLAYHEAD_DELAY = 0.18;
-const INTRO_PLAYHEAD_DURATION = 1.02;
-const INTRO_CAMERA_DURATION = 1.55;
+const INTRO_RING_DRAW_DURATION = 1.07;
+const INTRO_RING_STAGGER = 0.065;
+const INTRO_NOTE_BASE_DELAY = 1.74;
+const INTRO_NOTE_SWEEP_SPAN = 0.96;
+const INTRO_NOTE_DURATION = 0.99;
+const INTRO_PLAYHEAD_DELAY = 0.24;
+const INTRO_PLAYHEAD_DURATION = 1.33;
+const INTRO_CAMERA_DURATION = 1.95;
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const frontCameraPosition = new THREE.Vector3(0, 0, 32);
 const frontCameraLookAt = new THREE.Vector3(0, 0, 0);
-const topThirdCameraPosition = new THREE.Vector3(0, 8.75, 17.5);
-const topThirdCameraLookAt = new THREE.Vector3(0, 8.75, 0);
+const topThirdCameraPosition = new THREE.Vector3(0, 10.15, 15.25);
+const topThirdCameraLookAt = new THREE.Vector3(0, 10.1, 0);
 
 type IntroClockRef = MutableRefObject<number | null>;
 

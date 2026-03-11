@@ -1,16 +1,32 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import * as Tone from 'tone';
-import { NoteEvent, generateBeautifulPianoPiece, parseMidiFile } from '../lib/music';
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import * as Tone from "tone";
+import {
+  NoteEvent,
+  generateBeautifulPianoPiece,
+  parseMidiFile,
+} from "../lib/music";
 
 export interface MusicSettings {
   volumePercent: number;
 }
 
+const DEFAULT_NOTE_LOAD_OFFSET_SECONDS = 0.35;
+
 export const useMusic = (settings: MusicSettings) => {
   const { volumePercent } = settings;
   const baseOutputGain = 1.25;
   const defaultReverbRoomSize = 0.8;
-  const defaultMusic = useMemo(() => generateBeautifulPianoPiece(32, 100), []);
+  const defaultMusic = useMemo(() => {
+    const piece = generateBeautifulPianoPiece(32, 100);
+
+    return {
+      ...piece,
+      notes: piece.notes.map((note) => ({
+        ...note,
+        time: note.time + DEFAULT_NOTE_LOAD_OFFSET_SECONDS,
+      })),
+    };
+  }, []);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
@@ -32,7 +48,9 @@ export const useMusic = (settings: MusicSettings) => {
   const bpmRef = useRef(100);
   const lastDiagnosticLogRef = useRef(0);
 
-  const [originalNotes, setOriginalNotes] = useState<NoteEvent[]>(defaultMusic.notes);
+  const [originalNotes, setOriginalNotes] = useState<NoteEvent[]>(
+    defaultMusic.notes,
+  );
   const [originalBpm, setOriginalBpm] = useState(defaultMusic.bpm);
   const [bpm, setBpmState] = useState(defaultMusic.bpm);
 
@@ -83,9 +101,15 @@ export const useMusic = (settings: MusicSettings) => {
       setIsAudioLoading(true);
       initPromiseRef.current = new Promise<void>((resolve) => {
         limiterRef.current = new Tone.Limiter(-1.5).toDestination();
-        meterRef.current = new Tone.Meter({ channelCount: 2, normalRange: false, smoothing: 0.85 });
+        meterRef.current = new Tone.Meter({
+          channelCount: 2,
+          normalRange: false,
+          smoothing: 0.85,
+        });
         eqRef.current = new Tone.EQ3({ low: 0, mid: 0, high: 0 });
-        masterGainRef.current = new Tone.Gain(baseOutputGain * (volumePercent / 100));
+        masterGainRef.current = new Tone.Gain(
+          baseOutputGain * (volumePercent / 100),
+        );
         eqRef.current.connect(masterGainRef.current);
         masterGainRef.current.connect(limiterRef.current);
         masterGainRef.current.connect(meterRef.current);
@@ -96,7 +120,7 @@ export const useMusic = (settings: MusicSettings) => {
           Q: 0.7,
           frequency: 2400,
           rolloff: -24,
-          type: 'lowpass',
+          type: "lowpass",
         }).connect(wetGainRef.current);
 
         reverbRef.current = new Tone.Freeverb({
@@ -110,39 +134,39 @@ export const useMusic = (settings: MusicSettings) => {
 
         samplerRef.current = new Tone.Sampler({
           urls: {
-            A0: 'A0.mp3',
-            C1: 'C1.mp3',
-            'D#1': 'Ds1.mp3',
-            'F#1': 'Fs1.mp3',
-            A1: 'A1.mp3',
-            C2: 'C2.mp3',
-            'D#2': 'Ds2.mp3',
-            'F#2': 'Fs2.mp3',
-            A2: 'A2.mp3',
-            C3: 'C3.mp3',
-            'D#3': 'Ds3.mp3',
-            'F#3': 'Fs3.mp3',
-            A3: 'A3.mp3',
-            C4: 'C4.mp3',
-            'D#4': 'Ds4.mp3',
-            'F#4': 'Fs4.mp3',
-            A4: 'A4.mp3',
-            C5: 'C5.mp3',
-            'D#5': 'Ds5.mp3',
-            'F#5': 'Fs5.mp3',
-            A5: 'A5.mp3',
-            C6: 'C6.mp3',
-            'D#6': 'Ds6.mp3',
-            'F#6': 'Fs6.mp3',
-            A6: 'A6.mp3',
-            C7: 'C7.mp3',
-            'D#7': 'Ds7.mp3',
-            'F#7': 'Fs7.mp3',
-            A7: 'A7.mp3',
-            C8: 'C8.mp3',
+            A0: "A0.mp3",
+            C1: "C1.mp3",
+            "D#1": "Ds1.mp3",
+            "F#1": "Fs1.mp3",
+            A1: "A1.mp3",
+            C2: "C2.mp3",
+            "D#2": "Ds2.mp3",
+            "F#2": "Fs2.mp3",
+            A2: "A2.mp3",
+            C3: "C3.mp3",
+            "D#3": "Ds3.mp3",
+            "F#3": "Fs3.mp3",
+            A3: "A3.mp3",
+            C4: "C4.mp3",
+            "D#4": "Ds4.mp3",
+            "F#4": "Fs4.mp3",
+            A4: "A4.mp3",
+            C5: "C5.mp3",
+            "D#5": "Ds5.mp3",
+            "F#5": "Fs5.mp3",
+            A5: "A5.mp3",
+            C6: "C6.mp3",
+            "D#6": "Ds6.mp3",
+            "F#6": "Fs6.mp3",
+            A6: "A6.mp3",
+            C7: "C7.mp3",
+            "D#7": "Ds7.mp3",
+            "F#7": "Fs7.mp3",
+            A7: "A7.mp3",
+            C8: "C8.mp3",
           },
           release: 1,
-          baseUrl: 'https://tonejs.github.io/audio/salamander/',
+          baseUrl: "https://tonejs.github.io/audio/salamander/",
           onload: () => {
             setIsLoaded(true);
             setIsAudioLoading(false);
@@ -176,7 +200,7 @@ export const useMusic = (settings: MusicSettings) => {
   }, []);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === "production") {
       return;
     }
 
@@ -186,7 +210,9 @@ export const useMusic = (settings: MusicSettings) => {
       }
 
       const meterValue = meterRef.current.getValue();
-      const preLimiterPeakDb = Array.isArray(meterValue) ? Math.max(...meterValue) : meterValue;
+      const preLimiterPeakDb = Array.isArray(meterValue)
+        ? Math.max(...meterValue)
+        : meterValue;
       const limiterReductionDb = limiterRef.current.reduction;
       const hasHotSignal = preLimiterPeakDb > -6 || limiterReductionDb < -0.25;
 
@@ -197,10 +223,12 @@ export const useMusic = (settings: MusicSettings) => {
       lastDiagnosticLogRef.current = Date.now();
       const transportTime = Tone.Transport.seconds;
       const activeNotes = notesRef.current.filter(
-        (note) => note.time <= transportTime && note.time + note.duration >= transportTime
+        (note) =>
+          note.time <= transportTime &&
+          note.time + note.duration >= transportTime,
       ).length;
 
-      console.info('[orbitone/audio]', {
+      console.info("[orbitone/audio]", {
         activeNotes,
         bpm: bpmRef.current,
         limiterReductionDb: Number(limiterReductionDb.toFixed(2)),
@@ -237,10 +265,10 @@ export const useMusic = (settings: MusicSettings) => {
 
     partRef.current = new Tone.Part<NoteEvent>((time, note) => {
       samplerRef.current?.triggerAttackRelease(
-        Tone.Frequency(note.midi, 'midi').toNote(),
+        Tone.Frequency(note.midi, "midi").toNote(),
         note.duration,
         time,
-        note.velocity
+        note.velocity,
       );
     }, notes);
 
@@ -281,8 +309,8 @@ export const useMusic = (settings: MusicSettings) => {
         setOriginalNotes(parsedNotes);
       }
     } catch (error) {
-      console.error('Error parsing MIDI file:', error);
-      alert('Failed to parse MIDI file.');
+      console.error("Error parsing MIDI file:", error);
+      alert("Failed to parse MIDI file.");
     }
   };
 
