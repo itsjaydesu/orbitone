@@ -1,7 +1,7 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Torus, Text, Billboard } from '@react-three/drei';
+import { OrbitControls, Torus, Billboard } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import * as Tone from 'tone';
@@ -9,11 +9,12 @@ import { useRef, useState, useMemo } from 'react';
 import { NoteEvent } from '@/lib/music';
 
 export interface VisualizerSettings {
-  timeWindow: number;
   bloomIntensity: number;
   showMidiRoll: boolean;
   cameraView: 'front' | 'top' | 'side' | 'dynamic' | 'isometric' | 'closeup' | 'vortex' | 'orbit' | 'zenith';
 }
+
+const DEFAULT_TIME_WINDOW = 10;
 
 // Shared geometry for better performance - using a flat circle that will always face the camera
 const noteGeo = new THREE.CircleGeometry(0.15, 32);
@@ -36,8 +37,8 @@ const Staff = () => {
   
   return (
     <group>
-      {radii.map((r, i) => (
-        <Torus key={i} args={[r, 0.01, 16, 100]} rotation={[0, 0, 0]}>
+      {radii.map((r) => (
+        <Torus key={r} args={[r, 0.01, 16, 100]} rotation={[0, 0, 0]}>
           <meshBasicMaterial color="#ffffff" transparent opacity={0.25} />
         </Torus>
       ))}
@@ -186,24 +187,14 @@ const Playhead = () => {
         <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
         <pointLight color="#ffffff" intensity={2} distance={5} />
       </mesh>
-      <Text
-        position={[0, 11.2, 0.5]}
-        color="white"
-        fontSize={1.2}
-        anchorX="center"
-        anchorY="middle"
-      >
-        𝄞
-      </Text>
-      <Text
-        position={[0, 8.8, 0.5]}
-        color="white"
-        fontSize={1.2}
-        anchorX="center"
-        anchorY="middle"
-      >
-        𝄢
-      </Text>
+      <mesh position={[0, 11.2, 0.4]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.35, 0.04, 12, 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.65} />
+      </mesh>
+      <mesh position={[0, 8.8, 0.4]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.25, 0.04, 12, 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.65} />
+      </mesh>
     </group>
   );
 };
@@ -244,7 +235,8 @@ const CameraController = ({ cameraView }: { cameraView: string }) => {
 
 const Scene = ({ notes, isPlaying, settings }: { notes: NoteEvent[], isPlaying: boolean, settings: VisualizerSettings }) => {
   const [filterTime, setFilterTime] = useState(0);
-  const { timeWindow, bloomIntensity, showMidiRoll, cameraView } = settings;
+  const { bloomIntensity, showMidiRoll, cameraView } = settings;
+  const timeWindow = DEFAULT_TIME_WINDOW;
   
   useFrame(() => {
     // Update filter time roughly every 0.5 seconds to avoid React re-renders

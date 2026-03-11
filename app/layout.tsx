@@ -2,8 +2,11 @@ import type {Metadata} from 'next';
 import './globals.css'; // Global styles
 
 export const metadata: Metadata = {
-  title: 'Circular MIDI Visualizer',
-  description: 'A 3D MIDI visualizer where musical notes are played in a spinning circle.',
+  title: 'orbitone',
+  description: 'A cinematic 3D MIDI visualizer built around orbiting notation and live playback.',
+  icons: {
+    icon: '/icon.svg',
+  },
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
