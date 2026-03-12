@@ -32,7 +32,7 @@ const CLEF_FONT_STACK =
   '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif';
 const CLEF_FONT_SIZE_PX = 72;
 const TREBLE_CLEF_SCALE = 1.05;
-const BASS_CLEF_SCALE = 0.82;
+const BASS_CLEF_SCALE = 0.656;
 const CLEF_Z_OFFSET = 0.08;
 const NOTE_RADIUS_STEP = 0.2;
 const BASE_BASS_RADII = [8.0, 8.4, 8.8, 9.2, 9.6];
@@ -49,6 +49,9 @@ const INTRO_RING_STAGGER = 0.065;
 const INTRO_NOTE_BASE_DELAY = 1.74;
 const INTRO_NOTE_SWEEP_SPAN = 0.96;
 const INTRO_NOTE_DURATION = 0.99;
+const INTRO_NOTE_APPEAR_DELAY = 1;
+const INTRO_NOTE_TRANSITION_OUT_DURATION = 0.8;
+const INTRO_CAMERA_DELAY = 1.04;
 const INTRO_PLAYHEAD_DELAY = 0.24;
 const INTRO_PLAYHEAD_DURATION = 1.33;
 const INTRO_CAMERA_DURATION = 1.95;
@@ -159,12 +162,16 @@ const getNoteIntroDelay = (note: NoteEvent, index: number) => {
   const localIndexPhase = Math.min(index, 8) * 0.012;
 
   return (
+    INTRO_NOTE_APPEAR_DELAY +
     INTRO_NOTE_BASE_DELAY +
     angularPhase * INTRO_NOTE_SWEEP_SPAN +
     radialPhase * 0.08 +
     localIndexPhase
   );
 };
+
+const getNotesSignature = (notes: NoteEvent[]) =>
+  notes.map((note) => note.id).join("|");
 
 const getNoteRadius = (midi: number) =>
   10.0 + (getDiatonicStep(midi) - 28) * NOTE_RADIUS_STEP;
@@ -251,11 +258,15 @@ const NoteMesh = ({
   timeWindow,
   introStartRef,
   introDelay,
+  animationMode = "enter",
+  transitionClockRef,
 }: {
   note: NoteEvent;
   timeWindow: number;
   introStartRef: IntroClockRef;
   introDelay: number;
+  animationMode?: "enter" | "exit";
+  transitionClockRef?: IntroClockRef;
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshMatRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -269,12 +280,21 @@ const NoteMesh = ({
     }
 
     const currentTime = Tone.Transport.seconds;
-    const introProgress = getIntroProgress(
-      clock.getElapsedTime(),
-      introStartRef,
-      introDelay,
-      INTRO_NOTE_DURATION,
-    );
+    const isExiting = animationMode === "exit";
+    const displayProgress = isExiting
+      ? 1 -
+        getIntroProgress(
+          clock.getElapsedTime(),
+          transitionClockRef ?? introStartRef,
+          0,
+          INTRO_NOTE_TRANSITION_OUT_DURATION,
+        )
+      : getIntroProgress(
+          clock.getElapsedTime(),
+          introStartRef,
+          introDelay,
+          INTRO_NOTE_DURATION,
+        );
 
     const angle = ((note.time - currentTime) / timeWindow) * Math.PI * 2;
     let normalizedAngle = angle % (Math.PI * 2);
@@ -291,14 +311,14 @@ const NoteMesh = ({
     const angleDuration = (note.duration / timeWindow) * Math.PI * 2;
     const isPlaying = normalizedAngle <= 0 && normalizedAngle >= -angleDuration;
 
-    const animatedRadius = radius * (0.3 + introProgress * 0.7);
+    const animatedRadius = radius * (0.3 + displayProgress * 0.7);
     groupRef.current.position.x = -Math.sin(normalizedAngle) * animatedRadius;
     groupRef.current.position.y =
-      Math.cos(normalizedAngle) * animatedRadius + (1 - introProgress) * 0.22;
-    groupRef.current.position.z = (1 - introProgress) * -1.9;
+      Math.cos(normalizedAngle) * animatedRadius + (1 - displayProgress) * 0.22;
+    groupRef.current.position.z = (1 - displayProgress) * -1.9;
     groupRef.current.rotation.z = normalizedAngle;
 
-    meshMatRef.current.opacity = opacity * introProgress;
+    meshMatRef.current.opacity = opacity * displayProgress;
     meshMatRef.current.color.setHex(0xffffff);
     meshMatRef.current.emissive.setHex(0xffffff);
 
@@ -312,7 +332,7 @@ const NoteMesh = ({
     });
 
     const playScale = isPlaying ? 1.5 + note.velocity : 1;
-    const introScale = 0.28 + introProgress * 0.72;
+    const introScale = 0.28 + displayProgress * 0.72;
     targetScale.setScalar(playScale * introScale);
     groupRef.current.scale.lerp(targetScale, 0.18);
   });
@@ -342,12 +362,16 @@ const MidiRollNote = ({
   speed,
   introStartRef,
   introDelay,
+  animationMode = "enter",
+  transitionClockRef,
 }: {
   isFlatView: boolean;
   note: NoteEvent;
   speed: number;
   introStartRef: IntroClockRef;
   introDelay: number;
+  animationMode?: "enter" | "exit";
+  transitionClockRef?: IntroClockRef;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -361,26 +385,30 @@ const MidiRollNote = ({
     }
 
     const currentTime = Tone.Transport.seconds;
-    const introProgress = getIntroProgress(
-      clock.getElapsedTime(),
-      introStartRef,
-      introDelay,
-      0.72,
-    );
+    const isExiting = animationMode === "exit";
+    const displayProgress = isExiting
+      ? 1 -
+        getIntroProgress(
+          clock.getElapsedTime(),
+          transitionClockRef ?? introStartRef,
+          0,
+          INTRO_NOTE_TRANSITION_OUT_DURATION,
+        )
+      : getIntroProgress(clock.getElapsedTime(), introStartRef, introDelay, 0.72);
     const timeDiff = note.time - currentTime;
     const z = -(timeDiff + note.duration / 2) * speed;
 
-    meshRef.current.position.set(x, (1 - introProgress) * -0.55, z);
+    meshRef.current.position.set(x, (1 - displayProgress) * -0.55, z);
     meshRef.current.renderOrder = isFlatView ? Math.round(1000 + z * 10) : 6;
     meshRef.current.scale.set(
-      0.15 + introProgress * 0.15,
-      0.04 + introProgress * 0.06,
-      length * (0.42 + introProgress * 0.58),
+      0.15 + displayProgress * 0.15,
+      0.04 + displayProgress * 0.06,
+      length * (0.42 + displayProgress * 0.58),
     );
 
     const isPlaying = timeDiff <= 0 && timeDiff >= -note.duration;
     const distance = Math.abs(z);
-    const opacity = Math.max(0, 1 - distance / 60) * introProgress;
+    const opacity = Math.max(0, 1 - distance / 60) * displayProgress;
 
     matRef.current.opacity = opacity;
 
@@ -423,12 +451,16 @@ const MidiRoll = ({
   filterTime,
   timeWindow,
   introStartRef,
+  animationMode = "enter",
+  transitionClockRef,
 }: {
   isFlatView: boolean;
   notes: NoteEvent[];
   filterTime: number;
   timeWindow: number;
   introStartRef: IntroClockRef;
+  animationMode?: "enter" | "exit";
+  transitionClockRef?: IntroClockRef;
 }) => {
   const speed = 10;
   const lookAhead = timeWindow * 1.5;
@@ -446,12 +478,18 @@ const MidiRoll = ({
     <group position={[0, -2, 0]}>
       {rollNotes.map((note, index) => (
         <MidiRollNote
-          key={`roll-${note.id}`}
+          key={`roll-${animationMode}-${note.id}-${index}`}
           isFlatView={isFlatView}
           note={note}
           speed={speed}
           introStartRef={introStartRef}
-          introDelay={INTRO_NOTE_BASE_DELAY + Math.min(index, 18) * 0.016}
+          introDelay={
+            INTRO_NOTE_APPEAR_DELAY +
+            INTRO_NOTE_BASE_DELAY +
+            Math.min(index, 18) * 0.016
+          }
+          animationMode={animationMode}
+          transitionClockRef={transitionClockRef}
         />
       ))}
     </group>
@@ -641,7 +679,7 @@ const CameraController = ({
       const progress = getIntroProgress(
         clock.getElapsedTime(),
         introStartRef,
-        0.04,
+        INTRO_CAMERA_DELAY,
         INTRO_CAMERA_DURATION,
       );
 
@@ -705,12 +743,20 @@ const Scene = ({
   settings: VisualizerSettings;
 }) => {
   const [filterTime, setFilterTime] = useState(0);
+  const [animatedNotes, setAnimatedNotes] = useState<NoteEvent[]>(notes);
+  const [exitingNotes, setExitingNotes] = useState<NoteEvent[]>([]);
+  const [isNoteTransitioning, setIsNoteTransitioning] = useState(false);
   const introStartRef = useRef<number | null>(null);
+  const noteIntroStartRef = useRef<number | null>(null);
   const controlsRef = useRef<any>(null);
+  const noteTransitionClockRef = useRef<number | null>(null);
   const { showMidiRoll, cameraView } = settings;
   const timeWindow = DEFAULT_TIME_WINDOW;
+  const activeNoteSignature = getNotesSignature(notes);
   const activePose = cameraPresets[cameraView];
   const isFlatEditing = isCameraEditing && activePose.flatLock;
+  const exitingFilterTimeRef = useRef<number>(0);
+  const notesSignatureRef = useRef(activeNoteSignature);
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -734,20 +780,61 @@ const Scene = ({
     });
   };
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    if (
+      isNoteTransitioning &&
+      noteTransitionClockRef.current !== null &&
+      clock.getElapsedTime() - noteTransitionClockRef.current >=
+        INTRO_NOTE_TRANSITION_OUT_DURATION
+    ) {
+      setIsNoteTransitioning(false);
+      setExitingNotes([]);
+      noteTransitionClockRef.current = null;
+    }
+
+    if (isNoteTransitioning && noteTransitionClockRef.current === null) {
+      noteTransitionClockRef.current = clock.getElapsedTime();
+    }
+
     if (Math.abs(Tone.Transport.seconds - filterTime) > 0.5) {
       setFilterTime(Tone.Transport.seconds);
     }
   });
 
+  useEffect(() => {
+    if (activeNoteSignature === notesSignatureRef.current) {
+      setAnimatedNotes(notes);
+      return;
+    }
+
+    setExitingNotes(animatedNotes);
+    setAnimatedNotes(notes);
+    notesSignatureRef.current = activeNoteSignature;
+    exitingFilterTimeRef.current = filterTime;
+    noteIntroStartRef.current = null;
+    setIsNoteTransitioning(animatedNotes.length > 0);
+    noteTransitionClockRef.current = null;
+  }, [activeNoteSignature, animatedNotes, notes]);
+
   const visibleNotes = useMemo(() => {
     const paddedWindow = timeWindow + 2;
-    return notes.filter(
+    return animatedNotes.filter(
       (note) =>
         note.time >= filterTime - paddedWindow / 2 &&
         note.time <= filterTime + paddedWindow / 2,
     );
-  }, [notes, filterTime, timeWindow]);
+  }, [animatedNotes, filterTime, timeWindow]);
+
+  const visibleExitingNotes = useMemo(() => {
+    const paddedWindow = timeWindow + 2;
+    const referenceTime = exitingFilterTimeRef.current;
+
+    return exitingNotes.filter(
+      (note) =>
+        note.time >= referenceTime - paddedWindow / 2 &&
+        note.time <= referenceTime + paddedWindow / 2,
+    );
+  }, [exitingNotes, filterTime, timeWindow]);
 
   return (
     <>
@@ -756,23 +843,45 @@ const Scene = ({
       <pointLight position={[0, 0, 10]} intensity={1} color="#ffffff" />
 
       {showMidiRoll && (
-        <MidiRoll
-          isFlatView={activePose.flatLock}
-          notes={notes}
-          filterTime={filterTime}
-          timeWindow={timeWindow}
-          introStartRef={introStartRef}
-        />
+        <>
+          <MidiRoll
+            isFlatView={activePose.flatLock}
+            notes={exitingNotes}
+            filterTime={filterTime}
+            timeWindow={timeWindow}
+            introStartRef={noteIntroStartRef}
+            animationMode="exit"
+            transitionClockRef={noteTransitionClockRef}
+          />
+          <MidiRoll
+            isFlatView={activePose.flatLock}
+            notes={animatedNotes}
+            filterTime={filterTime}
+            timeWindow={timeWindow}
+            introStartRef={noteIntroStartRef}
+          />
+        </>
       )}
 
       <group rotation={[0, 0, 0]}>
         <Staff introStartRef={introStartRef} />
-        {visibleNotes.map((note, index) => (
+        {visibleExitingNotes.map((note, index) => (
           <NoteMesh
-            key={note.id}
+            key={`note-exit-${note.id}-${index}`}
             note={note}
             timeWindow={timeWindow}
-            introStartRef={introStartRef}
+            introStartRef={noteIntroStartRef}
+            introDelay={0}
+            animationMode="exit"
+            transitionClockRef={noteTransitionClockRef}
+          />
+        ))}
+        {visibleNotes.map((note, index) => (
+          <NoteMesh
+            key={`note-enter-${note.id}-${index}`}
+            note={note}
+            timeWindow={timeWindow}
+            introStartRef={noteIntroStartRef}
             introDelay={getNoteIntroDelay(note, index)}
           />
         ))}

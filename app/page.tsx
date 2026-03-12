@@ -109,6 +109,11 @@ export default function Home() {
   const uploadDragDepthRef = useRef(0);
   const cursorDotRef = useRef<HTMLDivElement>(null);
   const cursorRingRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
+  const libraryRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
+  const cameraLabRef = useRef<HTMLDivElement>(null);
 
   const updateProgress = useCallback(() => {
     if (isPlaying) {
@@ -157,6 +162,52 @@ export default function Home() {
     return () =>
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    const hasOpenLayer = showInfo || showLibrary || showSettings || showCameraLab;
+
+    if (!hasOpenLayer) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const clickedInsideInfo = showInfo && infoRef.current?.contains(target);
+      const clickedInsideLibrary = showLibrary && libraryRef.current?.contains(target);
+      const clickedInsideSettings =
+        showSettings &&
+        ((settingsRef.current?.contains(target) ??
+          false) ||
+          (settingsTriggerRef.current?.contains(target) ?? false));
+      const clickedInsideCameraLab =
+        showCameraLab && cameraLabRef.current?.contains(target);
+
+      if (
+        clickedInsideInfo ||
+        clickedInsideLibrary ||
+        clickedInsideSettings ||
+        clickedInsideCameraLab
+      ) {
+        return;
+      }
+
+      setShowInfo(false);
+      setShowLibrary(false);
+      setShowSettings(false);
+      setShowCameraLab(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [showCameraLab, showInfo, showLibrary, showSettings]);
 
   useEffect(() => {
     try {
@@ -518,8 +569,10 @@ export default function Home() {
           />
           <div
             ref={cursorDotRef}
-            className="absolute top-0 left-0 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/85 shadow-[0_0_16px_rgba(255,255,255,0.55)]"
-          />
+            className="pointer-events-none absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)]"
+          >
+            <Music className="h-5 w-5" />
+          </div>
         </div>
       )}
 
@@ -555,7 +608,7 @@ export default function Home() {
               Upload MIDI
             </button>
 
-            <div className="relative">
+            <div ref={libraryRef} className="relative">
               <button
                 onClick={(e) => {
                   setShowLibrary(!showLibrary);
@@ -625,6 +678,7 @@ export default function Home() {
             </button>
 
             <button
+              ref={settingsTriggerRef}
               onClick={(e) => {
                 setShowSettings(!showSettings);
                 setShowInfo(false);
@@ -661,7 +715,10 @@ export default function Home() {
           </div>
 
           {showSettings && (
-            <div className="pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl border border-white/10 bg-black/90 p-5 text-white shadow-2xl backdrop-blur-xl">
+            <div
+              ref={settingsRef}
+              className="pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl border border-white/10 bg-black/90 p-5 text-white shadow-2xl backdrop-blur-xl"
+            >
               <h2 className="border-b border-white/10 pb-2 text-lg font-semibold">
                 Settings
               </h2>
@@ -770,6 +827,7 @@ export default function Home() {
 
       {showInfo && (
         <div
+          ref={infoRef}
           className="fixed inset-0 z-[20000000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
@@ -865,17 +923,19 @@ export default function Home() {
       )}
 
       {showCameraLab && (
-        <CameraLab
-          activeView={activeCameraView}
-          draftPose={activeCameraDraft}
-          isDirty={isActiveCameraDirty}
-          onClose={() => setShowCameraLab(false)}
-          onPoseChange={(pose) => updateCameraDraft(activeCameraView, pose)}
-          onResetToDefault={resetActiveCameraView}
-          onRevert={revertActiveCameraView}
-          onSave={saveActiveCameraView}
-          onSelectView={(view) => updateSetting("cameraView", view)}
-        />
+        <div ref={cameraLabRef}>
+          <CameraLab
+            activeView={activeCameraView}
+            draftPose={activeCameraDraft}
+            isDirty={isActiveCameraDirty}
+            onClose={() => setShowCameraLab(false)}
+            onPoseChange={(pose) => updateCameraDraft(activeCameraView, pose)}
+            onResetToDefault={resetActiveCameraView}
+            onRevert={revertActiveCameraView}
+            onSave={saveActiveCameraView}
+            onSelectView={(view) => updateSetting("cameraView", view)}
+          />
+        </div>
       )}
 
       <div
