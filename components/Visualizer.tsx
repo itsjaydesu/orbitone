@@ -31,8 +31,16 @@ const DEFAULT_BLOOM_INTENSITY = 1.2;
 const CLEF_FONT_STACK =
   '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif';
 const CLEF_FONT_SIZE_PX = 72;
+const TREBLE_CLEF_SCALE = 1.25;
 const BASS_CLEF_SCALE = 0.75;
 const CLEF_Z_OFFSET = 0.08;
+const NOTE_RADIUS_STEP = 0.2;
+const STAFF_LINE_SPACING = NOTE_RADIUS_STEP * 2;
+const BASE_BASS_RADII = [8.0, 8.4, 8.8, 9.2, 9.6];
+const BASE_TREBLE_RADII = [10.4, 10.8, 11.2, 11.6, 12.0];
+const BASE_STAFF_RADII = [...BASE_BASS_RADII, ...BASE_TREBLE_RADII];
+const BASE_MIN_STAFF_RADIUS = BASE_BASS_RADII[0];
+const BASE_MAX_STAFF_RADIUS = BASE_TREBLE_RADII[BASE_TREBLE_RADII.length - 1];
 const INTRO_RING_DRAW_DURATION = 1.07;
 const INTRO_RING_STAGGER = 0.065;
 const INTRO_NOTE_BASE_DELAY = 1.74;
@@ -155,6 +163,49 @@ const getNoteIntroDelay = (note: NoteEvent, index: number) => {
   );
 };
 
+const getNoteRadius = (midi: number) =>
+  10.0 + (getDiatonicStep(midi) - 28) * NOTE_RADIUS_STEP;
+
+const getExpandedStaffRadii = (notes: NoteEvent[]) => {
+  if (notes.length === 0) {
+    return BASE_STAFF_RADII;
+  }
+
+  let minRadius = Infinity;
+  let maxRadius = -Infinity;
+
+  for (const note of notes) {
+    const radius = getNoteRadius(note.midi);
+    minRadius = Math.min(minRadius, radius);
+    maxRadius = Math.max(maxRadius, radius);
+  }
+
+  const lowerRingCount =
+    minRadius < BASE_MIN_STAFF_RADIUS
+      ? Math.ceil((BASE_MIN_STAFF_RADIUS - minRadius) / STAFF_LINE_SPACING)
+      : 0;
+  const upperRingCount =
+    maxRadius > BASE_MAX_STAFF_RADIUS
+      ? Math.ceil((maxRadius - BASE_MAX_STAFF_RADIUS) / STAFF_LINE_SPACING)
+      : 0;
+
+  const lowerRadii = Array.from({ length: lowerRingCount }, (_, index) =>
+    Number(
+      (
+        BASE_MIN_STAFF_RADIUS -
+        STAFF_LINE_SPACING * (lowerRingCount - index)
+      ).toFixed(3),
+    ),
+  );
+  const upperRadii = Array.from({ length: upperRingCount }, (_, index) =>
+    Number(
+      (BASE_MAX_STAFF_RADIUS + STAFF_LINE_SPACING * (index + 1)).toFixed(3),
+    ),
+  );
+
+  return [...lowerRadii, ...BASE_STAFF_RADII, ...upperRadii];
+};
+
 const StaffRing = ({
   radius,
   index,
@@ -214,11 +265,13 @@ const StaffRing = ({
   return <primitive object={line} ref={ringRef} />;
 };
 
-const Staff = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
-  const trebleRadii = [10.4, 10.8, 11.2, 11.6, 12.0];
-  const bassRadii = [8.0, 8.4, 8.8, 9.2, 9.6];
-  const radii = [...bassRadii, ...trebleRadii];
-
+const Staff = ({
+  introStartRef,
+  radii,
+}: {
+  introStartRef: IntroClockRef;
+  radii: number[];
+}) => {
   return (
     <group>
       {radii.map((radius, index) => (
@@ -248,8 +301,7 @@ const NoteMesh = ({
   const meshMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const targetScale = useMemo(() => new THREE.Vector3(), []);
 
-  const step = getDiatonicStep(note.midi) - 28;
-  const radius = 10.0 + step * 0.2;
+  const radius = getNoteRadius(note.midi);
 
   useFrame(({ clock }) => {
     if (!groupRef.current || !meshMatRef.current) {
@@ -471,17 +523,23 @@ const ClefIcon = ({
         ref={iconRef}
         style={{
           color: "#ffffff",
+          display: "grid",
           fontFamily: CLEF_FONT_STACK,
           fontSize: `${CLEF_FONT_SIZE_PX * scale}px`,
+          height: "1em",
+          justifyItems: "center",
           lineHeight: "1",
           opacity: 0,
+          overflow: "visible",
           pointerEvents: "none",
+          placeItems: "center",
           textShadow: "0 0 1px rgba(255,255,255,0.55)",
           transform: `translate3d(0,0,0) scale(${(0.82 * scale).toFixed(3)})`,
           transformOrigin: "50% 50%",
           userSelect: "none",
           whiteSpace: "pre",
           WebkitFontSmoothing: "antialiased",
+          width: "1em",
         }}
       >
         {glyph}
@@ -492,13 +550,11 @@ const ClefIcon = ({
 
 const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
   const groupRef = useRef<THREE.Group>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
   const trebleRef = useRef<HTMLDivElement>(null);
   const bassRef = useRef<HTMLDivElement>(null);
 
   useFrame(({ clock }) => {
-    if (!groupRef.current || !materialRef.current || !lightRef.current) {
+    if (!groupRef.current) {
       return;
     }
 
@@ -513,8 +569,6 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
     groupRef.current.scale.setScalar(0.82 + progress * 0.18);
     groupRef.current.position.y = (1 - progress) * 0.55;
     groupRef.current.position.z = 0;
-    materialRef.current.opacity = opacity;
-    lightRef.current.intensity = 2 * progress;
     const iconScale = 0.84 + progress * 0.16;
 
     if (trebleRef.current) {
@@ -530,23 +584,11 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
 
   return (
     <group ref={groupRef} scale={0.001}>
-      <mesh position={[0, 10.0, 0]} renderOrder={30}>
-        <boxGeometry args={[0.02, 4.0, 0.02]} />
-        <meshBasicMaterial
-          ref={materialRef}
-          color="#ffffff"
-          depthTest={false}
-          depthWrite={false}
-          toneMapped={false}
-          transparent
-          opacity={0}
-        />
-        <pointLight ref={lightRef} color="#ffffff" intensity={0} distance={5} />
-      </mesh>
       <ClefIcon
         glyph="𝄞"
         iconRef={trebleRef}
         position={[0, 11.2, CLEF_Z_OFFSET]}
+        scale={TREBLE_CLEF_SCALE}
       />
       <ClefIcon
         glyph="𝄢"
@@ -695,6 +737,7 @@ const Scene = ({
   const timeWindow = DEFAULT_TIME_WINDOW;
   const activePose = cameraPresets[cameraView];
   const isFlatEditing = isCameraEditing && activePose.flatLock;
+  const staffRadii = useMemo(() => getExpandedStaffRadii(notes), [notes]);
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -750,7 +793,7 @@ const Scene = ({
       )}
 
       <group rotation={[0, 0, 0]}>
-        <Staff introStartRef={introStartRef} />
+        <Staff introStartRef={introStartRef} radii={staffRadii} />
         {visibleNotes.map((note, index) => (
           <NoteMesh
             key={note.id}
