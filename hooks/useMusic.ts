@@ -11,10 +11,11 @@ export interface MusicSettings {
 }
 
 const DEFAULT_NOTE_LOAD_OFFSET_SECONDS = 0.35;
+const GLOBAL_VOLUME_BOOST = 1.4;
 
 export const useMusic = (settings: MusicSettings) => {
   const { volumePercent } = settings;
-  const baseOutputGain = 1.25;
+  const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST;
   const defaultReverbRoomSize = 0.8;
   const defaultMusic = useMemo(() => {
     const piece = generateBeautifulPianoPiece(32, 100);

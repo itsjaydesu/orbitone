@@ -30,6 +30,9 @@ const DEFAULT_TIME_WINDOW = 10;
 const DEFAULT_BLOOM_INTENSITY = 1.2;
 const CLEF_FONT_STACK =
   '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif';
+const CLEF_FONT_SIZE_PX = 72;
+const BASS_CLEF_SCALE = 0.75;
+const CLEF_Z_OFFSET = 0.08;
 const INTRO_RING_DRAW_DURATION = 1.07;
 const INTRO_RING_STAGGER = 0.065;
 const INTRO_NOTE_BASE_DELAY = 1.74;
@@ -415,8 +418,6 @@ const MidiRoll = ({
   timeWindow: number;
   introStartRef: IntroClockRef;
 }) => {
-  const guideRef = useRef<THREE.Mesh>(null);
-  const guideMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const speed = 10;
   const lookAhead = timeWindow * 1.5;
 
@@ -429,37 +430,8 @@ const MidiRoll = ({
     [notes, filterTime, lookAhead],
   );
 
-  useFrame(({ clock }) => {
-    if (!guideRef.current || !guideMaterialRef.current) {
-      return;
-    }
-
-    const progress = getIntroProgress(
-      clock.getElapsedTime(),
-      introStartRef,
-      0.28,
-      0.78,
-    );
-
-    guideRef.current.position.y = (1 - progress) * -0.35;
-    guideRef.current.scale.x = 0.72 + progress * 0.28;
-    guideMaterialRef.current.opacity = 0.8 * progress;
-  });
-
   return (
     <group position={[0, -2, 0]}>
-      <mesh ref={guideRef} position={[0, 0, 0]} renderOrder={isFlatView ? 4 : 1}>
-        <boxGeometry args={[14, 0.05, 0.1]} />
-        <meshBasicMaterial
-          ref={guideMaterialRef}
-          color="#ffffff"
-          depthTest={!isFlatView}
-          depthWrite={false}
-          toneMapped={false}
-          transparent
-          opacity={0}
-        />
-      </mesh>
       {rollNotes.map((note, index) => (
         <MidiRollNote
           key={`roll-${note.id}`}
@@ -478,10 +450,12 @@ const ClefIcon = ({
   glyph,
   iconRef,
   position,
+  scale = 1,
 }: {
   glyph: string;
   iconRef: RefObject<HTMLDivElement | null>;
   position: [number, number, number];
+  scale?: number;
 }) => {
   return (
     <Html
@@ -491,19 +465,19 @@ const ClefIcon = ({
       pointerEvents="none"
       style={{ pointerEvents: "none" }}
       transform
-      sprite
+      zIndexRange={[0, 0]}
     >
       <div
         ref={iconRef}
         style={{
           color: "#ffffff",
           fontFamily: CLEF_FONT_STACK,
-          fontSize: "72px",
+          fontSize: `${CLEF_FONT_SIZE_PX * scale}px`,
           lineHeight: "1",
           opacity: 0,
           pointerEvents: "none",
           textShadow: "0 0 1px rgba(255,255,255,0.55)",
-          transform: "translate3d(0,0,0) scale(0.82)",
+          transform: `translate3d(0,0,0) scale(${(0.82 * scale).toFixed(3)})`,
           transformOrigin: "50% 50%",
           userSelect: "none",
           whiteSpace: "pre",
@@ -541,16 +515,16 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
     groupRef.current.position.z = 0;
     materialRef.current.opacity = opacity;
     lightRef.current.intensity = 2 * progress;
-    const iconTransform = `translate3d(0,0,0) scale(${(0.84 + progress * 0.16).toFixed(3)})`;
+    const iconScale = 0.84 + progress * 0.16;
 
     if (trebleRef.current) {
       trebleRef.current.style.opacity = opacity.toFixed(3);
-      trebleRef.current.style.transform = iconTransform;
+      trebleRef.current.style.transform = `translate3d(0,0,0) scale(${iconScale.toFixed(3)})`;
     }
 
     if (bassRef.current) {
       bassRef.current.style.opacity = opacity.toFixed(3);
-      bassRef.current.style.transform = iconTransform;
+      bassRef.current.style.transform = `translate3d(0,0,0) scale(${(iconScale * BASS_CLEF_SCALE).toFixed(3)})`;
     }
   });
 
@@ -569,8 +543,17 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
         />
         <pointLight ref={lightRef} color="#ffffff" intensity={0} distance={5} />
       </mesh>
-      <ClefIcon glyph="𝄞" iconRef={trebleRef} position={[0, 11.2, 0]} />
-      <ClefIcon glyph="𝄢" iconRef={bassRef} position={[0, 8.8, 0]} />
+      <ClefIcon
+        glyph="𝄞"
+        iconRef={trebleRef}
+        position={[0, 11.2, CLEF_Z_OFFSET]}
+      />
+      <ClefIcon
+        glyph="𝄢"
+        iconRef={bassRef}
+        position={[0, 8.8, CLEF_Z_OFFSET]}
+        scale={BASS_CLEF_SCALE}
+      />
     </group>
   );
 };

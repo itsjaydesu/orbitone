@@ -527,7 +527,7 @@ export default function Home() {
         className={cn("pointer-events-none", topChromeClass)}
         inert={!chromeVisible}
       >
-        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-xl">
+        <div className="rounded-2xl bg-black/20 px-4 py-3 backdrop-blur-xl">
           <h1 className="text-2xl font-semibold tracking-[0.18em] text-white">
             orbitone
           </h1>
@@ -770,7 +770,7 @@ export default function Home() {
 
       {showInfo && (
         <div
-          className="fixed inset-0 z-[140] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[20000000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
