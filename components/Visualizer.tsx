@@ -31,16 +31,19 @@ const DEFAULT_BLOOM_INTENSITY = 1.2;
 const CLEF_FONT_STACK =
   '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif';
 const CLEF_FONT_SIZE_PX = 72;
-const TREBLE_CLEF_SCALE = 1.25;
-const BASS_CLEF_SCALE = 0.75;
+const TREBLE_CLEF_SCALE = 1.05;
+const BASS_CLEF_SCALE = 0.82;
 const CLEF_Z_OFFSET = 0.08;
 const NOTE_RADIUS_STEP = 0.2;
-const STAFF_LINE_SPACING = NOTE_RADIUS_STEP * 2;
 const BASE_BASS_RADII = [8.0, 8.4, 8.8, 9.2, 9.6];
 const BASE_TREBLE_RADII = [10.4, 10.8, 11.2, 11.6, 12.0];
 const BASE_STAFF_RADII = [...BASE_BASS_RADII, ...BASE_TREBLE_RADII];
-const BASE_MIN_STAFF_RADIUS = BASE_BASS_RADII[0];
-const BASE_MAX_STAFF_RADIUS = BASE_TREBLE_RADII[BASE_TREBLE_RADII.length - 1];
+// These glyphs are optically centered by anchoring them to their notation lines,
+// then applying a small font-metric correction.
+const TREBLE_CLEF_LINE_RADIUS = BASE_TREBLE_RADII[2];
+const TREBLE_CLEF_OFFSET_Y_EM = -0.02;
+const BASS_CLEF_LINE_RADIUS = BASE_BASS_RADII[2];
+const BASS_CLEF_OFFSET_Y_EM = -0.02;
 const INTRO_RING_DRAW_DURATION = 1.07;
 const INTRO_RING_STAGGER = 0.065;
 const INTRO_NOTE_BASE_DELAY = 1.74;
@@ -166,45 +169,8 @@ const getNoteIntroDelay = (note: NoteEvent, index: number) => {
 const getNoteRadius = (midi: number) =>
   10.0 + (getDiatonicStep(midi) - 28) * NOTE_RADIUS_STEP;
 
-const getExpandedStaffRadii = (notes: NoteEvent[]) => {
-  if (notes.length === 0) {
-    return BASE_STAFF_RADII;
-  }
-
-  let minRadius = Infinity;
-  let maxRadius = -Infinity;
-
-  for (const note of notes) {
-    const radius = getNoteRadius(note.midi);
-    minRadius = Math.min(minRadius, radius);
-    maxRadius = Math.max(maxRadius, radius);
-  }
-
-  const lowerRingCount =
-    minRadius < BASE_MIN_STAFF_RADIUS
-      ? Math.ceil((BASE_MIN_STAFF_RADIUS - minRadius) / STAFF_LINE_SPACING)
-      : 0;
-  const upperRingCount =
-    maxRadius > BASE_MAX_STAFF_RADIUS
-      ? Math.ceil((maxRadius - BASE_MAX_STAFF_RADIUS) / STAFF_LINE_SPACING)
-      : 0;
-
-  const lowerRadii = Array.from({ length: lowerRingCount }, (_, index) =>
-    Number(
-      (
-        BASE_MIN_STAFF_RADIUS -
-        STAFF_LINE_SPACING * (lowerRingCount - index)
-      ).toFixed(3),
-    ),
-  );
-  const upperRadii = Array.from({ length: upperRingCount }, (_, index) =>
-    Number(
-      (BASE_MAX_STAFF_RADIUS + STAFF_LINE_SPACING * (index + 1)).toFixed(3),
-    ),
-  );
-
-  return [...lowerRadii, ...BASE_STAFF_RADII, ...upperRadii];
-};
+const getClefTransform = (scale: number, offsetYEm: number) =>
+  `translate3d(0,${offsetYEm.toFixed(3)}em,0) scale(${scale.toFixed(3)})`;
 
 const StaffRing = ({
   radius,
@@ -265,16 +231,10 @@ const StaffRing = ({
   return <primitive object={line} ref={ringRef} />;
 };
 
-const Staff = ({
-  introStartRef,
-  radii,
-}: {
-  introStartRef: IntroClockRef;
-  radii: number[];
-}) => {
+const Staff = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
   return (
     <group>
-      {radii.map((radius, index) => (
+      {BASE_STAFF_RADII.map((radius, index) => (
         <StaffRing
           key={radius}
           radius={radius}
@@ -503,11 +463,13 @@ const ClefIcon = ({
   iconRef,
   position,
   scale = 1,
+  offsetYEm = 0,
 }: {
   glyph: string;
   iconRef: RefObject<HTMLDivElement | null>;
   position: [number, number, number];
   scale?: number;
+  offsetYEm?: number;
 }) => {
   return (
     <Html
@@ -522,19 +484,19 @@ const ClefIcon = ({
       <div
         ref={iconRef}
         style={{
+          alignItems: "center",
           color: "#ffffff",
-          display: "grid",
+          display: "flex",
           fontFamily: CLEF_FONT_STACK,
-          fontSize: `${CLEF_FONT_SIZE_PX * scale}px`,
+          fontSize: `${CLEF_FONT_SIZE_PX}px`,
           height: "1em",
-          justifyItems: "center",
+          justifyContent: "center",
           lineHeight: "1",
           opacity: 0,
           overflow: "visible",
           pointerEvents: "none",
-          placeItems: "center",
           textShadow: "0 0 1px rgba(255,255,255,0.55)",
-          transform: `translate3d(0,0,0) scale(${(0.82 * scale).toFixed(3)})`,
+          transform: getClefTransform(0.82 * scale, offsetYEm),
           transformOrigin: "50% 50%",
           userSelect: "none",
           whiteSpace: "pre",
@@ -573,12 +535,18 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
 
     if (trebleRef.current) {
       trebleRef.current.style.opacity = opacity.toFixed(3);
-      trebleRef.current.style.transform = `translate3d(0,0,0) scale(${iconScale.toFixed(3)})`;
+      trebleRef.current.style.transform = getClefTransform(
+        iconScale * TREBLE_CLEF_SCALE,
+        TREBLE_CLEF_OFFSET_Y_EM,
+      );
     }
 
     if (bassRef.current) {
       bassRef.current.style.opacity = opacity.toFixed(3);
-      bassRef.current.style.transform = `translate3d(0,0,0) scale(${(iconScale * BASS_CLEF_SCALE).toFixed(3)})`;
+      bassRef.current.style.transform = getClefTransform(
+        iconScale * BASS_CLEF_SCALE,
+        BASS_CLEF_OFFSET_Y_EM,
+      );
     }
   });
 
@@ -587,13 +555,15 @@ const Playhead = ({ introStartRef }: { introStartRef: IntroClockRef }) => {
       <ClefIcon
         glyph="𝄞"
         iconRef={trebleRef}
-        position={[0, 11.2, CLEF_Z_OFFSET]}
+        position={[0, TREBLE_CLEF_LINE_RADIUS, CLEF_Z_OFFSET]}
+        offsetYEm={TREBLE_CLEF_OFFSET_Y_EM}
         scale={TREBLE_CLEF_SCALE}
       />
       <ClefIcon
         glyph="𝄢"
         iconRef={bassRef}
-        position={[0, 8.8, CLEF_Z_OFFSET]}
+        position={[0, BASS_CLEF_LINE_RADIUS, CLEF_Z_OFFSET]}
+        offsetYEm={BASS_CLEF_OFFSET_Y_EM}
         scale={BASS_CLEF_SCALE}
       />
     </group>
@@ -704,7 +674,11 @@ const CameraController = ({
     const lerpFactor = cameraView === "topThird" ? 0.075 : 0.05;
     camera.position.lerp(targetPos.current, lerpFactor);
     lookAtTarget.current.lerp(targetLookAt.current, lerpFactor);
-    const nextFov = THREE.MathUtils.lerp(camera.fov, activePose.fov, lerpFactor);
+    const nextFov = THREE.MathUtils.lerp(
+      camera.fov,
+      activePose.fov,
+      lerpFactor,
+    );
 
     if (Math.abs(nextFov - camera.fov) > 0.001) {
       camera.fov = nextFov;
@@ -737,7 +711,6 @@ const Scene = ({
   const timeWindow = DEFAULT_TIME_WINDOW;
   const activePose = cameraPresets[cameraView];
   const isFlatEditing = isCameraEditing && activePose.flatLock;
-  const staffRadii = useMemo(() => getExpandedStaffRadii(notes), [notes]);
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -793,7 +766,7 @@ const Scene = ({
       )}
 
       <group rotation={[0, 0, 0]}>
-        <Staff introStartRef={introStartRef} radii={staffRadii} />
+        <Staff introStartRef={introStartRef} />
         {visibleNotes.map((note, index) => (
           <NoteMesh
             key={note.id}
