@@ -14,6 +14,9 @@ export interface MusicData {
   bpm: number;
 }
 
+export const DEFAULT_NOTE_LEAD_IN_SECONDS = 0.35;
+export const MIN_UPLOAD_NOTE_LEAD_IN_SECONDS = 0.5;
+
 export const parseMidiFile = async (file: File): Promise<MusicData> => {
   const arrayBuffer = await file.arrayBuffer();
   const midi = new Midi(arrayBuffer);
@@ -65,9 +68,15 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
 
   notes.sort((a, b) => a.time - b.time);
 
-  // Skip initial silence if it's longer than 1 second
-  if (notes.length > 0 && notes[0].time > 1) {
-    const offset = notes[0].time - 1;
+  // Keep uploads from starting at t=0 while preserving existing long-silence normalization.
+  if (notes.length > 0) {
+    const firstNoteTime = notes[0].time;
+    const clampedFirstTime = Math.min(
+      1,
+      Math.max(MIN_UPLOAD_NOTE_LEAD_IN_SECONDS, firstNoteTime),
+    );
+    const offset = firstNoteTime - clampedFirstTime;
+
     notes.forEach(note => {
       note.time -= offset;
     });
