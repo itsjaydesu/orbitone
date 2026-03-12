@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as Tone from "tone";
 import {
   NoteEvent,
-  DEFAULT_NOTE_LEAD_IN_SECONDS,
   generateBeautifulPianoPiece,
   parseMidiFile,
 } from "../lib/music";
@@ -11,6 +10,7 @@ export interface MusicSettings {
   volumePercent: number;
 }
 
+const DEFAULT_NOTE_LOAD_OFFSET_SECONDS = 0.35;
 const GLOBAL_VOLUME_BOOST = 1.4;
 
 export const useMusic = (settings: MusicSettings) => {
@@ -24,7 +24,7 @@ export const useMusic = (settings: MusicSettings) => {
       ...piece,
       notes: piece.notes.map((note) => ({
         ...note,
-        time: note.time + DEFAULT_NOTE_LEAD_IN_SECONDS,
+        time: note.time + DEFAULT_NOTE_LOAD_OFFSET_SECONDS,
       })),
     };
   }, []);

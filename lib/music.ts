@@ -1,9 +1,6 @@
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
-export const DEFAULT_NOTE_LEAD_IN_SECONDS = 0.35;
-export const MIN_UPLOAD_NOTE_LEAD_IN_SECONDS = 0.5;
-
 export interface NoteEvent {
   id: string;
   midi: number;
@@ -68,24 +65,15 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
 
   notes.sort((a, b) => a.time - b.time);
 
-  const bpm = Math.round(
-    midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120,
-  );
-
-  if (notes.length === 0) {
-    return { notes: [], bpm };
+  // Skip initial silence if it's longer than 1 second
+  if (notes.length > 0 && notes[0].time > 1) {
+    const offset = notes[0].time - 1;
+    notes.forEach(note => {
+      note.time -= offset;
+    });
   }
 
-  const firstTime = notes[0].time;
-  const targetLeadIn =
-    firstTime > 1
-      ? DEFAULT_NOTE_LEAD_IN_SECONDS
-      : MIN_UPLOAD_NOTE_LEAD_IN_SECONDS;
-  const offset = firstTime - targetLeadIn;
-
-  notes.forEach(note => {
-    note.time -= offset;
-  });
+  const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120);
 
   return { notes, bpm };
 };
