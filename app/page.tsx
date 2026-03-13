@@ -1,6 +1,4 @@
 "use client";
-
-import Image from "next/image";
 import { CameraLab } from "@/components/CameraLab";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
@@ -679,6 +677,41 @@ export default function Home() {
   );
   const keyboardShortcuts = KEYBOARD_SHORTCUTS[language];
   const creatorLinks = CREATOR_LINKS[language];
+  const creatorLinkNotes = creatorLinks.map((link) => link.subtitle).join(" · ");
+  const aboutTechItems = useMemo(
+    () =>
+      language === "ja"
+        ? [
+            {
+              title: "Three.js / React Three Fiber",
+              description: "立体的なMIDIビジュアライズとカメラ演出を担当しています。",
+            },
+            {
+              title: "Tone.js",
+              description:
+                "ピアノ音源の再生、リバーブ、ベロシティ、ペダル表現を支えています。",
+            },
+            {
+              title: "Next.js / React",
+              description: "UI、ライブラリ管理、インタラクション全体をまとめています。",
+            },
+          ]
+        : [
+            {
+              title: "Three.js / React Three Fiber",
+              description: "Handles the 3D MIDI visualization and camera choreography.",
+            },
+            {
+              title: "Tone.js",
+              description: "Drives piano playback, reverb, and the velocity / pedal expression.",
+            },
+            {
+              title: "Next.js / React",
+              description: "Keeps the UI, library flow, and the app interactions together.",
+            },
+          ],
+    [language],
+  );
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
       LIBRARY_CATEGORY_INDEX.get(activeLibraryCategoryId) ??
@@ -1929,95 +1962,79 @@ export default function Home() {
             }
           }}
         >
-          <div className="nm-card nm-animate-modal nm-scrollbar w-full max-w-[44rem] overflow-y-auto rounded-[2rem] p-5 text-[var(--nm-text)] sm:max-h-[88vh] sm:p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold tracking-[0.06em]">
+          <div className="nm-animate-modal nm-scrollbar w-full max-w-[42rem] overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] px-5 py-5 font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] sm:max-h-[88vh] sm:px-7 sm:py-6">
+            <div className="flex items-start justify-between gap-6 border-b border-white/12 pb-4">
+              <h2 className="text-xl tracking-[0.08em] text-[var(--nm-text)]">
                 {copy.aboutTitle}
               </h2>
               <button
                 onClick={() => setShowInfo(false)}
-                className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                className="shrink-0 text-base tracking-[0.16em] text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
                 aria-label={copy.closeAbout}
               >
-                <X className="h-5 w-5" />
+                (X)
               </button>
             </div>
-            <div className="space-y-4 text-sm leading-relaxed text-[var(--nm-text-dim)]">
-              <section className="relative overflow-hidden rounded-[1.75rem] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),rgba(255,255,255,0.03)_40%,rgba(0,0,0,0.12)_100%)] p-4 sm:p-5">
-                <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.03),transparent_55%)]" />
-                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
-                  <div className="overflow-hidden rounded-[1.4rem] border border-white/10 bg-black/20 shadow-[0_16px_40px_rgba(0,0,0,0.32)]">
-                    <Image
-                      src="/jay-avatar.PNG"
-                      alt={
-                        language === "ja"
-                          ? "itsjaydesuのアバター"
-                          : "itsjaydesu avatar"
-                      }
-                      width={128}
-                      height={128}
-                      className="h-28 w-28 object-cover sm:h-32 sm:w-32"
-                      priority
-                    />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[var(--nm-text)] uppercase">
-                        {copy.openSource}
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[var(--nm-text-faint)] uppercase">
-                        MIT
-                      </span>
-                    </div>
-
-                    <p>
-                      {language === "ja" ? (
-                        <>
-                          <strong className="text-[var(--nm-text)]">{displayBrandName}</strong>
-                          はMIDIファイルを、目で楽しめるMIDIミュージックボックスに変えてくれます。
-                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
-                            C
-                          </span>
-                          を押すとカメラアングルが切り替わり、
-                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
-                            M
-                          </span>
-                          でMIDIロールを表示できます。内部ではリバーブに加えて、MIDIのベロシティやペダル情報も使っていて、ピアノがより自然に鳴るようにしています。収録したMIDIにはちょっとした懐かしさがあって、楽しんでもらえたらうれしいです。オープンソースで、MITライセンスです。好きな用途に自由に使ってください。何かに使ったら、ぜひリンクを送ってもらえるとうれしいです。改善アイデアがあれば、プルリクエストも大歓迎です。
-                        </>
-                      ) : (
-                        <>
-                          <strong className="text-[var(--nm-text)]">{displayBrandName}</strong>
-                          turns a MIDI file into a visualized MIDI music box. Try pressing
-                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
-                            C
-                          </span>
-                          for different camera angles and
-                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
-                            M
-                          </span>
-                          for a MIDI roll. There&apos;s some fun stuff under the hood, it uses reverb and MIDI velocity/pedal data for a more realistic piano sound. There&apos;s some nice nostalgia in the MIDI files, hope you enjoy. It&apos;s open source and MIT licensed. Please use it for anything you like. If you use it for something, send me a link. If you have ideas on how to improve it, I&apos;m very open to pull requests.
-                        </>
-                      )}
-                    </p>
-                  </div>
+            <div className="mt-6 space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
+              <section className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
+                    {displayBrandName}
+                  </p>
+                  <p className="tracking-[0.08em] text-[var(--nm-text-dim)]">
+                    {copy.openSource} · MIT
+                  </p>
                 </div>
+
+                <p>
+                  {language === "ja" ? (
+                    <>
+                      <strong className="font-semibold text-[var(--nm-text)]">
+                        {displayBrandName}
+                      </strong>
+                      はMIDIファイルを、目で楽しめるMIDIミュージックボックスに変えてくれます。
+                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                        C
+                      </span>
+                      を押すとカメラアングルが切り替わり、
+                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                        M
+                      </span>
+                      でMIDIロールを表示できます。内部ではリバーブに加えて、MIDIのベロシティやペダル情報も使っていて、ピアノがより自然に鳴るようにしています。収録したMIDIにはちょっとした懐かしさがあって、楽しんでもらえたらうれしいです。オープンソースで、MITライセンスです。好きな用途に自由に使ってください。何かに使ったら、ぜひリンクを送ってもらえるとうれしいです。改善アイデアがあれば、プルリクエストも大歓迎です。
+                    </>
+                  ) : (
+                    <>
+                      <strong className="font-semibold text-[var(--nm-text)]">
+                        {displayBrandName}
+                      </strong>
+                      turns a MIDI file into a visualized MIDI music box. Try pressing
+                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                        C
+                      </span>
+                      for different camera angles and
+                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                        M
+                      </span>
+                      for a MIDI roll. There&apos;s some fun stuff under the hood, it uses reverb and MIDI velocity/pedal data for a more realistic piano sound. There&apos;s some nice nostalgia in the MIDI files, hope you enjoy. It&apos;s open source and MIT licensed. Please use it for anything you like. If you use it for something, send me a link. If you have ideas on how to improve it, I&apos;m very open to pull requests.
+                    </>
+                  )}
+                </p>
               </section>
 
-              <section className="nm-well rounded-[1.6rem] p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
+              <section className="space-y-4 border-t border-white/12 pt-5">
+                <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
                   {copy.keyboardShortcutsTitle}
                 </h3>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   {keyboardShortcuts.map((shortcut) => (
                     <div
                       key={shortcut.keyLabel}
-                      className="flex items-center justify-between gap-3 rounded-[1.1rem] border border-white/6 bg-black/15 px-3 py-3"
+                      className="flex items-baseline gap-4"
                     >
-                      <span className="inline-flex min-w-[4.75rem] items-center justify-center rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.18em] text-black uppercase">
-                        {shortcut.keyLabel}
+                      <span className="min-w-[4.75rem] shrink-0 text-[var(--nm-text)]">
+                        [{shortcut.keyLabel}]
                       </span>
-                      <span className="text-right text-xs text-[var(--nm-text-dim)]">
+                      <span className="text-[13px] text-[var(--nm-text-dim)]">
                         {shortcut.description}
                       </span>
                     </div>
@@ -2025,87 +2042,41 @@ export default function Home() {
                 </div>
               </section>
 
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-                <section className="nm-well rounded-[1.6rem] p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
-                    {copy.techTitle}
-                  </h3>
-                  <ul className="space-y-3">
-                    <li className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
-                        <Library className="h-4 w-4" />
-                      </span>
-                      <span>
-                        <span className="block font-medium text-[var(--nm-text)]">
-                          Three.js / React Three Fiber
-                        </span>
-                        {language === "ja"
-                          ? "立体的なMIDIビジュアライズとカメラ演出を担当しています。"
-                          : "Handles the 3D MIDI visualization and camera choreography."}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
-                        <Piano className="h-4 w-4" />
-                      </span>
-                      <span>
-                        <span className="block font-medium text-[var(--nm-text)]">
-                          Tone.js
-                        </span>
-                        {language === "ja"
-                          ? "ピアノ音源の再生、リバーブ、ベロシティ、ペダル表現を支えています。"
-                          : "Drives piano playback, reverb, and the velocity / pedal expression."}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
-                        <Music className="h-4 w-4" />
-                      </span>
-                      <span>
-                        <span className="block font-medium text-[var(--nm-text)]">
-                          Next.js / React
-                        </span>
-                        {language === "ja"
-                          ? "UI、ライブラリ管理、インタラクション全体をまとめています。"
-                          : "Keeps the UI, library flow, and the app interactions together."}
-                      </span>
-                    </li>
-                  </ul>
-                </section>
+              <section className="space-y-4 border-t border-white/12 pt-5">
+                <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                  {copy.techTitle}
+                </h3>
+                <div className="space-y-3">
+                  {aboutTechItems.map((item) => (
+                    <p key={item.title}>
+                      <span className="text-[var(--nm-text)]">{item.title}</span>{" "}
+                      <span className="text-[var(--nm-text-dim)]">{item.description}</span>
+                    </p>
+                  ))}
+                </div>
+              </section>
 
-                <section className="nm-well rounded-[1.6rem] p-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
-                    {copy.creatorTitle}
-                  </h3>
-                  <div className="grid gap-2">
-                    {creatorLinks.map((link) => {
-                      const Icon = link.icon;
-
-                      return (
-                        <a
-                          key={link.href}
-                          href={link.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="nm-link flex items-center gap-3 rounded-[1.1rem] px-3 py-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                        >
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-medium text-[var(--nm-text)]">
-                              {link.label}
-                            </span>
-                            <span className="block truncate text-xs text-[var(--nm-text-faint)]">
-                              {link.subtitle}
-                            </span>
-                          </span>
-                        </a>
-                      );
-                    })}
-                  </div>
-                </section>
-              </div>
+              <section className="space-y-4 border-t border-white/12 pt-5">
+                <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                  {copy.creatorTitle}
+                </h3>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-[var(--nm-text)]">
+                  {creatorLinks.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+                <p className="text-xs leading-[1.8] text-[var(--nm-text-faint)]">
+                  {creatorLinkNotes}
+                </p>
+              </section>
             </div>
           </div>
         </div>

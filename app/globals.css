@@ -14,21 +14,34 @@
   --nm-text-dim: rgba(255, 255, 255, 0.45);
   --nm-text-faint: rgba(255, 255, 255, 0.25);
   --nm-border: rgba(255, 255, 255, 0.04);
+  --nm-cursor-url: url('/cursor.png') 19 53, url('/cursor.svg') 19 53;
 }
 
 @media (pointer: fine) {
-  *,
-  *::before,
-  *::after,
-  *::-webkit-slider-thumb,
-  *::-webkit-slider-runnable-track,
-  *::-moz-range-thumb,
-  *::-moz-range-track,
+  html,
+  body {
+    cursor: var(--nm-cursor-url), auto;
+  }
+
   button,
   a,
   input,
-  label {
-    cursor: url('/cursor.svg') 19 53, none !important;
+  label,
+  select,
+  summary,
+  textarea,
+  [role="button"] {
+    cursor: var(--nm-cursor-url), pointer;
+  }
+
+  input:not([type]),
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="number"],
+  input[type="password"],
+  textarea {
+    cursor: var(--nm-cursor-url), text;
   }
 }
 
@@ -146,7 +159,7 @@
 
 .nm-input:disabled {
   opacity: 0.35;
-  cursor: not-allowed;
+  cursor: var(--nm-cursor-url), not-allowed;
 }
 
 /* ── Accent Button (primary CTA) ── */
@@ -275,7 +288,7 @@
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: none;
+  cursor: var(--nm-cursor-url), pointer;
   transition: box-shadow 0.15s ease;
 }
 
@@ -301,7 +314,7 @@
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: none;
+  cursor: var(--nm-cursor-url), pointer;
 }
 
 .nm-range::-moz-range-track {
@@ -335,7 +348,7 @@
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: none;
+  cursor: var(--nm-cursor-url), pointer;
 }
 
 .nm-seekbar::-moz-range-thumb {
@@ -347,7 +360,7 @@
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: none;
+  cursor: var(--nm-cursor-url), pointer;
 }
 
 .nm-seekbar::-moz-range-track {
@@ -369,7 +382,7 @@
   box-shadow:
     inset 2px 2px 4px var(--nm-shadow-dark),
     inset -2px -2px 4px var(--nm-shadow-light);
-  cursor: none;
+  cursor: var(--nm-cursor-url), pointer;
   position: relative;
   transition: all 0.2s ease;
 }
