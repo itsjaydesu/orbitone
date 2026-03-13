@@ -351,9 +351,11 @@ const NoteMesh = ({
     if (normalizedAngle < -Math.PI) normalizedAngle += Math.PI * 2;
 
     const distance = Math.abs(normalizedAngle);
+    const fadeStart = Math.PI * 0.55;
+    const fadeEnd = Math.PI;
     const opacity =
-      distance > Math.PI * 0.8
-        ? 1 - (distance - Math.PI * 0.8) / (Math.PI * 0.2)
+      distance > fadeStart
+        ? smootherStep(1 - (distance - fadeStart) / (fadeEnd - fadeStart))
         : 1;
 
     const angleDuration = (note.duration / timeWindow) * Math.PI * 2;
@@ -558,7 +560,7 @@ const MidiRoll = ({
     <group position={isFlatView ? [0, 8, -0.1] : [0, -2, 0]}>
       {rollNotes.map((note, index) => (
         <MidiRollNote
-          key={`roll-${note.id}-${index}`}
+          key={`roll-${note.id}`}
           isFlatView={isFlatView}
           note={note}
           speed={speed}
@@ -927,7 +929,7 @@ const Scene = ({
     : lastClockRef.current;
 
   const visibleDisplayNotes = useMemo(() => {
-    const paddedWindow = timeWindow + 2;
+    const paddedWindow = timeWindow + 4;
     return displayNotes.filter(
       (note) =>
         note.time >= filterTime - paddedWindow / 2 &&
@@ -939,7 +941,7 @@ const Scene = ({
   const crossfadeOldNotes = cf.active ? cf.oldNotes : displayNotes;
   const visibleExitingNotes = useMemo(() => {
     if (!isCrossfading) return [];
-    const paddedWindow = timeWindow + 2;
+    const paddedWindow = timeWindow + 4;
     return crossfadeOldNotes.filter(
       (note) =>
         note.time >= exitFilterTime - paddedWindow / 2 &&
@@ -950,7 +952,7 @@ const Scene = ({
   const crossfadeNewNotes = cf.active ? cf.newNotes : notes;
   const visibleEnteringNotes = useMemo(() => {
     if (!isCrossfading) return [];
-    const paddedWindow = timeWindow + 2;
+    const paddedWindow = timeWindow + 4;
     return crossfadeNewNotes.filter(
       (note) =>
         note.time >= filterTime - paddedWindow / 2 &&
@@ -995,7 +997,7 @@ const Scene = ({
         {isCrossfading &&
           visibleExitingNotes.map((note, index) => (
             <NoteMesh
-              key={`note-exit-${note.id}-${index}`}
+              key={`note-exit-${note.id}`}
               note={note}
               timeWindow={timeWindow}
               introStartRef={noteIntroStartRef}
@@ -1008,7 +1010,7 @@ const Scene = ({
         {isCrossfading
           ? visibleEnteringNotes.map((note, index) => (
               <NoteMesh
-                key={`note-${note.id}-${index}`}
+                key={`note-${note.id}`}
                 note={note}
                 timeWindow={timeWindow}
                 introStartRef={noteIntroStartRef}
@@ -1019,7 +1021,7 @@ const Scene = ({
             ))
           : visibleDisplayNotes.map((note, index) => (
               <NoteMesh
-                key={`note-${note.id}-${index}`}
+                key={`note-${note.id}`}
                 note={note}
                 timeWindow={timeWindow}
                 introStartRef={noteIntroStartRef}
