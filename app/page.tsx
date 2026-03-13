@@ -87,6 +87,22 @@ type LibraryCategoryMeta = {
   shortLabel: string;
 };
 
+type LibraryPrimaryGroup = {
+  blurb: string;
+  categoryIds: string[];
+  defaultCategoryId: string;
+  icon: LucideIcon;
+  id: string;
+  label: string;
+  shortLabel: string;
+};
+
+const TRAIN_LIBRARY_CATEGORY_IDS = [
+  "train-stations",
+  "train-standard-chimes",
+  "train-signature-system",
+] as const;
+
 const getLibraryCategoryMeta = (categoryId: string): LibraryCategoryMeta => {
   switch (categoryId) {
     case "classical-piano":
@@ -139,6 +155,61 @@ const getLibraryCategoryMeta = (categoryId: string): LibraryCategoryMeta => {
       };
   }
 };
+
+const LIBRARY_PRIMARY_GROUPS: LibraryPrimaryGroup[] = [
+  {
+    id: "classical-piano",
+    label: "Classical & Piano",
+    shortLabel: "Classical",
+    icon: Piano,
+    blurb: "Concert works, nocturnes, and expressive piano repertoire.",
+    categoryIds: ["classical-piano"],
+    defaultCategoryId: "classical-piano",
+  },
+  {
+    id: "film-tv-anime",
+    label: "Film, TV & Anime",
+    shortLabel: "Screen",
+    icon: Clapperboard,
+    blurb: "Big-screen themes, anime openings, and prestige TV motifs.",
+    categoryIds: ["film-tv-anime"],
+    defaultCategoryId: "film-tv-anime",
+  },
+  {
+    id: "games-internet",
+    label: "Games & Internet",
+    shortLabel: "Games",
+    icon: Gamepad2,
+    blurb: "Game scores, online relics, and endlessly replayable hooks.",
+    categoryIds: ["games-internet"],
+    defaultCategoryId: "games-internet",
+  },
+  {
+    id: "pop-electronic",
+    label: "Pop & Electronic",
+    shortLabel: "Pop",
+    icon: Disc3,
+    blurb: "Anthems, club textures, and bright electronic melodies.",
+    categoryIds: ["pop-electronic"],
+    defaultCategoryId: "pop-electronic",
+  },
+  {
+    id: "japanese-train-melodies",
+    label: "Japanese Train Melodies",
+    shortLabel: "Trains",
+    icon: TrainFront,
+    blurb:
+      "Station jingles, JR standards, and signature departure themes from across Japan's rail network.",
+    categoryIds: [...TRAIN_LIBRARY_CATEGORY_IDS],
+    defaultCategoryId: "train-stations",
+  },
+];
+
+const LIBRARY_PRIMARY_GROUP_INDEX = new Map(
+  LIBRARY_PRIMARY_GROUPS.flatMap((group) =>
+    group.categoryIds.map((categoryId) => [categoryId, group] as const),
+  ),
+);
 
 const stripMidiExtension = (fileName: string) =>
   fileName.replace(/\.(mid|midi)$/i, "");
@@ -235,10 +306,36 @@ export default function Home() {
       null,
     [activeLibraryCategoryId],
   );
+  const activeLibraryGroup = useMemo<LibraryPrimaryGroup | null>(
+    () =>
+      LIBRARY_PRIMARY_GROUP_INDEX.get(activeLibraryCategoryId) ??
+      LIBRARY_PRIMARY_GROUPS[0] ??
+      null,
+    [activeLibraryCategoryId],
+  );
   const activeLibraryCategoryMeta = activeLibraryCategory
     ? getLibraryCategoryMeta(activeLibraryCategory.id)
     : getLibraryCategoryMeta("");
-  const ActiveLibraryIcon = activeLibraryCategoryMeta.icon;
+  const ActiveLibraryCategoryIcon = activeLibraryCategoryMeta.icon;
+  const ActiveLibraryGroupIcon = activeLibraryGroup?.icon ?? ActiveLibraryCategoryIcon;
+  const activeTrainSubcategories = useMemo(
+    () =>
+      (activeLibraryGroup?.categoryIds.length ?? 0) > 1
+        ? activeLibraryGroup?.categoryIds
+            .map((categoryId) => LIBRARY_CATEGORY_INDEX.get(categoryId))
+            .filter((category): category is MidiLibraryCategory =>
+              Boolean(category),
+            ) ?? []
+        : [],
+    [activeLibraryGroup],
+  );
+  const activeLibraryHeading =
+    activeLibraryGroup?.label ?? activeLibraryCategory?.label ?? "MIDI Library";
+  const activeLibraryDescription = activeLibraryGroup
+    ? activeLibraryGroup.categoryIds.length === 1
+      ? activeLibraryGroup.blurb
+      : `${activeLibraryGroup.blurb} Currently showing ${activeLibraryCategory?.label ?? "the active set"}.`
+    : activeLibraryCategoryMeta.blurb;
   const filteredLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
       return [];
@@ -924,7 +1021,7 @@ export default function Home() {
                             MIDI Library
                           </h3>
                           <p className="mt-1 max-w-md text-xs leading-relaxed text-[var(--nm-text-dim)] sm:text-[13px]">
-                            Jump between collections, then search inside the active set.
+                            Choose a collection, then search within the active set. Japanese train melodies open a second row for stations, standards, and signature themes.
                           </p>
                         </div>
 
@@ -944,7 +1041,7 @@ export default function Home() {
                           type="search"
                           value={libraryQuery}
                           onChange={(event) => setLibraryQuery(event.target.value)}
-                          placeholder={`Search ${activeLibraryCategory?.label ?? "the library"}`}
+                          placeholder={`Search ${activeLibraryCategory?.label ?? activeLibraryGroup?.label ?? "the library"}`}
                           className="min-w-0 flex-1 bg-transparent text-sm text-[var(--nm-text)] outline-none placeholder:text-[var(--nm-text-faint)]"
                           aria-label="Search MIDI library"
                         />
@@ -952,24 +1049,26 @@ export default function Home() {
                     </div>
 
                     <div
-                      className="mt-3 grid grid-cols-4 gap-2"
+                      className="mt-3 grid grid-cols-5 gap-2"
                       role="tablist"
-                      aria-label="Library categories"
+                      aria-label="Library collections"
                     >
-                      {MIDI_LIBRARY_CATEGORIES.map((category) => {
-                        const isTabActive = category.id === activeLibraryCategoryId;
-                        const categoryMeta = getLibraryCategoryMeta(category.id);
-                        const CategoryIcon = categoryMeta.icon;
+                      {LIBRARY_PRIMARY_GROUPS.map((group) => {
+                        const isTabActive =
+                          activeLibraryGroup?.id === group.id;
+                        const GroupIcon = group.icon;
 
                         return (
                           <button
-                            key={category.id}
+                            key={group.id}
                             type="button"
                             role="tab"
                             aria-selected={isTabActive}
-                            aria-label={category.label}
-                            onClick={() => setActiveLibraryCategoryId(category.id)}
-                            title={category.label}
+                            aria-label={group.label}
+                            onClick={() =>
+                              setActiveLibraryCategoryId(group.defaultCategoryId)
+                            }
+                            title={group.label}
                             className={cn(
                               "flex min-h-12 min-w-0 items-center justify-center rounded-[1.1rem] p-2.5 transition-all",
                               isTabActive
@@ -985,26 +1084,64 @@ export default function Home() {
                                   : "border-white/6 bg-white/[0.02] text-[var(--nm-text)]",
                               )}
                             >
-                              <CategoryIcon className="h-5 w-5" />
+                              <GroupIcon className="h-5 w-5" />
                             </span>
-                            <span className="sr-only">{categoryMeta.shortLabel}</span>
+                            <span className="sr-only">{group.shortLabel}</span>
                           </button>
                         );
                       })}
                     </div>
+
+                    {activeTrainSubcategories.length > 0 && (
+                      <div
+                        className="nm-tabs-rail mt-2 flex gap-2 overflow-x-auto pb-1"
+                        role="tablist"
+                        aria-label="Japanese train melody subsets"
+                      >
+                        {activeTrainSubcategories.map((category) => {
+                          const isSubtabActive =
+                            category.id === activeLibraryCategoryId;
+                          const categoryMeta = getLibraryCategoryMeta(
+                            category.id,
+                          );
+
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={isSubtabActive}
+                              onClick={() => setActiveLibraryCategoryId(category.id)}
+                              className={cn(
+                                "shrink-0 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition-all",
+                                isSubtabActive
+                                  ? "nm-toggle-active"
+                                  : "nm-raised text-[var(--nm-text-dim)]",
+                              )}
+                            >
+                              {categoryMeta.shortLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {activeLibraryCategory && (
                       <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-2 sm:p-3">
                         <div className="px-2 py-1 sm:px-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--nm-text)]">
-                              <ActiveLibraryIcon className="h-4 w-4 shrink-0" />
-                              <span className="truncate">
-                                {activeLibraryCategory.label}
-                              </span>
+                              <ActiveLibraryGroupIcon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{activeLibraryHeading}</span>
+                              {activeLibraryGroup &&
+                                activeLibraryGroup.categoryIds.length > 1 && (
+                                  <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
+                                    {activeLibraryCategoryMeta.shortLabel}
+                                  </span>
+                                )}
                             </div>
                             <p className="mt-1 text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                              {activeLibraryCategoryMeta.blurb}
+                              {activeLibraryDescription}
                             </p>
                           </div>
                         </div>
@@ -1039,7 +1176,7 @@ export default function Home() {
                                         : "border-white/6 bg-white/[0.03] text-[var(--nm-text-dim)]",
                                     )}
                                   >
-                                    <ActiveLibraryIcon className="h-4 w-4" />
+                                    <ActiveLibraryCategoryIcon className="h-4 w-4" />
                                   </span>
                                   <span className="min-w-0 flex-1">
                                     <span className="flex flex-wrap items-start justify-between gap-2">
@@ -1068,7 +1205,7 @@ export default function Home() {
                             })
                           ) : (
                             <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
-                              <ActiveLibraryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
+                              <ActiveLibraryCategoryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
                               <h4 className="text-sm font-semibold text-[var(--nm-text)]">
                                 No matches in {activeLibraryCategory.label}
                               </h4>
@@ -1275,10 +1412,7 @@ export default function Home() {
             </div>
             <div className="space-y-4 text-sm leading-relaxed text-[var(--nm-text-dim)]">
               <p>
-                <strong className="text-[var(--nm-text)]">orbitone</strong> is an interactive 3D music
-                experience. It maps MIDI notes to a concentric grand staff
-                while preserving sustain and velocity for a more faithful
-                visual read of the performance.
+                <strong className="text-[var(--nm-text)]">orbitone</strong> turns a MIDI performance into an interactive 3D score. Each note is placed on a concentric grand staff and keeps its original timing, sustain, and velocity, so you can hear the piece while reading a more faithful picture of how it was played.
               </p>
               <div className="nm-well rounded-2xl p-4">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--nm-text)]">

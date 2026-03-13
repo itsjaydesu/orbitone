@@ -98,8 +98,8 @@ export const DEFAULT_CAMERA_PRESETS: CameraPresetMap = {
     flatLock: false,
   },
   orbit: {
-    position: { x: 0, y: 8, z: 25 },
-    target: { x: 0, y: 5, z: 0 },
+    position: { x: 0, y: 6.2, z: 28 },
+    target: { x: 0, y: 3.8, z: 0 },
     fov: 60,
     flatLock: false,
   },

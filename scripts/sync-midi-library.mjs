@@ -121,11 +121,25 @@ const ROOT_LIBRARY_ENTRIES = [
     subtitle: 'DuckTales',
   },
   {
-    source: 'Golden Sun - Overworld.mid',
+    source: 'Bubble Bobble.mid',
     categoryId: 'games-internet',
-    slug: 'golden-sun-overworld',
-    title: 'Golden Sun Overworld',
-    subtitle: 'Motoi Sakuraba',
+    slug: 'bubble-bobble',
+    title: 'Bubble Bobble',
+    subtitle: 'Taito',
+  },
+  {
+    source: 'C418 - Sweden.mid',
+    categoryId: 'games-internet',
+    slug: 'sweden',
+    title: 'Sweden',
+    subtitle: 'C418 / Minecraft',
+  },
+  {
+    source: 'C418 - Subwoofer Lullaby.mid',
+    categoryId: 'games-internet',
+    slug: 'subwoofer-lullaby',
+    title: 'Subwoofer Lullaby',
+    subtitle: 'C418 / Minecraft',
   },
   {
     source: 'mii-channel-theme.mid',
@@ -170,6 +184,27 @@ const ROOT_LIBRARY_ENTRIES = [
     subtitle: 'Coldplay',
   },
   {
+    source: 'Owl City - Fireflies.mid',
+    categoryId: 'pop-electronic',
+    slug: 'fireflies',
+    title: 'Fireflies',
+    subtitle: 'Owl City',
+  },
+  {
+    source: 'Billy Joel - Piano Man.mid',
+    categoryId: 'pop-electronic',
+    slug: 'piano-man',
+    title: 'Piano Man',
+    subtitle: 'Billy Joel',
+  },
+  {
+    source: 'The Beatles - Yesterday.mid',
+    categoryId: 'pop-electronic',
+    slug: 'yesterday',
+    title: 'Yesterday',
+    subtitle: 'The Beatles',
+  },
+  {
     source: 'kernkraft-400.mid',
     categoryId: 'pop-electronic',
     slug: 'kernkraft-400',
@@ -208,6 +243,10 @@ const TRAIN_SECTION_CONFIG = {
     subtitle: 'Railway Medley / Misc',
   },
 };
+
+const EXCLUDED_TRAIN_GROUP_KEYS = new Set([
+  '07_Medleys_and_Misc/Yamanote_Full_Medley',
+]);
 
 function findSourceRoot() {
   const candidates = ['set-source', 'set']
@@ -401,6 +440,11 @@ function buildTrainEntries(sourceRoot) {
     candidate.score = scoreTrainCandidate(candidate);
 
     const groupKey = getTrainGroupKey(relativePath);
+
+    if (EXCLUDED_TRAIN_GROUP_KEYS.has(groupKey)) {
+      continue;
+    }
+
     const existingGroup = groupedCandidates.get(groupKey) ?? [];
     existingGroup.push(candidate);
     groupedCandidates.set(groupKey, existingGroup);

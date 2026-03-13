@@ -144,6 +144,16 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
       {
         "categoryId": "games-internet",
         "categoryLabel": "Games & Internet",
+        "durationLabel": "1:16",
+        "fileName": "bubble-bobble.mid",
+        "id": "games-internet/bubble-bobble",
+        "subtitle": "Taito",
+        "title": "Bubble Bobble",
+        "url": "/midi/games-internet/bubble-bobble.mid"
+      },
+      {
+        "categoryId": "games-internet",
+        "categoryLabel": "Games & Internet",
         "durationLabel": "1:11",
         "fileName": "chrono-trigger-main-theme.mid",
         "id": "games-internet/chrono-trigger-main-theme",
@@ -160,16 +170,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "subtitle": "DuckTales",
         "title": "DuckTales Moon Theme",
         "url": "/midi/games-internet/ducktales-moon-theme.mid"
-      },
-      {
-        "categoryId": "games-internet",
-        "categoryLabel": "Games & Internet",
-        "durationLabel": "2:52",
-        "fileName": "golden-sun-overworld.mid",
-        "id": "games-internet/golden-sun-overworld",
-        "subtitle": "Motoi Sakuraba",
-        "title": "Golden Sun Overworld",
-        "url": "/midi/games-internet/golden-sun-overworld.mid"
       },
       {
         "categoryId": "games-internet",
@@ -200,6 +200,26 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "subtitle": "Portal / Jonathan Coulton",
         "title": "Still Alive",
         "url": "/midi/games-internet/portal-still-alive.mid"
+      },
+      {
+        "categoryId": "games-internet",
+        "categoryLabel": "Games & Internet",
+        "durationLabel": "3:28",
+        "fileName": "subwoofer-lullaby.mid",
+        "id": "games-internet/subwoofer-lullaby",
+        "subtitle": "C418 / Minecraft",
+        "title": "Subwoofer Lullaby",
+        "url": "/midi/games-internet/subwoofer-lullaby.mid"
+      },
+      {
+        "categoryId": "games-internet",
+        "categoryLabel": "Games & Internet",
+        "durationLabel": "0:44",
+        "fileName": "sweden.mid",
+        "id": "games-internet/sweden",
+        "subtitle": "C418 / Minecraft",
+        "title": "Sweden",
+        "url": "/midi/games-internet/sweden.mid"
       },
       {
         "categoryId": "games-internet",
@@ -240,12 +260,42 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
       {
         "categoryId": "pop-electronic",
         "categoryLabel": "Pop & Electronic",
+        "durationLabel": "3:48",
+        "fileName": "fireflies.mid",
+        "id": "pop-electronic/fireflies",
+        "subtitle": "Owl City",
+        "title": "Fireflies",
+        "url": "/midi/pop-electronic/fireflies.mid"
+      },
+      {
+        "categoryId": "pop-electronic",
+        "categoryLabel": "Pop & Electronic",
         "durationLabel": "0:14",
         "fileName": "kernkraft-400.mid",
         "id": "pop-electronic/kernkraft-400",
         "subtitle": "Zombie Nation",
         "title": "Kernkraft 400",
         "url": "/midi/pop-electronic/kernkraft-400.mid"
+      },
+      {
+        "categoryId": "pop-electronic",
+        "categoryLabel": "Pop & Electronic",
+        "durationLabel": "5:49",
+        "fileName": "piano-man.mid",
+        "id": "pop-electronic/piano-man",
+        "subtitle": "Billy Joel",
+        "title": "Piano Man",
+        "url": "/midi/pop-electronic/piano-man.mid"
+      },
+      {
+        "categoryId": "pop-electronic",
+        "categoryLabel": "Pop & Electronic",
+        "durationLabel": "2:07",
+        "fileName": "yesterday.mid",
+        "id": "pop-electronic/yesterday",
+        "subtitle": "The Beatles",
+        "title": "Yesterday",
+        "url": "/midi/pop-electronic/yesterday.mid"
       }
     ],
     "label": "Pop & Electronic"
@@ -1144,16 +1194,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "subtitle": "Named Train Melody",
         "title": "Water Crown",
         "url": "/midi/train-signature-system/water-crown.mid"
-      },
-      {
-        "categoryId": "train-signature-system",
-        "categoryLabel": "Japanese Train Melodies: Signature, Rail & Medleys",
-        "durationLabel": "1:35",
-        "fileName": "yamanote-full-medley.mid",
-        "id": "train-signature-system/yamanote-full-medley",
-        "subtitle": "Railway Medley / Misc",
-        "title": "Yamanote Full Medley",
-        "url": "/midi/train-signature-system/yamanote-full-medley.mid"
       },
       {
         "categoryId": "train-signature-system",
