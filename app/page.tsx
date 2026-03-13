@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { CameraLab } from "@/components/CameraLab";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
@@ -41,7 +42,6 @@ import {
   X,
   Library,
   Globe,
-  ChevronDown,
   Check,
   Music,
   Piano,
@@ -51,6 +51,7 @@ import {
   Minimize,
   type LucideIcon,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   startTransition,
   useState,
@@ -587,6 +588,7 @@ const isMidiFile = (file: File) => {
 };
 
 export default function Home() {
+  const isMobile = useIsMobile();
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isMenuReady, setIsMenuReady] = useState(false);
@@ -1412,6 +1414,29 @@ export default function Home() {
     isMenuReady && "transition-opacity duration-700 ease-out",
     chromeVisible ? "opacity-100" : "opacity-0 pointer-events-none",
   );
+  const topChromeStyle = isMobile
+    ? {
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.875rem)",
+      }
+    : undefined;
+  const timelineChromeStyle = isMobile
+    ? {
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 9.5rem)",
+      }
+    : undefined;
+  const playChromeStyle = isMobile
+    ? {
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 3.75rem)",
+      }
+    : undefined;
+  const infoOverlayStyle = {
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+    paddingTop: "calc(env(safe-area-inset-top, 0px) + 1rem)",
+  } as const;
+  const infoModalStyle = {
+    maxHeight:
+      "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)",
+  } as const;
 
   return (
     <main
@@ -1428,6 +1453,7 @@ export default function Home() {
       <div
         className={cn("pointer-events-none", topChromeClass)}
         inert={!chromeVisible}
+        style={topChromeStyle}
       >
         <h1 className="pointer-events-auto text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
           <span
@@ -1457,25 +1483,27 @@ export default function Home() {
 
         <div className="relative justify-self-end">
           <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <button
-              onClick={(e) => {
-                fileInputRef.current?.click();
-                e.currentTarget.blur();
-              }}
-              onDragEnter={handleUploadDragEnter}
-              onDragOver={handleUploadDragOver}
-              onDragLeave={handleUploadDragLeave}
-              onDrop={handleUploadDrop}
-              className={cn(
-                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
-                isUploadDragActive
-                  ? "nm-drag-active"
-                  : "nm-raised",
-              )}
-              aria-label={copy.upload}
-            >
-              <Upload className="h-5 w-5" />
-            </button>
+            {!isMobile && (
+              <button
+                onClick={(e) => {
+                  fileInputRef.current?.click();
+                  e.currentTarget.blur();
+                }}
+                onDragEnter={handleUploadDragEnter}
+                onDragOver={handleUploadDragOver}
+                onDragLeave={handleUploadDragLeave}
+                onDrop={handleUploadDrop}
+                className={cn(
+                  "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
+                  isUploadDragActive
+                    ? "nm-drag-active"
+                    : "nm-raised",
+                )}
+                aria-label={copy.upload}
+              >
+                <Upload className="h-5 w-5" />
+              </button>
+            )}
 
             <div ref={libraryRef} className="relative">
               <button
@@ -1750,7 +1778,6 @@ export default function Home() {
                   aria-haspopup="menu"
                 >
                   <Globe className="h-4 w-4" />
-                  <ChevronDown className="h-3.5 w-3.5 text-[var(--nm-text-dim)]" />
                 </button>
 
                 {showLanguageMenu && (
@@ -1947,10 +1974,11 @@ export default function Home() {
       {showInfo && (
         <div
           ref={infoRef}
-          className="nm-animate-fade fixed inset-0 z-[20000000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="nm-animate-fade fixed inset-0 z-[20000000] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
+          style={infoOverlayStyle}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowInfo(false);
@@ -1962,7 +1990,10 @@ export default function Home() {
             }
           }}
         >
-          <div className="nm-animate-modal nm-scrollbar w-full max-w-[42rem] overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] px-5 py-5 font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] sm:max-h-[88vh] sm:px-7 sm:py-6">
+          <div
+            className="nm-animate-modal nm-scrollbar w-full max-w-[42rem] overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] px-5 py-5 font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] sm:px-7 sm:py-6"
+            style={infoModalStyle}
+          >
             <div className="flex items-start justify-between gap-6 border-b border-white/12 pb-4">
               <h2 className="text-xl tracking-[0.08em] text-[var(--nm-text)]">
                 {copy.aboutTitle}
@@ -1976,7 +2007,7 @@ export default function Home() {
               </button>
             </div>
             <div className="mt-6 space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
-              <section className="space-y-4">
+              <section className="space-y-5">
                 <div className="space-y-1">
                   <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
                     {displayBrandName}
@@ -1986,39 +2017,71 @@ export default function Home() {
                   </p>
                 </div>
 
-                <p>
-                  {language === "ja" ? (
-                    <>
-                      <strong className="font-semibold text-[var(--nm-text)]">
-                        {displayBrandName}
-                      </strong>
-                      はMIDIファイルを、目で楽しめるMIDIミュージックボックスに変えてくれます。
-                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                        C
-                      </span>
-                      を押すとカメラアングルが切り替わり、
-                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                        M
-                      </span>
-                      でMIDIロールを表示できます。内部ではリバーブに加えて、MIDIのベロシティやペダル情報も使っていて、ピアノがより自然に鳴るようにしています。収録したMIDIにはちょっとした懐かしさがあって、楽しんでもらえたらうれしいです。オープンソースで、MITライセンスです。好きな用途に自由に使ってください。何かに使ったら、ぜひリンクを送ってもらえるとうれしいです。改善アイデアがあれば、プルリクエストも大歓迎です。
-                    </>
-                  ) : (
-                    <>
-                      <strong className="font-semibold text-[var(--nm-text)]">
-                        {displayBrandName}
-                      </strong>
-                      turns a MIDI file into a visualized MIDI music box. Try pressing
-                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                        C
-                      </span>
-                      for different camera angles and
-                      <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                        M
-                      </span>
-                      for a MIDI roll. There&apos;s some fun stuff under the hood, it uses reverb and MIDI velocity/pedal data for a more realistic piano sound. There&apos;s some nice nostalgia in the MIDI files, hope you enjoy. It&apos;s open source and MIT licensed. Please use it for anything you like. If you use it for something, send me a link. If you have ideas on how to improve it, I&apos;m very open to pull requests.
-                    </>
-                  )}
-                </p>
+                <div className="flex flex-col gap-5 rounded-[1.35rem] border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-start sm:p-5">
+                  <div className="mx-auto shrink-0 overflow-hidden rounded-[1.2rem] border border-white/12 bg-black/40 shadow-[0_16px_36px_rgba(0,0,0,0.35)]">
+                    <Image
+                      src="/jay-avatar.PNG"
+                      alt="Portrait of itsjaydesu"
+                      width={128}
+                      height={128}
+                      className="h-28 w-28 object-cover sm:h-32 sm:w-32"
+                      priority
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    {language === "ja" ? (
+                      <>
+                        <p>
+                          <strong className="font-semibold text-[var(--nm-text)]">
+                            {displayBrandName}
+                          </strong>
+                          はMIDIファイルを、目で楽しめるMIDIミュージックボックスに変えてくれます。
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                            C
+                          </span>
+                          を押すとカメラアングルが切り替わり、
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                            M
+                          </span>
+                          でMIDIロールを表示できます。内部ではリバーブに加えて、MIDIのベロシティやペダル情報も使っていて、ピアノがより自然に鳴るようにしています。収録したMIDIにはちょっとした懐かしさがあって、楽しんでもらえたらうれしいです。
+                        </p>
+
+                        <p>
+                          オープンソースで、MITライセンスです。好きな用途に自由に使ってください。何かに使ったら、ぜひリンクを送ってもらえるとうれしいです。改善アイデアがあれば、プルリクエストも大歓迎です。
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p>
+                          <strong className="font-semibold text-[var(--nm-text)]">
+                            {displayBrandName}
+                          </strong>{" "}
+                          turns a MIDI file into a visualized MIDI music box.
+                          Try pressing{" "}
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                            C
+                          </span>{" "}
+                          for different camera angles and{" "}
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                            M
+                          </span>{" "}
+                          for a MIDI roll. There&apos;s some fun stuff under the
+                          hood, it uses reverb and MIDI velocity/pedal data for
+                          a more realistic piano sound. There&apos;s some nice
+                          nostalgia in the MIDI files, hope you enjoy.
+                        </p>
+
+                        <p>
+                          It&apos;s open source and MIT licensed. Please use it for
+                          anything you like. If you use it for something, send
+                          me a link. If you have ideas on how to improve it,
+                          I&apos;m very open to pull requests.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
               </section>
 
               <section className="space-y-4 border-t border-white/12 pt-5">
@@ -2106,6 +2169,7 @@ export default function Home() {
           "bottom-28 flex w-full max-w-xl flex-col gap-2 px-4",
         )}
         inert={!chromeVisible}
+        style={timelineChromeStyle}
       >
         <input
           type="range"
@@ -2125,6 +2189,7 @@ export default function Home() {
       <div
         className={cn(bottomChromeClass, "pointer-events-none bottom-10")}
         inert={!chromeVisible}
+        style={playChromeStyle}
       >
         <button
           onClick={(e) => {
@@ -2154,6 +2219,7 @@ export default function Home() {
       <div className="visualizer-intro h-full w-full">
         <Visualizer
           cameraPresets={cameraDraftPresets}
+          isMobileView={isMobile}
           isCameraEditing={showCameraLab}
           notes={notes}
           onCameraPoseChange={handleVisualizerCameraPoseChange}

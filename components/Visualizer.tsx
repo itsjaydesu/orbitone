@@ -67,6 +67,28 @@ const INTRO_CAMERA_DELAY = 0;
 const INTRO_PLAYHEAD_DELAY = 0.6;
 const INTRO_PLAYHEAD_DURATION = 2;
 const INTRO_CAMERA_DURATION = 1.95;
+const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
+  topThird: 1.32,
+  front: 1.24,
+  top: 1.18,
+  side: 1.18,
+  dynamic: 1.22,
+  isometric: 1.14,
+  vortex: 1.2,
+  orbit: 1.18,
+  zenith: 1.1,
+};
+const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
+  topThird: 4,
+  front: 4,
+  top: 3,
+  side: 3,
+  dynamic: 4,
+  isometric: 3,
+  vortex: 3,
+  orbit: 3,
+  zenith: 2,
+};
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -155,6 +177,34 @@ const vectorToCameraVector = (vector: THREE.Vector3): CameraVector => ({
   y: Number(vector.y.toFixed(3)),
   z: Number(vector.z.toFixed(3)),
 });
+
+const getResponsiveCameraPose = (
+  pose: CameraPose,
+  cameraView: CameraView,
+  isMobileView: boolean,
+): CameraPose => {
+  if (!isMobileView) {
+    return pose;
+  }
+
+  const target = vectorFromCameraVector(pose.target);
+  const nextPosition = vectorFromCameraVector(pose.position);
+  const distanceMultiplier =
+    MOBILE_CAMERA_DISTANCE_MULTIPLIERS[cameraView] ?? 1.16;
+  const nextFov = Math.min(
+    78,
+    pose.fov + (MOBILE_CAMERA_FOV_OFFSETS[cameraView] ?? 3),
+  );
+
+  nextPosition.sub(target).multiplyScalar(distanceMultiplier).add(target);
+
+  return {
+    flatLock: pose.flatLock,
+    fov: nextFov,
+    position: vectorToCameraVector(nextPosition),
+    target: pose.target,
+  };
+};
 
 const poseToSignature = (pose: CameraPose) =>
   [
@@ -701,12 +751,14 @@ const CameraController = ({
   cameraPresets,
   controlsRef,
   isCameraEditing,
+  isMobileView,
   introStartRef,
 }: {
   cameraView: VisualizerSettings["cameraView"];
   cameraPresets: CameraPresetMap;
   controlsRef: OrbitControlsRef;
   isCameraEditing: boolean;
+  isMobileView: boolean;
   introStartRef: IntroClockRef;
 }) => {
   const { camera: rawCamera } = useThree();
@@ -715,6 +767,10 @@ const CameraController = ({
   const targetPos = useRef(new THREE.Vector3());
   const targetLookAt = useRef(new THREE.Vector3());
   const activePose = cameraPresets[cameraView];
+  const effectivePose =
+    isCameraEditing || !isMobileView
+      ? activePose
+      : getResponsiveCameraPose(activePose, cameraView, isMobileView);
   const activePoseSignature = poseToSignature(activePose);
 
   useEffect(() => {
@@ -727,12 +783,12 @@ const CameraController = ({
     }
 
     const camera = cameraRef.current;
-    const nextPosition = vectorFromCameraVector(activePose.position);
-    const nextTarget = vectorFromCameraVector(activePose.target);
+    const nextPosition = vectorFromCameraVector(effectivePose.position);
+    const nextTarget = vectorFromCameraVector(effectivePose.target);
 
     camera.position.copy(nextPosition);
     lookAtTarget.current.copy(nextTarget);
-    camera.fov = activePose.fov;
+    camera.fov = effectivePose.fov;
     camera.updateProjectionMatrix();
     camera.lookAt(nextTarget);
 
@@ -741,13 +797,16 @@ const CameraController = ({
       controlsRef.current.update();
     }
   }, [
-    activePose.fov,
+    effectivePose.fov,
     activePose.position,
     activePose.target,
     activePoseSignature,
     cameraView,
     controlsRef,
+    effectivePose.position,
+    effectivePose.target,
     isCameraEditing,
+    isMobileView,
   ]);
 
   useFrame(({ clock }) => {
@@ -756,14 +815,18 @@ const CameraController = ({
     }
 
     const camera = cameraRef.current;
-    const basePosition = vectorFromCameraVector(activePose.position);
-    const baseTarget = vectorFromCameraVector(activePose.target);
+    const basePosition = vectorFromCameraVector(effectivePose.position);
+    const baseTarget = vectorFromCameraVector(effectivePose.target);
 
     targetPos.current.copy(basePosition);
     targetLookAt.current.copy(baseTarget);
 
     if (cameraView === "topThird") {
-      const frontPose = cameraPresets.front;
+      const frontPose = getResponsiveCameraPose(
+        cameraPresets.front,
+        "front",
+        isMobileView,
+      );
       const progress = getIntroProgress(
         clock.getElapsedTime(),
         introStartRef,
@@ -802,7 +865,7 @@ const CameraController = ({
     lookAtTarget.current.lerp(targetLookAt.current, lerpFactor);
     const nextFov = THREE.MathUtils.lerp(
       camera.fov,
-      activePose.fov,
+      effectivePose.fov,
       lerpFactor,
     );
 
@@ -823,14 +886,19 @@ const Scene = ({
   notes,
   onCameraPoseChange,
   settings,
+  isMobileView,
 }: {
   cameraPresets: CameraPresetMap;
   isCameraEditing: boolean;
+  isMobileView: boolean;
   notes: NoteEvent[];
   onCameraPoseChange?: (pose: CameraPose) => void;
   settings: VisualizerSettings;
 }) => {
   const [displayNotes, setDisplayNotes] = useState<NoteEvent[]>(notes);
+  const [crossfadeState, setCrossfadeState] = useState<CrossfadeState>({
+    ...CROSSFADE_IDLE,
+  });
   const [filterTime, setFilterTime] = useState(0);
   const introStartRef = useRef<number | null>(null);
   const noteIntroStartRef = useRef<number | null>(null);
@@ -841,6 +909,10 @@ const Scene = ({
   const { showMidiRoll, cameraView } = settings;
   const timeWindow = DEFAULT_TIME_WINDOW;
   const activeNoteSignature = getNotesSignature(notes);
+  const displayNoteSignature = useMemo(
+    () => getNotesSignature(displayNotes),
+    [displayNotes],
+  );
   const activePose = cameraPresets[cameraView];
   const isFlatEditing = isCameraEditing && activePose.flatLock;
 
@@ -869,7 +941,9 @@ const Scene = ({
   useLayoutEffect(() => {
     if (activeNoteSignature === displaySignatureRef.current) {
       if (!crossfadeRef.current.active && notes !== displayNotes) {
-        setDisplayNotes(notes);
+        queueMicrotask(() => {
+          setDisplayNotes(notes);
+        });
       }
       return;
     }
@@ -880,7 +954,7 @@ const Scene = ({
       return;
     }
 
-    crossfadeRef.current = {
+    const nextCrossfade = {
       active: true,
       oldNotes: displayNotes,
       newNotes: notes,
@@ -888,6 +962,8 @@ const Scene = ({
       oldFilterTime: filterTime,
       pending: null,
     };
+    crossfadeRef.current = nextCrossfade;
+    setCrossfadeState(nextCrossfade);
     displaySignatureRef.current = activeNoteSignature;
     setFilterTime(Tone.Transport.seconds);
   }, [activeNoteSignature, displayNotes, filterTime, notes]);
@@ -905,7 +981,7 @@ const Scene = ({
       lastClockRef.current - cf.startClock >= CROSSFADE_TOTAL_DURATION
     ) {
       if (cf.pending) {
-        crossfadeRef.current = {
+        const nextCrossfade = {
           active: true,
           oldNotes: cf.newNotes,
           newNotes: cf.pending,
@@ -913,20 +989,23 @@ const Scene = ({
           oldFilterTime: Tone.Transport.seconds,
           pending: null,
         };
+        crossfadeRef.current = nextCrossfade;
+        setCrossfadeState(nextCrossfade);
         setFilterTime(Tone.Transport.seconds);
       } else {
         const settled = cf.newNotes;
         crossfadeRef.current = { ...CROSSFADE_IDLE };
+        setCrossfadeState({ ...CROSSFADE_IDLE });
         displaySignatureRef.current = getNotesSignature(settled);
         setDisplayNotes(settled);
       }
     }
   });
 
-  const cf = crossfadeRef.current;
+  const cf = crossfadeState;
   const isCrossfading =
-    cf.active || activeNoteSignature !== getNotesSignature(displayNotes);
-  const crossfadeStartClock = cf.active ? cf.startClock : lastClockRef.current;
+    cf.active || activeNoteSignature !== displayNoteSignature;
+  const crossfadeStartClock = cf.startClock;
 
   const visibleDisplayNotes = useMemo(() => {
     const paddedWindow = timeWindow + 4;
@@ -947,7 +1026,7 @@ const Scene = ({
         note.time >= exitFilterTime - paddedWindow / 2 &&
         note.time <= exitFilterTime + paddedWindow / 2,
     );
-  }, [isCrossfading, crossfadeOldNotes, exitFilterTime, timeWindow]);
+  }, [crossfadeOldNotes, exitFilterTime, isCrossfading, timeWindow]);
 
   const crossfadeNewNotes = cf.active ? cf.newNotes : notes;
   const visibleEnteringNotes = useMemo(() => {
@@ -958,7 +1037,7 @@ const Scene = ({
         note.time >= filterTime - paddedWindow / 2 &&
         note.time <= filterTime + paddedWindow / 2,
     );
-  }, [isCrossfading, crossfadeNewNotes, filterTime, timeWindow]);
+  }, [crossfadeNewNotes, filterTime, isCrossfading, timeWindow]);
 
   return (
     <>
@@ -1037,6 +1116,7 @@ const Scene = ({
         controlsRef={controlsRef}
         introStartRef={introStartRef}
         isCameraEditing={isCameraEditing}
+        isMobileView={isMobileView}
       />
 
       <OrbitControls
@@ -1076,17 +1156,23 @@ const Scene = ({
 export const Visualizer = ({
   cameraPresets,
   isCameraEditing = false,
+  isMobileView = false,
   notes,
   onCameraPoseChange,
   settings,
 }: {
   cameraPresets: CameraPresetMap;
   isCameraEditing?: boolean;
+  isMobileView?: boolean;
   notes: NoteEvent[];
   onCameraPoseChange?: (pose: CameraPose) => void;
   settings: VisualizerSettings;
 }) => {
-  const initialPose = cameraPresets[settings.cameraView];
+  const activePose = cameraPresets[settings.cameraView];
+  const initialPose =
+    isCameraEditing || !isMobileView
+      ? activePose
+      : getResponsiveCameraPose(activePose, settings.cameraView, isMobileView);
   const cameraConfig = useMemo(
     () => ({
       fov: initialPose.fov,
@@ -1109,6 +1195,7 @@ export const Visualizer = ({
       <Scene
         cameraPresets={cameraPresets}
         isCameraEditing={isCameraEditing}
+        isMobileView={isMobileView}
         notes={notes}
         onCameraPoseChange={onCameraPoseChange}
         settings={settings}
