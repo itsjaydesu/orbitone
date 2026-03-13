@@ -295,6 +295,7 @@ const NoteMesh = ({
   introDuration = INTRO_NOTE_DURATION,
   fadePhase = "steady",
   crossfadeStartClock = 0,
+  frozenTime,
 }: {
   note: NoteEvent;
   timeWindow: number;
@@ -303,6 +304,7 @@ const NoteMesh = ({
   introDuration?: number;
   fadePhase?: FadePhase;
   crossfadeStartClock?: number;
+  frozenTime?: number;
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshMatRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -315,7 +317,7 @@ const NoteMesh = ({
       return;
     }
 
-    const currentTime = Tone.Transport.seconds;
+    const currentTime = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
     const elapsed = clock.getElapsedTime();
 
     let displayProgress: number;
@@ -410,6 +412,7 @@ const MidiRollNote = ({
   introDuration = INTRO_NOTE_DURATION,
   fadePhase = "steady",
   crossfadeStartClock = 0,
+  frozenTime,
 }: {
   isFlatView: boolean;
   note: NoteEvent;
@@ -419,6 +422,7 @@ const MidiRollNote = ({
   introDuration?: number;
   fadePhase?: FadePhase;
   crossfadeStartClock?: number;
+  frozenTime?: number;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -431,7 +435,7 @@ const MidiRollNote = ({
       return;
     }
 
-    const currentTime = Tone.Transport.seconds;
+    const currentTime = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
     const elapsed = clock.getElapsedTime();
 
     let displayProgress: number;
@@ -515,6 +519,7 @@ const MidiRoll = ({
   introStartRef,
   fadePhase = "steady",
   crossfadeStartClock = 0,
+  frozenTime,
 }: {
   isFlatView: boolean;
   notes: NoteEvent[];
@@ -523,6 +528,7 @@ const MidiRoll = ({
   introStartRef: IntroClockRef;
   fadePhase?: FadePhase;
   crossfadeStartClock?: number;
+  frozenTime?: number;
 }) => {
   const speed = 10;
   const lookAhead = timeWindow * 1.5;
@@ -555,6 +561,7 @@ const MidiRoll = ({
           introDuration={fadePhase === "steady" ? 0.72 : undefined}
           fadePhase={fadePhase}
           crossfadeStartClock={crossfadeStartClock}
+          frozenTime={frozenTime}
         />
       ))}
     </group>
@@ -862,12 +869,12 @@ const Scene = ({
       oldNotes: displayNotes,
       newNotes: notes,
       startClock: lastClockRef.current,
-      oldFilterTime: Tone.Transport.seconds,
+      oldFilterTime: filterTime,
       pending: null,
     };
     displaySignatureRef.current = activeNoteSignature;
     setFilterTime(Tone.Transport.seconds);
-  }, [activeNoteSignature, displayNotes, notes]);
+  }, [activeNoteSignature, displayNotes, filterTime, notes]);
 
   useFrame(({ clock }) => {
     lastClockRef.current = clock.getElapsedTime();
@@ -956,6 +963,7 @@ const Scene = ({
               introStartRef={noteIntroStartRef}
               fadePhase="exiting"
               crossfadeStartClock={crossfadeStartClock}
+              frozenTime={exitFilterTime}
             />
           )}
           <MidiRoll
@@ -982,6 +990,7 @@ const Scene = ({
               introDelay={0}
               fadePhase="exiting"
               crossfadeStartClock={crossfadeStartClock}
+              frozenTime={exitFilterTime}
             />
           ))}
         {isCrossfading
