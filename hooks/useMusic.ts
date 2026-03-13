@@ -9,6 +9,7 @@ import {
 import * as Tone from "tone";
 import {
   NoteEvent,
+  PedalEvent,
   DEFAULT_NOTE_LEAD_IN_SECONDS,
   generateBeautifulPianoPiece,
   parseMidiFile,
@@ -20,11 +21,23 @@ export interface MusicSettings {
 
 interface TrackState {
   originalNotes: NoteEvent[];
+  originalPedalEvents: PedalEvent[];
   originalBpm: number;
   bpm: number;
 }
 
 const GLOBAL_VOLUME_BOOST = 1.4;
+
+/** Per-register release envelope — longer for bass, tighter for treble. */
+function getRegisterRelease(midi: number, pedalSustained: boolean): number {
+  let base: number;
+  if (midi <= 48) base = 1.8;
+  else if (midi <= 60) base = 1.2;
+  else if (midi <= 72) base = 0.8;
+  else if (midi <= 84) base = 0.5;
+  else base = 0.3;
+  return pedalSustained ? base * 1.4 : base;
+}
 
 export const useMusic = (settings: MusicSettings) => {
   const { volumePercent } = settings;
@@ -46,6 +59,7 @@ export const useMusic = (settings: MusicSettings) => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const samplerRef = useRef<Tone.Sampler | null>(null);
   const partRef = useRef<Tone.Part | null>(null);
+  const pedalPartRef = useRef<Tone.Part | null>(null);
   const dryGainRef = useRef<Tone.Gain | null>(null);
   const reverbSendRef = useRef<Tone.Gain | null>(null);
   const reverbToneRef = useRef<Tone.Filter | null>(null);
@@ -66,8 +80,9 @@ export const useMusic = (settings: MusicSettings) => {
     bpm: defaultMusic.bpm,
     originalBpm: defaultMusic.bpm,
     originalNotes: defaultMusic.notes,
+    originalPedalEvents: defaultMusic.pedalEvents,
   }));
-  const { bpm, originalBpm, originalNotes } = trackState;
+  const { bpm, originalBpm, originalNotes, originalPedalEvents } = trackState;
 
   const prevSpeedRef = useRef(1);
 
@@ -80,6 +95,14 @@ export const useMusic = (settings: MusicSettings) => {
       duration: note.duration / playbackSpeed,
     }));
   }, [bpm, originalBpm, originalNotes]);
+
+  const pedalEvents = useMemo(() => {
+    const playbackSpeed = bpm / originalBpm;
+    return originalPedalEvents.map((e) => ({
+      ...e,
+      time: e.time / playbackSpeed,
+    }));
+  }, [bpm, originalBpm, originalPedalEvents]);
 
   const duration = useMemo(() => {
     if (notes.length === 0) {
@@ -211,6 +234,7 @@ export const useMusic = (settings: MusicSettings) => {
   useEffect(() => {
     return () => {
       partRef.current?.dispose();
+      pedalPartRef.current?.dispose();
       samplerRef.current?.dispose();
       dryGainRef.current?.dispose();
       reverbSendRef.current?.dispose();
@@ -288,8 +312,13 @@ export const useMusic = (settings: MusicSettings) => {
     if (partRef.current) {
       partRef.current.dispose();
     }
+    if (pedalPartRef.current) {
+      pedalPartRef.current.dispose();
+    }
 
+    // Note Part — register-aware release
     partRef.current = new Tone.Part<NoteEvent>((time, note) => {
+      samplerRef.current!.release = getRegisterRelease(note.midi, note.pedalSustained ?? false);
       samplerRef.current?.triggerAttackRelease(
         Tone.Frequency(note.midi, "midi").toNote(),
         note.duration,
@@ -298,19 +327,40 @@ export const useMusic = (settings: MusicSettings) => {
       );
     }, notes);
 
+    // Pedal Part — dynamic reverb modulation
+    if (pedalEvents.length > 0) {
+      pedalPartRef.current = new Tone.Part<PedalEvent>((time, event) => {
+        const reverbSend = reverbSendRef.current;
+        const reverb = reverbRef.current;
+        if (!reverbSend || !reverb) return;
+
+        if (event.value >= 64) {
+          // Pedal down: quick ramp to wetter sound
+          reverbSend.gain.rampTo(0.34, 0.1, time);
+          reverb.roomSize.rampTo(0.86, 0.1, time);
+        } else {
+          // Pedal up: slower ramp back to dry (asymmetric — mimics acoustic behavior)
+          reverbSend.gain.rampTo(0.24, 0.3, time);
+          reverb.roomSize.rampTo(defaultReverbRoomSize, 0.3, time);
+        }
+      }, pedalEvents);
+    }
+
     if (wasPlaying) {
       partRef.current.start(0);
+      pedalPartRef.current?.start(0);
       partStartedRef.current = true;
     } else {
       partStartedRef.current = false;
     }
-  }, [notes, bpm, originalBpm]);
+  }, [notes, pedalEvents, bpm, originalBpm, defaultReverbRoomSize]);
 
   const togglePlay = useCallback(async () => {
     if (!isPlaying) {
       await ensureAudioReady();
       if (!partStartedRef.current) {
         partRef.current?.start(0);
+        pedalPartRef.current?.start(0);
         partStartedRef.current = true;
       }
       Tone.Transport.start();
@@ -329,7 +379,7 @@ export const useMusic = (settings: MusicSettings) => {
       partStartedRef.current = false;
       prevSpeedRef.current = 1;
 
-      const { notes: parsedNotes, bpm: parsedBpm } = await parseMidiFile(file);
+      const { notes: parsedNotes, bpm: parsedBpm, pedalEvents: parsedPedalEvents } = await parseMidiFile(file);
       if (parsedNotes.length > 0) {
         if (process.env.NODE_ENV !== "production") {
           console.info("[orbitone:music] upload.loadMidi.reset", {
@@ -346,6 +396,7 @@ export const useMusic = (settings: MusicSettings) => {
             bpm: roundedBpm,
             originalBpm: roundedBpm,
             originalNotes: parsedNotes,
+            originalPedalEvents: parsedPedalEvents,
           });
         });
       }

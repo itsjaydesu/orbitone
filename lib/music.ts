@@ -7,11 +7,27 @@ export interface NoteEvent {
   time: number; // in seconds
   duration: number; // in seconds
   velocity: number;
+  pedalSustained?: boolean;
+}
+
+export interface PedalEvent {
+  time: number;
+  value: number; // 0-127
 }
 
 export interface MusicData {
   notes: NoteEvent[];
   bpm: number;
+  pedalEvents: PedalEvent[];
+}
+
+const MAX_SUSTAIN_DURATION = 15;
+
+/** Extra time (seconds) to model damper felt settling back onto strings. */
+function getDamperBuffer(midi: number): number {
+  if (midi <= 48) return 0.15;   // bass — heavy dampers
+  if (midi <= 72) return 0.08;   // mid
+  return 0.04;                   // treble — light dampers
 }
 
 export const DEFAULT_NOTE_LEAD_IN_SECONDS = 0.35;
@@ -21,24 +37,31 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
   const arrayBuffer = await file.arrayBuffer();
   const midi = new Midi(arrayBuffer);
   const notes: NoteEvent[] = [];
+  const pedalEvents: PedalEvent[] = [];
 
   midi.tracks.forEach(track => {
     // Get sustain pedal events (CC 64) for this track
     const sustainEvents = track.controlChanges[64] || [];
-    
+
+    // Collect raw pedal events for reverb modulation
+    for (const event of sustainEvents) {
+      pedalEvents.push({ time: event.time, value: Math.round(event.value * 127) });
+    }
+
     track.notes.forEach(note => {
       let duration = note.duration;
       const noteEnd = note.time + note.duration;
-      
+      let pedalSustained = false;
+
       let pedalDown = false;
       let nextPedalUpTime = -1;
-      
+
       // Determine if pedal is down at the end of the note, and when it is released
       for (const event of sustainEvents) {
         if (event.time <= noteEnd) {
-          pedalDown = event.value >= 64;
+          pedalDown = event.value >= 0.5;
         } else {
-          if (pedalDown && event.value < 64) {
+          if (pedalDown && event.value < 0.5) {
              nextPedalUpTime = event.time;
              break;
           } else if (!pedalDown) {
@@ -46,27 +69,33 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
           }
         }
       }
-      
+
       if (pedalDown) {
+        pedalSustained = true;
         if (nextPedalUpTime !== -1) {
-          duration = nextPedalUpTime - note.time;
+          duration = nextPedalUpTime - note.time + getDamperBuffer(note.midi);
         } else {
           // Pedal down but never released, sustain to end of track
           duration = Math.max(duration, midi.duration - note.time);
         }
       }
 
+      // Cap maximum duration to prevent notes ringing indefinitely
+      duration = Math.min(duration, MAX_SUSTAIN_DURATION);
+
       notes.push({
         id: `midi-${note.midi}-${note.time}-${Math.random()}`,
         midi: note.midi,
         time: note.time,
-        duration: duration,
-        velocity: note.velocity
+        duration,
+        velocity: note.velocity,
+        pedalSustained,
       });
     });
   });
 
   notes.sort((a, b) => a.time - b.time);
+  pedalEvents.sort((a, b) => a.time - b.time);
 
   // Keep uploads from starting at t=0 while preserving existing long-silence normalization.
   if (notes.length > 0) {
@@ -80,11 +109,14 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
     notes.forEach(note => {
       note.time -= offset;
     });
+    pedalEvents.forEach(event => {
+      event.time -= offset;
+    });
   }
 
   const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120);
 
-  return { notes, bpm };
+  return { notes, bpm, pedalEvents };
 };
 
 export const generateBeautifulPianoPiece = (numMeasures: number = 32, bpm: number = 100): MusicData => {
@@ -181,5 +213,5 @@ export const generateBeautifulPianoPiece = (numMeasures: number = 32, bpm: numbe
     timeInSeconds += secondsPerMeasure;
   }
   
-  return { notes, bpm };
+  return { notes, bpm, pedalEvents: [] };
 };
