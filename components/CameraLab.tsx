@@ -115,28 +115,26 @@ export const CameraLab = ({
   };
 
   return (
-    <div className="fixed top-24 right-6 z-[135] w-[28rem] max-w-[calc(100vw-3rem)] rounded-[1.75rem] border border-white/12 bg-black/88 p-5 text-white shadow-[0_28px_90px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+    <div className="nm-card nm-animate-dropdown fixed top-24 right-6 z-[135] w-[28rem] max-w-[calc(100vw-3rem)] rounded-[1.75rem] p-5 text-[var(--nm-text)]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-white/55">
+            <span className="nm-badge rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--nm-text-dim)]">
               Camera Lab
             </span>
             <span
               className={cn(
                 "rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em]",
-                isDirty
-                  ? "bg-amber-400/15 text-amber-200"
-                  : "bg-emerald-400/12 text-emerald-200",
+                isDirty ? "nm-badge-amber" : "nm-badge-emerald",
               )}
             >
               {isDirty ? "Unsaved" : "Saved"}
             </span>
           </div>
-          <h2 className="text-xl font-semibold tracking-[0.08em] text-white">
+          <h2 className="text-xl font-semibold tracking-[0.08em] text-[var(--nm-text)]">
             {CAMERA_VIEW_LABELS[activeView]}
           </h2>
-          <p className="mt-1 text-sm leading-relaxed text-white/55">
+          <p className="mt-1 text-sm leading-relaxed text-[var(--nm-text-dim)]">
             Drag directly in the canvas to tune. Locked views use pan plus zoom;
             free views orbit normally. Values below update live while you tune.
           </p>
@@ -144,7 +142,7 @@ export const CameraLab = ({
 
         <button
           onClick={onClose}
-          className="rounded-full border border-white/10 bg-white/5 p-2 text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+          className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] hover:text-[var(--nm-text)]"
           aria-label="Close camera lab"
         >
           <X className="h-4 w-4" />
@@ -157,10 +155,10 @@ export const CameraLab = ({
             key={view}
             onClick={() => onSelectView(view)}
             className={cn(
-              "rounded-xl border px-2 py-2 text-[11px] font-medium tracking-[0.12em] transition-all",
+              "rounded-xl px-2 py-2 text-[11px] font-medium tracking-[0.12em]",
               activeView === view
-                ? "border-white/40 bg-white text-black"
-                : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
+                ? "nm-toggle-active"
+                : "nm-raised text-[var(--nm-text-dim)]",
             )}
           >
             {CAMERA_VIEW_LABELS[view]}
@@ -169,19 +167,19 @@ export const CameraLab = ({
       </div>
 
       {isProceduralView && (
-        <div className="mb-4 rounded-2xl border border-sky-400/20 bg-sky-400/8 px-4 py-3 text-sm leading-relaxed text-sky-100/85">
+        <div className="nm-info-box mb-4 rounded-2xl px-4 py-3 text-sm leading-relaxed text-[var(--nm-text-dim)]">
           This view still uses motion, but the saved pose controls its base
           framing, target, and lens.
         </div>
       )}
 
-      <section className="mb-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+      <section className="nm-well mb-4 rounded-2xl p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-white/60">
+            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
               Flat Front Lock
             </h3>
-            <p className="mt-1 text-sm leading-relaxed text-white/50">
+            <p className="mt-1 text-sm leading-relaxed text-[var(--nm-text-faint)]">
               Keeps the camera pointed straight down the z-axis so front crops
               stay mathematically flat. Dragging becomes pan plus zoom instead
               of free orbit.
@@ -190,10 +188,10 @@ export const CameraLab = ({
           <button
             onClick={toggleFlatLock}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] transition-colors",
+              "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.16em]",
               isFlatLocked
-                ? "border-white/40 bg-white text-black"
-                : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
+                ? "nm-toggle-active"
+                : "nm-raised text-[var(--nm-text-dim)]",
             )}
           >
             {isFlatLocked ? "Locked" : "Free"}
@@ -202,17 +200,17 @@ export const CameraLab = ({
       </section>
 
       <div className="space-y-4">
-        <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+        <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-white/60">
+            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
               Position
             </h3>
-            <span className="text-xs text-white/35">Camera XYZ</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">Camera XYZ</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {AXES.map(({ key, label }) => (
               <label key={`position-${key}`} className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium tracking-[0.14em] text-white/45">
+                <span className="text-xs font-medium tracking-[0.14em] text-[var(--nm-text-faint)]">
                   {label}
                 </span>
                 <input
@@ -222,24 +220,24 @@ export const CameraLab = ({
                   onChange={(event) =>
                     updateVectorAxis("position", key, event.target.value)
                   }
-                  className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-white/30"
+                  className="nm-input rounded-xl px-3 py-2 text-sm"
                 />
               </label>
             ))}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+        <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-white/60">
+            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
               Aim
             </h3>
-            <span className="text-xs text-white/35">Look-at target</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">Look-at target</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {AXES.map(({ key, label }) => (
               <label key={`target-${key}`} className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium tracking-[0.14em] text-white/45">
+                <span className="text-xs font-medium tracking-[0.14em] text-[var(--nm-text-faint)]">
                   {label}
                 </span>
                 <input
@@ -250,22 +248,19 @@ export const CameraLab = ({
                     updateVectorAxis("target", key, event.target.value)
                   }
                   disabled={isFlatLocked && key !== "z"}
-                  className={cn(
-                    "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-white/30",
-                    isFlatLocked && key !== "z" && "cursor-not-allowed text-white/35",
-                  )}
+                  className="nm-input rounded-xl px-3 py-2 text-sm"
                 />
               </label>
             ))}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+        <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-white/60">
+            <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
               Lens
             </h3>
-            <span className="text-xs text-white/35">Field of view</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">Field of view</span>
           </div>
           <div className="grid grid-cols-[1fr_auto] items-center gap-3">
             <input
@@ -275,7 +270,7 @@ export const CameraLab = ({
               step={0.5}
               value={draftPose.fov}
               onChange={(event) => updateFov(event.target.value)}
-              className="accent-white"
+              className="nm-range"
             />
             <input
               type="number"
@@ -284,7 +279,7 @@ export const CameraLab = ({
               step="0.5"
               value={draftPose.fov}
               onChange={(event) => updateFov(event.target.value)}
-              className="w-20 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:border-white/30"
+              className="nm-input w-20 rounded-xl px-3 py-2 text-right text-sm"
             />
           </div>
         </section>
@@ -293,21 +288,21 @@ export const CameraLab = ({
       <div className="mt-5 grid grid-cols-3 gap-2">
         <button
           onClick={onSave}
-          className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition-transform hover:scale-[1.01]"
+          className="nm-accent-raised flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
         >
           <Save className="h-4 w-4" />
           Save View
         </button>
         <button
           onClick={onRevert}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+          className="nm-raised flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-[var(--nm-text)]"
         >
           <Undo2 className="h-4 w-4" />
           Revert
         </button>
         <button
           onClick={onResetToDefault}
-          className="flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/8 px-4 py-3 text-sm font-medium text-red-100 transition-colors hover:bg-red-400/12"
+          className="nm-destructive flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
         >
           <RotateCcw className="h-4 w-4" />
           Reset

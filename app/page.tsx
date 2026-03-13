@@ -586,11 +586,9 @@ export default function Home() {
         className={cn("pointer-events-none", topChromeClass)}
         inert={!chromeVisible}
       >
-        <div className="rounded-2xl bg-black/20 px-4 py-3 backdrop-blur-xl">
-          <h1 className="text-2xl font-semibold tracking-[0.18em] text-white">
-            orbitone
-          </h1>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-[0.18em] text-[var(--nm-text)]">
+          orbitone
+        </h1>
 
         <div className="relative">
           <div className="pointer-events-auto flex items-center gap-3">
@@ -604,14 +602,14 @@ export default function Home() {
               onDragLeave={handleUploadDragLeave}
               onDrop={handleUploadDrop}
               className={cn(
-                "flex items-center gap-2 rounded-md border px-4 py-2 text-sm text-white backdrop-blur-md transition-all",
+                "rounded-xl p-2.5 text-[var(--nm-text)]",
                 isUploadDragActive
-                  ? "border-white/40 bg-white/25 shadow-[0_0_28px_rgba(255,255,255,0.12)]"
-                  : "border-white/10 bg-white/10 hover:bg-white/20",
+                  ? "nm-drag-active"
+                  : "nm-raised",
               )}
+              aria-label="Upload MIDI"
             >
-              <Upload className="h-4 w-4" />
-              Upload MIDI
+              <Upload className="h-5 w-5" />
             </button>
 
             <div ref={libraryRef} className="relative">
@@ -622,42 +620,41 @@ export default function Home() {
                   setShowInfo(false);
                   e.currentTarget.blur();
                 }}
-                className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm text-white backdrop-blur-md transition-all ${
-                  showLibrary
-                    ? "border-white/30 bg-white/30"
-                    : "border-white/10 bg-white/10 hover:bg-white/20"
-                }`}
+                className={cn(
+                  "rounded-xl p-2.5 text-[var(--nm-text)]",
+                  showLibrary ? "nm-pressed" : "nm-raised",
+                )}
+                aria-label="MIDI Library"
               >
                 {isLoadingLibrary ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  <Library className="h-4 w-4" />
+                  <Library className="h-5 w-5" />
                 )}
-                Library
               </button>
 
               {showLibrary && (
-                <div className="pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-2 rounded-xl border border-white/10 bg-black/90 p-3 shadow-2xl backdrop-blur-xl">
-                  <h3 className="mb-1 border-b border-white/10 px-2 py-1 text-sm font-semibold text-white">
+                <div className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-2 rounded-xl p-3">
+                  <h3 className="mb-1 border-b border-[var(--nm-border)] px-2 py-1 text-sm font-semibold text-[var(--nm-text)]">
                     MIDI Library
                   </h3>
                   {MIDI_LIBRARY.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => loadLibraryMidi(item)}
-                      className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
+                      className="nm-list-item flex w-full items-start gap-3 px-3 py-2 text-left text-[var(--nm-text-dim)]"
                     >
-                      <Music className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      <Music className="mt-0.5 h-4 w-4 shrink-0 text-[var(--nm-text-dim)]" />
                       <div className="flex min-w-0 flex-1 flex-col">
                         <div className="flex items-baseline justify-between gap-3">
-                          <span className="truncate text-sm font-medium">
+                          <span className="truncate text-sm font-medium text-[var(--nm-text)]">
                             {item.title}
                           </span>
-                          <span className="shrink-0 text-[11px] uppercase tracking-[0.16em] text-gray-500">
+                          <span className="shrink-0 text-[11px] uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
                             {item.durationLabel}
                           </span>
                         </div>
-                        <span className="truncate text-xs text-gray-500">
+                        <span className="truncate text-xs text-[var(--nm-text-faint)]">
                           {item.artist}
                         </span>
                       </div>
@@ -674,11 +671,10 @@ export default function Home() {
                 setShowLibrary(false);
                 e.currentTarget.blur();
               }}
-              className={`rounded-md border p-2 text-white backdrop-blur-md transition-all ${
-                showInfo
-                  ? "border-white/30 bg-white/30"
-                  : "border-white/10 bg-white/10 hover:bg-white/20"
-              }`}
+              className={cn(
+                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                showInfo ? "nm-pressed" : "nm-raised",
+              )}
             >
               <Info className="h-5 w-5" />
             </button>
@@ -691,11 +687,10 @@ export default function Home() {
                 setShowLibrary(false);
                 e.currentTarget.blur();
               }}
-              className={`rounded-md border p-2 text-white backdrop-blur-md transition-all ${
-                showSettings
-                  ? "border-white/30 bg-white/30"
-                  : "border-white/10 bg-white/10 hover:bg-white/20"
-              }`}
+              className={cn(
+                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                showSettings ? "nm-pressed" : "nm-raised",
+              )}
             >
               <SettingsIcon className="h-5 w-5" />
             </button>
@@ -705,11 +700,10 @@ export default function Home() {
                 await toggleFullscreen();
                 e.currentTarget.blur();
               }}
-              className={`rounded-md border p-2 text-white backdrop-blur-md transition-all ${
-                isFullscreen
-                  ? "border-white/30 bg-white/30"
-                  : "border-white/10 bg-white/10 hover:bg-white/20"
-              }`}
+              className={cn(
+                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                isFullscreen ? "nm-pressed" : "nm-raised",
+              )}
               aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
             >
               {isFullscreen ? (
@@ -723,15 +717,15 @@ export default function Home() {
           {showSettings && (
             <div
               ref={settingsRef}
-              className="pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl border border-white/10 bg-black/90 p-5 text-white shadow-2xl backdrop-blur-xl"
+              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl p-5 text-[var(--nm-text)]"
             >
-              <h2 className="border-b border-white/10 pb-2 text-lg font-semibold">
+              <h2 className="border-b border-[var(--nm-border)] pb-2 text-lg font-semibold">
                 Settings
               </h2>
 
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-gray-400">
+                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
                     <span>BPM</span>
                     <span>{bpm}</span>
                   </div>
@@ -742,12 +736,12 @@ export default function Home() {
                     step={1}
                     value={bpm}
                     onChange={(e) => setBpm(parseInt(e.target.value, 10))}
-                    className="accent-white"
+                    className="nm-range"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-gray-400">
+                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
                     <span>Volume</span>
                     <span>{settings.volumePercent}%</span>
                   </div>
@@ -763,11 +757,11 @@ export default function Home() {
                         parseInt(e.target.value, 10),
                       )
                     }
-                    className="accent-white"
+                    className="nm-range"
                   />
                 </div>
 
-                <label className="mt-2 flex cursor-pointer items-center justify-between text-sm">
+                <label className="mt-2 flex items-center justify-between text-sm">
                   <span>Show MIDI Roll</span>
                   <input
                     type="checkbox"
@@ -776,12 +770,12 @@ export default function Home() {
                       updateSetting("showMidiRoll", e.target.checked);
                       e.target.blur();
                     }}
-                    className="h-4 w-4 accent-white"
+                    className="nm-checkbox"
                   />
                 </label>
 
                 <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-gray-400">Camera View</span>
+                  <span className="text-sm text-[var(--nm-text-dim)]">Camera View</span>
                   <div className="grid grid-cols-3 gap-2">
                     {CAMERA_VIEWS.map((view) => (
                       <button
@@ -790,11 +784,12 @@ export default function Home() {
                           updateSetting("cameraView", view);
                           e.currentTarget.blur();
                         }}
-                        className={`rounded px-2 py-1.5 text-xs transition-all ${
+                        className={cn(
+                          "rounded-xl px-2 py-1.5 text-xs font-medium",
                           settings.cameraView === view
-                            ? "bg-white font-medium text-black"
-                            : "bg-white/10 text-white hover:bg-white/20"
-                        }`}
+                            ? "nm-toggle-active"
+                            : "nm-raised text-[var(--nm-text-dim)]",
+                        )}
                       >
                         {CAMERA_VIEW_LABELS[view]}
                       </button>
@@ -806,10 +801,10 @@ export default function Home() {
                       setShowSettings(false);
                       e.currentTarget.blur();
                     }}
-                    className="mt-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-white transition-colors hover:bg-white/10"
+                    className="nm-raised mt-2 rounded-xl px-3 py-2 text-left text-sm"
                   >
-                    <span className="block font-medium">Open Camera Lab</span>
-                    <span className="block text-xs text-white/45">
+                    <span className="block font-medium text-[var(--nm-text)]">Open Camera Lab</span>
+                    <span className="block text-xs text-[var(--nm-text-faint)]">
                       Tune position, aim, and lens with numeric controls and
                       direct drag.
                     </span>
@@ -821,7 +816,7 @@ export default function Home() {
                     resetSettings();
                     e.currentTarget.blur();
                   }}
-                  className="mt-2 w-full rounded-lg border border-red-500/30 bg-red-500/20 py-2 text-sm font-medium text-red-200 transition-all hover:bg-red-500/40"
+                  className="nm-destructive mt-2 w-full rounded-xl py-2 text-sm font-medium"
                 >
                   Reset to Default
                 </button>
@@ -834,7 +829,7 @@ export default function Home() {
       {showInfo && (
         <div
           ref={infoRef}
-          className="fixed inset-0 z-[20000000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="nm-animate-fade fixed inset-0 z-[20000000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
@@ -849,51 +844,51 @@ export default function Home() {
             }
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-6 text-white shadow-2xl">
+          <div className="nm-card nm-animate-modal w-full max-w-md rounded-2xl p-6 text-[var(--nm-text)]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold">About</h2>
               <button
                 onClick={() => setShowInfo(false)}
-                className="text-gray-400 transition-colors hover:text-white"
+                className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4 text-sm leading-relaxed text-gray-300">
+            <div className="space-y-4 text-sm leading-relaxed text-[var(--nm-text-dim)]">
               <p>
-                <strong>orbitone</strong> is an interactive 3D music
+                <strong className="text-[var(--nm-text)]">orbitone</strong> is an interactive 3D music
                 experience. It maps MIDI notes to a concentric grand staff
                 while preserving sustain and velocity for a more faithful
                 visual read of the performance.
               </p>
-              <div className="rounded-lg border border-white/5 bg-black/30 p-4">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-white">
+              <div className="nm-well rounded-2xl p-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--nm-text)]">
                   Powered By
                 </h3>
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-400"></span>
-                    <span className="font-medium text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/60"></span>
+                    <span className="font-medium text-[var(--nm-text)]">
                       Gemini 3.1 Pro
                     </span>{" "}
                     - AI Assistant
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
-                    <span className="font-medium text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/40"></span>
+                    <span className="font-medium text-[var(--nm-text)]">
                       Three.js & R3F
                     </span>{" "}
                     - 3D Rendering
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                    <span className="font-medium text-white">Tone.js</span>{" "}
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/20"></span>
+                    <span className="font-medium text-[var(--nm-text)]">Tone.js</span>{" "}
                     - Audio Synthesis
                   </li>
                 </ul>
               </div>
               <div className="pt-2">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-white">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--nm-text)]">
                   Created by itsjaydesu
                 </h3>
                 <div className="flex gap-4">
@@ -901,7 +896,7 @@ export default function Home() {
                     href="http://github.com/itsjaydesu"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
                   >
                     GitHub
                   </a>
@@ -909,7 +904,7 @@ export default function Home() {
                     href="http://x.com/itsjaydesu"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
                   >
                     X (Twitter)
                   </a>
@@ -917,7 +912,7 @@ export default function Home() {
                     href="https://itsjaydesu.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
                   >
                     Website
                   </a>
@@ -959,9 +954,9 @@ export default function Home() {
           step={0.1}
           value={progress}
           onChange={handleSeek}
-          className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-white/20 accent-white"
+          className="nm-seekbar cursor-pointer"
         />
-        <div className="flex justify-between font-mono text-xs text-gray-400">
+        <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
           <span>{formatTime(progress)}</span>
           <span>{formatTime(duration)}</span>
         </div>
@@ -984,7 +979,7 @@ export default function Home() {
                 ? "Stop playback"
                 : "Start playback"
           }
-          className="pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:scale-[1.03] hover:bg-white/20 disabled:cursor-wait disabled:opacity-50"
+          className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:cursor-wait disabled:opacity-50"
         >
           {isAudioLoading ? (
             <Loader2 className="h-6 w-6 animate-spin" />
