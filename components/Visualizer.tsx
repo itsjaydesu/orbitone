@@ -8,6 +8,7 @@ import * as Tone from "tone";
 import {
   useEffect,
   useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   type MutableRefObject,
@@ -28,7 +29,6 @@ export interface VisualizerSettings {
 
 const DEFAULT_TIME_WINDOW = 10;
 const DEFAULT_BLOOM_INTENSITY = 1.2;
-const DEBUG_MIDI_TRANSITION_SAMPLE = process.env.NODE_ENV !== "production";
 const CLEF_FONT_STACK =
   '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif';
 const CLEF_FONT_SIZE_PX = 72;
@@ -51,19 +51,16 @@ const INTRO_NOTE_BASE_DELAY = 1.74;
 const INTRO_NOTE_SWEEP_SPAN = 0.96;
 const INTRO_NOTE_DURATION = 0.99;
 const INTRO_NOTE_APPEAR_DELAY = 1;
-const INTRO_NOTE_TRANSITION_ENTER_DELAY = 0.5;
-const INTRO_NOTE_TRANSITION_ENTRY_STAGGER = 0.016;
-const INTRO_NOTE_TRANSITION_ENTRY_STAGGER_LIMIT = 12;
-const INTRO_NOTE_TRANSITION_OUT_DURATION = 0.8;
-const INTRO_NOTE_TRANSITION_ENTER_DURATION = 0.8;
-const INTRO_NOTE_TRANSITION_ENTER_MAX_DELAY =
-  INTRO_NOTE_TRANSITION_ENTER_DELAY +
-  INTRO_NOTE_TRANSITION_ENTRY_STAGGER_LIMIT *
-    INTRO_NOTE_TRANSITION_ENTRY_STAGGER;
-const INTRO_NOTE_TRANSITION_DURATION = Math.max(
-  INTRO_NOTE_TRANSITION_OUT_DURATION,
-  INTRO_NOTE_TRANSITION_ENTER_MAX_DELAY +
-    INTRO_NOTE_TRANSITION_ENTER_DURATION,
+const CROSSFADE_EXIT_DURATION = 0.6;
+const CROSSFADE_ENTER_DURATION = 0.7;
+const CROSSFADE_ENTER_DELAY = 0.1;
+const CROSSFADE_NOTE_STAGGER = 0.012;
+const CROSSFADE_NOTE_STAGGER_CAP = 12;
+const CROSSFADE_TOTAL_DURATION = Math.max(
+  CROSSFADE_EXIT_DURATION,
+  CROSSFADE_ENTER_DELAY +
+    CROSSFADE_NOTE_STAGGER_CAP * CROSSFADE_NOTE_STAGGER +
+    CROSSFADE_ENTER_DURATION,
 );
 const INTRO_CAMERA_DELAY = 1.04;
 const INTRO_PLAYHEAD_DELAY = 0.24;
@@ -75,6 +72,25 @@ const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 
 type IntroClockRef = MutableRefObject<number | null>;
 type OrbitControlsRef = RefObject<any>;
+type FadePhase = "steady" | "entering" | "exiting";
+
+interface CrossfadeState {
+  active: boolean;
+  oldNotes: NoteEvent[];
+  newNotes: NoteEvent[];
+  startClock: number;
+  oldFilterTime: number;
+  pending: NoteEvent[] | null;
+}
+
+const CROSSFADE_IDLE: CrossfadeState = {
+  active: false,
+  oldNotes: [],
+  newNotes: [],
+  startClock: 0,
+  oldFilterTime: 0,
+  pending: null,
+};
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -184,10 +200,9 @@ const getNoteIntroDelay = (note: NoteEvent, index: number) => {
   );
 };
 
-const getTransitionNoteIntroDelay = (index: number) =>
-  INTRO_NOTE_TRANSITION_ENTER_DELAY +
-  Math.min(index, INTRO_NOTE_TRANSITION_ENTRY_STAGGER_LIMIT) *
-    INTRO_NOTE_TRANSITION_ENTRY_STAGGER;
+const getCrossfadeEnterDelay = (index: number) =>
+  CROSSFADE_ENTER_DELAY +
+  Math.min(index, CROSSFADE_NOTE_STAGGER_CAP) * CROSSFADE_NOTE_STAGGER;
 
 const getNotesSignature = (notes: NoteEvent[]) =>
   notes.map((note) => note.id).join("|");
@@ -278,20 +293,16 @@ const NoteMesh = ({
   introStartRef,
   introDelay,
   introDuration = INTRO_NOTE_DURATION,
-  animationMode = "enter",
-  isTransitioning = false,
-  transitionClockRef,
-  isSteady = false,
+  fadePhase = "steady",
+  crossfadeStartClock = 0,
 }: {
   note: NoteEvent;
   timeWindow: number;
   introStartRef: IntroClockRef;
   introDelay: number;
-  introDuration: number;
-  animationMode?: "enter" | "exit";
-  isTransitioning?: boolean;
-  transitionClockRef?: IntroClockRef;
-  isSteady?: boolean;
+  introDuration?: number;
+  fadePhase?: FadePhase;
+  crossfadeStartClock?: number;
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const meshMatRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -305,26 +316,30 @@ const NoteMesh = ({
     }
 
     const currentTime = Tone.Transport.seconds;
-    const isExiting = animationMode === "exit";
-    const introClock = isExiting
-      ? transitionClockRef ?? introStartRef
-      : (isTransitioning && transitionClockRef) || introStartRef;
-    const displayProgress = isExiting
-      ? 1 -
-        getIntroProgress(
-          clock.getElapsedTime(),
-          introClock,
-          0,
-          INTRO_NOTE_TRANSITION_OUT_DURATION,
-        )
-      : isSteady
-        ? 1
-        : getIntroProgress(
-            clock.getElapsedTime(),
-            introClock,
-            introDelay,
-            introDuration,
-          );
+    const elapsed = clock.getElapsedTime();
+
+    let displayProgress: number;
+    if (fadePhase === "exiting") {
+      displayProgress =
+        1 -
+        smootherStep(
+          clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
+        );
+    } else if (fadePhase === "entering") {
+      displayProgress = smootherStep(
+        clamp01(
+          (elapsed - crossfadeStartClock - introDelay) /
+            CROSSFADE_ENTER_DURATION,
+        ),
+      );
+    } else {
+      displayProgress = getIntroProgress(
+        elapsed,
+        introStartRef,
+        introDelay,
+        introDuration,
+      );
+    }
 
     const angle = ((note.time - currentTime) / timeWindow) * Math.PI * 2;
     let normalizedAngle = angle % (Math.PI * 2);
@@ -392,28 +407,21 @@ const MidiRollNote = ({
   speed,
   introStartRef,
   introDelay,
-  animationMode = "enter",
-  introDuration = INTRO_NOTE_TRANSITION_ENTER_DURATION,
-  transitionClockRef,
-  isTransitioning = false,
-  isSteady = false,
-  isSample,
+  introDuration = INTRO_NOTE_DURATION,
+  fadePhase = "steady",
+  crossfadeStartClock = 0,
 }: {
   isFlatView: boolean;
   note: NoteEvent;
   speed: number;
   introStartRef: IntroClockRef;
   introDelay: number;
-  animationMode?: "enter" | "exit";
   introDuration?: number;
-  transitionClockRef?: IntroClockRef;
-  isTransitioning?: boolean;
-  isSteady?: boolean;
-  isSample?: boolean;
+  fadePhase?: FadePhase;
+  crossfadeStartClock?: number;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const sampleLogRef = useRef(false);
 
   const x = ((note.midi - 60) / 20) * 6;
   const length = note.duration * speed;
@@ -424,26 +432,31 @@ const MidiRollNote = ({
     }
 
     const currentTime = Tone.Transport.seconds;
-    const isExiting = animationMode === "exit";
-    const introClock = isExiting
-      ? transitionClockRef ?? introStartRef
-      : (isTransitioning && transitionClockRef) || introStartRef;
-    const displayProgress = isExiting
-      ? 1 -
-        getIntroProgress(
-          clock.getElapsedTime(),
-          introClock,
-          0,
-          INTRO_NOTE_TRANSITION_OUT_DURATION,
-        )
-      : isSteady
-        ? 1
-        : getIntroProgress(
-            clock.getElapsedTime(),
-            introClock,
-            introDelay,
-            introDuration,
-          );
+    const elapsed = clock.getElapsedTime();
+
+    let displayProgress: number;
+    if (fadePhase === "exiting") {
+      displayProgress =
+        1 -
+        smootherStep(
+          clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
+        );
+    } else if (fadePhase === "entering") {
+      displayProgress = smootherStep(
+        clamp01(
+          (elapsed - crossfadeStartClock - introDelay) /
+            CROSSFADE_ENTER_DURATION,
+        ),
+      );
+    } else {
+      displayProgress = getIntroProgress(
+        elapsed,
+        introStartRef,
+        introDelay,
+        introDuration,
+      );
+    }
+
     const timeDiff = note.time - currentTime;
     const z = -(timeDiff + note.duration / 2) * speed;
     const transitionBackShift = (1 - displayProgress) * -0.55;
@@ -460,31 +473,6 @@ const MidiRollNote = ({
     const opacity = Math.max(0, 1 - distance / 60) * displayProgress;
 
     matRef.current.opacity = opacity;
-
-    const transitionClockElapsed =
-      (transitionClockRef ?? introStartRef).current === null
-        ? null
-        : clock.getElapsedTime() - (transitionClockRef ?? introStartRef).current;
-
-    if (
-      DEBUG_MIDI_TRANSITION_SAMPLE &&
-      isSample &&
-      !sampleLogRef.current &&
-      animationMode !== "exit" &&
-      transitionClockElapsed !== null
-    ) {
-      sampleLogRef.current = true;
-      console.info("[orbitone:viz] enter.note.sample", {
-        noteId: note.id,
-        noteTime: Number(note.time.toFixed(3)),
-        currentTime: Number(currentTime.toFixed(3)),
-        timeDiff: Number(timeDiff.toFixed(3)),
-        transitionBackShift: Number(transitionBackShift.toFixed(3)),
-        transitionClockElapsed: Number(transitionClockElapsed.toFixed(3)),
-        displayProgress: Number(displayProgress.toFixed(4)),
-        z,
-      });
-    }
 
     if (isPlaying) {
       matRef.current.color.setHex(0xffffff);
@@ -525,20 +513,16 @@ const MidiRoll = ({
   filterTime,
   timeWindow,
   introStartRef,
-  animationMode = "enter",
-  isTransitioning = false,
-  transitionClockRef,
-  isSteady = false,
+  fadePhase = "steady",
+  crossfadeStartClock = 0,
 }: {
   isFlatView: boolean;
   notes: NoteEvent[];
   filterTime: number;
   timeWindow: number;
   introStartRef: IntroClockRef;
-  animationMode?: "enter" | "exit";
-  isTransitioning?: boolean;
-  transitionClockRef?: IntroClockRef;
-  isSteady?: boolean;
+  fadePhase?: FadePhase;
+  crossfadeStartClock?: number;
 }) => {
   const speed = 10;
   const lookAhead = timeWindow * 1.5;
@@ -556,30 +540,21 @@ const MidiRoll = ({
     <group position={[0, -2, 0]}>
       {rollNotes.map((note, index) => (
         <MidiRollNote
-          key={`roll-${animationMode}-${note.id}-${index}`}
+          key={`roll-${fadePhase}-${note.id}-${index}`}
           isFlatView={isFlatView}
           note={note}
           speed={speed}
           introStartRef={introStartRef}
           introDelay={
-            animationMode === "exit" || !isTransitioning
-              ? INTRO_NOTE_APPEAR_DELAY +
+            fadePhase === "entering"
+              ? getCrossfadeEnterDelay(index)
+              : INTRO_NOTE_APPEAR_DELAY +
                 INTRO_NOTE_BASE_DELAY +
                 Math.min(index, 18) * 0.016
-              : getTransitionNoteIntroDelay(index)
           }
-          introDuration={
-            animationMode === "exit"
-              ? INTRO_NOTE_TRANSITION_OUT_DURATION
-              : isTransitioning
-                ? INTRO_NOTE_TRANSITION_ENTER_DURATION
-                : 0.72
-          }
-          animationMode={animationMode}
-          isSample={animationMode !== "exit" && index === 0}
-          isTransitioning={isTransitioning}
-          isSteady={isSteady}
-          transitionClockRef={transitionClockRef}
+          introDuration={fadePhase === "steady" ? 0.72 : undefined}
+          fadePhase={fadePhase}
+          crossfadeStartClock={crossfadeStartClock}
         />
       ))}
     </group>
@@ -832,23 +807,19 @@ const Scene = ({
   onCameraPoseChange?: (pose: CameraPose) => void;
   settings: VisualizerSettings;
 }) => {
+  const [displayNotes, setDisplayNotes] = useState<NoteEvent[]>(notes);
   const [filterTime, setFilterTime] = useState(0);
-  const [animatedNotes, setAnimatedNotes] = useState<NoteEvent[]>(notes);
-  const [exitingNotes, setExitingNotes] = useState<NoteEvent[]>([]);
-  const [isNoteTransitioning, setIsNoteTransitioning] = useState(false);
   const introStartRef = useRef<number | null>(null);
   const noteIntroStartRef = useRef<number | null>(null);
   const controlsRef = useRef<any>(null);
-  const noteTransitionClockRef = useRef<number | null>(null);
-  const noteTransitionDurationRef = useRef(INTRO_NOTE_TRANSITION_DURATION);
-  const hasTransitionSettledRef = useRef(false);
+  const crossfadeRef = useRef<CrossfadeState>({ ...CROSSFADE_IDLE });
+  const lastClockRef = useRef(0);
+  const displaySignatureRef = useRef(getNotesSignature(notes));
   const { showMidiRoll, cameraView } = settings;
   const timeWindow = DEFAULT_TIME_WINDOW;
   const activeNoteSignature = getNotesSignature(notes);
   const activePose = cameraPresets[cameraView];
   const isFlatEditing = isCameraEditing && activePose.flatLock;
-  const exitingFilterTimeRef = useRef<number>(0);
-  const notesSignatureRef = useRef(activeNoteSignature);
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -872,92 +843,101 @@ const Scene = ({
     });
   };
 
-  useFrame(({ clock }) => {
-    if (
-      isNoteTransitioning &&
-      noteTransitionClockRef.current !== null &&
-      clock.getElapsedTime() - noteTransitionClockRef.current >=
-        noteTransitionDurationRef.current
-    ) {
-      if (DEBUG_MIDI_TRANSITION_SAMPLE) {
-        console.info("[orbitone:viz] transition.complete", {
-          transportSeconds: Number(Tone.Transport.seconds.toFixed(6)),
-          animatedCount: animatedNotes.length,
-          exitingCount: exitingNotes.length,
-          transitionDuration: Number(
-            (
-              clock.getElapsedTime() - noteTransitionClockRef.current
-            ).toFixed(3),
-          ),
-        });
+  useLayoutEffect(() => {
+    if (activeNoteSignature === displaySignatureRef.current) {
+      if (!crossfadeRef.current.active && notes !== displayNotes) {
+        setDisplayNotes(notes);
       }
-      setIsNoteTransitioning(false);
-      hasTransitionSettledRef.current = true;
-      setExitingNotes([]);
-      noteTransitionClockRef.current = null;
-      noteTransitionDurationRef.current = INTRO_NOTE_TRANSITION_DURATION;
+      return;
     }
 
-    if (isNoteTransitioning && noteTransitionClockRef.current === null) {
-      noteTransitionClockRef.current = clock.getElapsedTime();
+    const cf = crossfadeRef.current;
+    if (cf.active) {
+      crossfadeRef.current = { ...cf, pending: notes };
+      return;
     }
+
+    crossfadeRef.current = {
+      active: true,
+      oldNotes: displayNotes,
+      newNotes: notes,
+      startClock: lastClockRef.current,
+      oldFilterTime: Tone.Transport.seconds,
+      pending: null,
+    };
+    displaySignatureRef.current = activeNoteSignature;
+    setFilterTime(Tone.Transport.seconds);
+  }, [activeNoteSignature, displayNotes, notes]);
+
+  useFrame(({ clock }) => {
+    lastClockRef.current = clock.getElapsedTime();
 
     if (Math.abs(Tone.Transport.seconds - filterTime) > 0.5) {
       setFilterTime(Tone.Transport.seconds);
     }
+
+    const cf = crossfadeRef.current;
+    if (
+      cf.active &&
+      lastClockRef.current - cf.startClock >= CROSSFADE_TOTAL_DURATION
+    ) {
+      if (cf.pending) {
+        crossfadeRef.current = {
+          active: true,
+          oldNotes: cf.newNotes,
+          newNotes: cf.pending,
+          startClock: lastClockRef.current,
+          oldFilterTime: Tone.Transport.seconds,
+          pending: null,
+        };
+        setFilterTime(Tone.Transport.seconds);
+      } else {
+        const settled = cf.newNotes;
+        crossfadeRef.current = { ...CROSSFADE_IDLE };
+        displaySignatureRef.current = getNotesSignature(settled);
+        setDisplayNotes(settled);
+      }
+    }
   });
 
-  useEffect(() => {
-    if (activeNoteSignature === notesSignatureRef.current) {
-      setAnimatedNotes(notes);
-      return;
-    }
+  const cf = crossfadeRef.current;
+  const isCrossfading =
+    cf.active || activeNoteSignature !== getNotesSignature(displayNotes);
+  const crossfadeStartClock = cf.active
+    ? cf.startClock
+    : lastClockRef.current;
 
-    const transportSeconds = Tone.Transport.seconds;
-    const nextTransitionDuration =
-      animatedNotes.length > 0
-        ? INTRO_NOTE_TRANSITION_DURATION
-        : INTRO_NOTE_TRANSITION_OUT_DURATION;
-    if (DEBUG_MIDI_TRANSITION_SAMPLE) {
-      console.info("[orbitone:viz] transition.frame.start", {
-        incomingCount: notes.length,
-        exitingCount: animatedNotes.length,
-        filterTime: Number(transportSeconds.toFixed(6)),
-        transitionDuration: Number(nextTransitionDuration.toFixed(3)),
-      });
-    }
-
-    setExitingNotes(animatedNotes);
-    setAnimatedNotes(notes);
-    notesSignatureRef.current = activeNoteSignature;
-    setFilterTime(transportSeconds);
-    exitingFilterTimeRef.current = transportSeconds;
-    noteIntroStartRef.current = null;
-    hasTransitionSettledRef.current = false;
-    setIsNoteTransitioning(animatedNotes.length > 0);
-    noteTransitionDurationRef.current = nextTransitionDuration;
-    noteTransitionClockRef.current = null;
-  }, [activeNoteSignature, animatedNotes, notes]);
-
-  const visibleNotes = useMemo(() => {
+  const visibleDisplayNotes = useMemo(() => {
     const paddedWindow = timeWindow + 2;
-    return animatedNotes.filter(
+    return displayNotes.filter(
       (note) =>
         note.time >= filterTime - paddedWindow / 2 &&
         note.time <= filterTime + paddedWindow / 2,
     );
-  }, [animatedNotes, filterTime, timeWindow]);
+  }, [displayNotes, filterTime, timeWindow]);
 
+  const exitFilterTime = cf.active ? cf.oldFilterTime : filterTime;
+  const crossfadeOldNotes = cf.active ? cf.oldNotes : displayNotes;
   const visibleExitingNotes = useMemo(() => {
+    if (!isCrossfading) return [];
     const paddedWindow = timeWindow + 2;
-    const referenceTime = exitingFilterTimeRef.current;
-
-    return exitingNotes.filter(
+    return crossfadeOldNotes.filter(
       (note) =>
-        note.time >= referenceTime - paddedWindow / 2 &&
-        note.time <= referenceTime + paddedWindow / 2,
+        note.time >= exitFilterTime - paddedWindow / 2 &&
+        note.time <= exitFilterTime + paddedWindow / 2,
     );
-  }, [exitingNotes, filterTime, timeWindow]);
+  }, [isCrossfading, crossfadeOldNotes, exitFilterTime, timeWindow]);
+
+  const crossfadeNewNotes = cf.active ? cf.newNotes : notes;
+  const visibleEnteringNotes = useMemo(() => {
+    if (!isCrossfading) return [];
+    const paddedWindow = timeWindow + 2;
+    return crossfadeNewNotes.filter(
+      (note) =>
+        note.time >= filterTime - paddedWindow / 2 &&
+        note.time <= filterTime + paddedWindow / 2,
+    );
+  }, [isCrossfading, crossfadeNewNotes, filterTime, timeWindow]);
 
   return (
     <>
@@ -967,61 +947,64 @@ const Scene = ({
 
       {showMidiRoll && (
         <>
+          {isCrossfading && (
+            <MidiRoll
+              isFlatView={activePose.flatLock}
+              notes={crossfadeOldNotes}
+              filterTime={exitFilterTime}
+              timeWindow={timeWindow}
+              introStartRef={noteIntroStartRef}
+              fadePhase="exiting"
+              crossfadeStartClock={crossfadeStartClock}
+            />
+          )}
           <MidiRoll
             isFlatView={activePose.flatLock}
-            notes={exitingNotes}
+            notes={isCrossfading ? crossfadeNewNotes : displayNotes}
             filterTime={filterTime}
             timeWindow={timeWindow}
             introStartRef={noteIntroStartRef}
-            animationMode="exit"
-            transitionClockRef={noteTransitionClockRef}
-          />
-          <MidiRoll
-            isFlatView={activePose.flatLock}
-            notes={animatedNotes}
-            filterTime={filterTime}
-            timeWindow={timeWindow}
-            introStartRef={noteIntroStartRef}
-            isSteady={hasTransitionSettledRef.current}
-            isTransitioning={isNoteTransitioning}
-            transitionClockRef={noteTransitionClockRef}
+            fadePhase={isCrossfading ? "entering" : "steady"}
+            crossfadeStartClock={crossfadeStartClock}
           />
         </>
       )}
 
       <group rotation={[0, 0, 0]}>
         <Staff introStartRef={introStartRef} />
-        {visibleExitingNotes.map((note, index) => (
-          <NoteMesh
-            key={`note-exit-${note.id}-${index}`}
-            note={note}
-            timeWindow={timeWindow}
-            introStartRef={noteIntroStartRef}
-            introDelay={0}
-            animationMode="exit"
-            transitionClockRef={noteTransitionClockRef}
-          />
-        ))}
-        {visibleNotes.map((note, index) => (
-          <NoteMesh
-            key={`note-enter-${note.id}-${index}`}
-            note={note}
-            timeWindow={timeWindow}
-            introStartRef={noteIntroStartRef}
-            introDelay={
-              isNoteTransitioning
-                ? getTransitionNoteIntroDelay(index)
-                : getNoteIntroDelay(note, index)
-            }
-            introDuration={
-              isNoteTransitioning
-                ? INTRO_NOTE_TRANSITION_ENTER_DURATION
-                : INTRO_NOTE_DURATION
-            }
-            isTransitioning={isNoteTransitioning}
-            isSteady={hasTransitionSettledRef.current}
-          />
-        ))}
+        {isCrossfading &&
+          visibleExitingNotes.map((note, index) => (
+            <NoteMesh
+              key={`note-exit-${note.id}-${index}`}
+              note={note}
+              timeWindow={timeWindow}
+              introStartRef={noteIntroStartRef}
+              introDelay={0}
+              fadePhase="exiting"
+              crossfadeStartClock={crossfadeStartClock}
+            />
+          ))}
+        {isCrossfading
+          ? visibleEnteringNotes.map((note, index) => (
+              <NoteMesh
+                key={`note-enter-${note.id}-${index}`}
+                note={note}
+                timeWindow={timeWindow}
+                introStartRef={noteIntroStartRef}
+                introDelay={getCrossfadeEnterDelay(index)}
+                fadePhase="entering"
+                crossfadeStartClock={crossfadeStartClock}
+              />
+            ))
+          : visibleDisplayNotes.map((note, index) => (
+              <NoteMesh
+                key={`note-steady-${note.id}-${index}`}
+                note={note}
+                timeWindow={timeWindow}
+                introStartRef={noteIntroStartRef}
+                introDelay={getNoteIntroDelay(note, index)}
+              />
+            ))}
         <Playhead introStartRef={introStartRef} />
       </group>
 

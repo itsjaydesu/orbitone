@@ -298,13 +298,22 @@ export const useMusic = (settings: MusicSettings) => {
 
   const loadMidi = async (file: File) => {
     try {
+      setIsPlaying(false);
+      Tone.Transport.stop();
+      Tone.Transport.seconds = 0;
+      partStartedRef.current = false;
+      prevSpeedRef.current = 1;
+
       const { notes: parsedNotes, bpm: parsedBpm } = await parseMidiFile(file);
       if (parsedNotes.length > 0) {
-        Tone.Transport.stop();
-        Tone.Transport.seconds = 0;
-        partStartedRef.current = false;
-        prevSpeedRef.current = 1;
-        setIsPlaying(false);
+        if (process.env.NODE_ENV !== "production") {
+          console.info("[orbitone:music] upload.loadMidi.reset", {
+            wasPlaying: isPlayingRef.current,
+            transportSeconds: Number(Tone.Transport.seconds.toFixed(6)),
+            partStarted: partStartedRef.current,
+          });
+        }
+
         setOriginalBpm(Math.round(parsedBpm));
         setBpm(Math.round(parsedBpm));
         setOriginalNotes(parsedNotes);
