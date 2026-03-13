@@ -540,7 +540,7 @@ const MidiRoll = ({
     <group position={[0, -2, 0]}>
       {rollNotes.map((note, index) => (
         <MidiRollNote
-          key={`roll-${fadePhase}-${note.id}-${index}`}
+          key={`roll-${note.id}-${index}`}
           isFlatView={isFlatView}
           note={note}
           speed={speed}
@@ -987,7 +987,7 @@ const Scene = ({
         {isCrossfading
           ? visibleEnteringNotes.map((note, index) => (
               <NoteMesh
-                key={`note-enter-${note.id}-${index}`}
+                key={`note-${note.id}-${index}`}
                 note={note}
                 timeWindow={timeWindow}
                 introStartRef={noteIntroStartRef}
@@ -998,7 +998,7 @@ const Scene = ({
             ))
           : visibleDisplayNotes.map((note, index) => (
               <NoteMesh
-                key={`note-steady-${note.id}-${index}`}
+                key={`note-${note.id}-${index}`}
                 note={note}
                 timeWindow={timeWindow}
                 introStartRef={noteIntroStartRef}
