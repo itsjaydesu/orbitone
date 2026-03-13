@@ -47,7 +47,7 @@ const BASS_CLEF_LINE_RADIUS = BASE_BASS_RADII[2];
 const BASS_CLEF_OFFSET_Y_EM = -0.02;
 const INTRO_RING_DRAW_DURATION = 1.07;
 const INTRO_RING_STAGGER = 0.065;
-const INTRO_NOTE_BASE_DELAY = 1.74;
+const INTRO_NOTE_BASE_DELAY = 0.75;
 const INTRO_NOTE_SWEEP_SPAN = 0.96;
 const INTRO_NOTE_DURATION = 0.99;
 const INTRO_NOTE_APPEAR_DELAY = 1;
@@ -63,9 +63,9 @@ const CROSSFADE_TOTAL_DURATION = Math.max(
     CROSSFADE_ENTER_DURATION,
 );
 const MIDI_ROLL_FLAT_SPEED = 1.8;
-const INTRO_CAMERA_DELAY = 1.44;
-const INTRO_PLAYHEAD_DELAY = 0.74;
-const INTRO_PLAYHEAD_DURATION = 2.66;
+const INTRO_CAMERA_DELAY = 0;
+const INTRO_PLAYHEAD_DELAY = 0.6;
+const INTRO_PLAYHEAD_DURATION = 2;
 const INTRO_CAMERA_DURATION = 1.95;
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32);
@@ -318,7 +318,8 @@ const NoteMesh = ({
       return;
     }
 
-    const currentTime = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
+    const currentTime =
+      frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
     const elapsed = clock.getElapsedTime();
 
     let displayProgress: number;
@@ -438,7 +439,8 @@ const MidiRollNote = ({
       return;
     }
 
-    const currentTime = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
+    const currentTime =
+      frozenTime !== undefined ? frozenTime : Tone.Transport.seconds;
     const elapsed = clock.getElapsedTime();
 
     let displayProgress: number;
@@ -924,9 +926,7 @@ const Scene = ({
   const cf = crossfadeRef.current;
   const isCrossfading =
     cf.active || activeNoteSignature !== getNotesSignature(displayNotes);
-  const crossfadeStartClock = cf.active
-    ? cf.startClock
-    : lastClockRef.current;
+  const crossfadeStartClock = cf.active ? cf.startClock : lastClockRef.current;
 
   const visibleDisplayNotes = useMemo(() => {
     const paddedWindow = timeWindow + 4;
