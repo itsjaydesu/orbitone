@@ -62,6 +62,7 @@ const CROSSFADE_TOTAL_DURATION = Math.max(
     CROSSFADE_NOTE_STAGGER_CAP * CROSSFADE_NOTE_STAGGER +
     CROSSFADE_ENTER_DURATION,
 );
+const MIDI_ROLL_FLAT_SPEED = 1.8;
 const INTRO_CAMERA_DELAY = 1.24;
 const INTRO_PLAYHEAD_DELAY = 0.24;
 const INTRO_PLAYHEAD_DURATION = 1.33;
@@ -464,13 +465,24 @@ const MidiRollNote = ({
     const timeDiff = note.time - currentTime;
     const z = -(timeDiff + note.duration / 2) * speed;
     const transitionBackShift = (1 - displayProgress) * -0.55;
-    meshRef.current.position.set(x, transitionBackShift, z);
-    meshRef.current.renderOrder = isFlatView ? Math.round(1000 + z * 10) : 6;
-    meshRef.current.scale.set(
-      0.15 + displayProgress * 0.15,
-      0.04 + displayProgress * 0.06,
-      length * (0.42 + displayProgress * 0.58),
-    );
+
+    if (isFlatView) {
+      meshRef.current.position.set(x, -z + transitionBackShift, 0);
+      meshRef.current.renderOrder = 5;
+      meshRef.current.scale.set(
+        0.2 + displayProgress * 0.1,
+        length * (0.42 + displayProgress * 0.58),
+        0.1,
+      );
+    } else {
+      meshRef.current.position.set(x, transitionBackShift, z);
+      meshRef.current.renderOrder = 6;
+      meshRef.current.scale.set(
+        0.15 + displayProgress * 0.15,
+        0.04 + displayProgress * 0.06,
+        length * (0.42 + displayProgress * 0.58),
+      );
+    }
 
     const isPlaying = timeDiff <= 0 && timeDiff >= -note.duration;
     const distance = Math.abs(z);
@@ -530,7 +542,7 @@ const MidiRoll = ({
   crossfadeStartClock?: number;
   frozenTime?: number;
 }) => {
-  const speed = 10;
+  const speed = isFlatView ? MIDI_ROLL_FLAT_SPEED : 10;
   const lookAhead = timeWindow * 1.5;
 
   const rollNotes = useMemo(
@@ -543,7 +555,7 @@ const MidiRoll = ({
   );
 
   return (
-    <group position={[0, -2, 0]}>
+    <group position={isFlatView ? [0, 8, -0.1] : [0, -2, 0]}>
       {rollNotes.map((note, index) => (
         <MidiRollNote
           key={`roll-${note.id}-${index}`}
