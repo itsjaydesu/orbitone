@@ -53,6 +53,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 const MENU_REVEAL_DELAY_MS = 3000;
 const MENU_IDLE_HIDE_MS = 2000;
 const MIDI_EXTENSIONS = [".mid", ".midi"];
+const CURSOR_SIZE_PX = 96;
+const CURSOR_HOTSPOT_X_RATIO = 72.825 / 250;
+const CURSOR_HOTSPOT_Y_RATIO = 205.315 / 250;
+const CURSOR_HOTSPOT_X_PX = CURSOR_SIZE_PX * CURSOR_HOTSPOT_X_RATIO;
+const CURSOR_HOTSPOT_Y_PX = CURSOR_SIZE_PX * CURSOR_HOTSPOT_Y_RATIO;
 
 const isMidiFile = (file: File) => {
   const lowerName = file.name.toLowerCase();
@@ -108,7 +113,6 @@ export default function Home() {
   const cursorPrimedRef = useRef(false);
   const uploadDragDepthRef = useRef(0);
   const cursorDotRef = useRef<HTMLDivElement>(null);
-  const cursorRingRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const libraryRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -150,6 +154,14 @@ export default function Home() {
 
     return () => mediaQuery.removeEventListener("change", updatePointerMode);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("fine-pointer-cursor-hidden", hasFinePointer);
+
+    return () => {
+      document.body.classList.remove("fine-pointer-cursor-hidden");
+    };
+  }, [hasFinePointer]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -229,13 +241,8 @@ export default function Home() {
 
   const syncCursorPosition = useCallback((clientX: number, clientY: number) => {
     if (cursorDotRef.current) {
-      cursorDotRef.current.style.left = `${clientX}px`;
-      cursorDotRef.current.style.top = `${clientY}px`;
-    }
-
-    if (cursorRingRef.current) {
-      cursorRingRef.current.style.left = `${clientX}px`;
-      cursorRingRef.current.style.top = `${clientY}px`;
+      cursorDotRef.current.style.left = `${clientX - CURSOR_HOTSPOT_X_PX}px`;
+      cursorDotRef.current.style.top = `${clientY - CURSOR_HOTSPOT_Y_PX}px`;
     }
 
     if (!cursorPrimedRef.current) {
@@ -559,20 +566,19 @@ export default function Home() {
         <div
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-0 z-[120] transition-opacity duration-700 ease-out",
-            chromeVisible && isCursorPrimed ? "opacity-100" : "opacity-0",
+            "pointer-events-none fixed inset-0 z-[21000001] transition-opacity duration-200 ease-out",
+            isCursorPrimed ? "opacity-100" : "opacity-0",
           )}
         >
           <div
-            ref={cursorRingRef}
-            className="absolute top-0 left-0 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25 bg-white/[0.02] shadow-[0_0_24px_rgba(255,255,255,0.1)]"
-          />
-          <div
             ref={cursorDotRef}
-            className="pointer-events-none absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)]"
-          >
-            <Music className="h-5 w-5" />
-          </div>
+            className="pointer-events-none absolute top-0 left-0 bg-contain bg-center bg-no-repeat"
+            style={{
+              width: `${CURSOR_SIZE_PX}px`,
+              height: `${CURSOR_SIZE_PX}px`,
+              backgroundImage: 'url("/mouse_cursor.svg")',
+            }}
+          />
         </div>
       )}
 

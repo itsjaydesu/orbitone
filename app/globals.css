@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+body.fine-pointer-cursor-hidden,
+body.fine-pointer-cursor-hidden * {
+  cursor: none !important;
+}
