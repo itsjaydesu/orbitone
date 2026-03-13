@@ -4,4 +4,12 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.example
+tsconfig.tsbuildinfo
+.factory/
+AGENTS.md
+tasks/
+MIDI/
+metadata.json
+package-lock.json
+.eslintrc.json
+/mouse_cursor.svg

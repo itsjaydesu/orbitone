@@ -847,13 +847,6 @@ export default function Home() {
                 </h3>
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/60"></span>
-                    <span className="font-medium text-[var(--nm-text)]">
-                      Gemini 3.1 Pro
-                    </span>{" "}
-                    - AI Assistant
-                  </li>
-                  <li className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-white/40"></span>
                     <span className="font-medium text-[var(--nm-text)]">
                       Three.js & R3F
