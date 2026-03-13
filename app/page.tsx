@@ -10,6 +10,10 @@ import {
   MidiLibraryItem,
 } from "@/lib/library";
 import {
+  getLocalizedTrackSubtitle,
+  getLocalizedTrackTitle,
+} from "@/lib/library-translations";
+import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
   AppLanguage,
@@ -550,20 +554,6 @@ const getLibraryPrimaryGroups = (
 const stripMidiExtension = (fileName: string) =>
   fileName.replace(/\.(mid|midi)$/i, "");
 
-const TRACK_SUBTITLE_TRANSLATIONS: Record<
-  AppLanguage,
-  Record<string, string>
-> = {
-  en: {
-    "Internet Classic": "Internet Classic",
-    "Unknown Artist": "Unknown Artist",
-  },
-  ja: {
-    "Internet Classic": "インターネット・クラシック",
-    "Unknown Artist": "作者不明",
-  },
-};
-
 const getRandomLibraryTrack = (): MidiLibraryItem | null => {
   if (MIDI_LIBRARY.length === 0) {
     return null;
@@ -596,17 +586,6 @@ const isMidiFile = (file: File) => {
     file.type === "audio/x-midi" ||
     MIDI_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
   );
-};
-
-const formatTrackSubtitle = (
-  subtitle: string | null | undefined,
-  language: AppLanguage,
-) => {
-  if (!subtitle) {
-    return null;
-  }
-
-  return TRACK_SUBTITLE_TRANSLATIONS[language][subtitle] ?? subtitle;
 };
 
 export default function Home() {
@@ -748,7 +727,10 @@ export default function Home() {
         : null,
     [currentLibraryTrackId],
   );
-  const currentTrackSubtitle = formatTrackSubtitle(
+  const displayTrackTitle = currentLibraryTrack
+    ? getLocalizedTrackTitle(currentLibraryTrack, language)
+    : currentTrackTitle;
+  const currentTrackSubtitle = getLocalizedTrackSubtitle(
     currentLibraryTrack?.subtitle ?? null,
     language,
   );
@@ -1426,10 +1408,10 @@ export default function Home() {
         </h1>
 
         <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 sm:absolute sm:left-1/2 sm:top-0 sm:w-full sm:max-w-[min(46rem,calc(100%-24rem))] sm:-translate-x-1/2 sm:px-6 sm:pt-1">
-          {currentTrackTitle && (
+          {displayTrackTitle && (
             <div className="max-w-[min(42rem,100%)] rounded-[1.4rem] border border-white/8 bg-black/25 px-4 py-2.5 text-center shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:px-5 sm:py-3">
               <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                {currentTrackTitle}
+                {displayTrackTitle}
               </div>
               {currentTrackSubtitle && (
                 <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
@@ -1652,10 +1634,13 @@ export default function Home() {
                                     <span className="flex flex-wrap items-start justify-between gap-2">
                                       <span className="min-w-0">
                                         <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
-                                          {item.title}
+                                          {getLocalizedTrackTitle(
+                                            item,
+                                            language,
+                                          )}
                                         </span>
                                         <span className="mt-1 block truncate text-xs text-[var(--nm-text-faint)]">
-                                          {formatTrackSubtitle(
+                                          {getLocalizedTrackSubtitle(
                                             item.subtitle,
                                             language,
                                           )}
