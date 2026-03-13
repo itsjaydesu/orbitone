@@ -3,6 +3,7 @@
 import { CameraLab } from "@/components/CameraLab";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
+  MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
   MidiLibraryCategory,
   MidiLibraryItem,
@@ -77,9 +78,6 @@ const LIBRARY_TRACK_INDEX = new Map(
     category.items.map((item) => [item.id, item] as const),
   ),
 );
-const DEFAULT_LIBRARY_TRACK_ID = "film-tv-anime/succession-theme";
-const DEFAULT_LIBRARY_TRACK =
-  LIBRARY_TRACK_INDEX.get(DEFAULT_LIBRARY_TRACK_ID) ?? null;
 
 type LibraryCategoryMeta = {
   blurb: string;
@@ -214,6 +212,14 @@ const LIBRARY_PRIMARY_GROUP_INDEX = new Map(
 const stripMidiExtension = (fileName: string) =>
   fileName.replace(/\.(mid|midi)$/i, "");
 
+const getRandomLibraryTrack = (): MidiLibraryItem | null => {
+  if (MIDI_LIBRARY.length === 0) {
+    return null;
+  }
+
+  return MIDI_LIBRARY[Math.floor(Math.random() * MIDI_LIBRARY.length)] ?? null;
+};
+
 const formatLoadedTitle = (fileName: string) => {
   const stem = stripMidiExtension(fileName).trim();
 
@@ -269,6 +275,9 @@ export default function Home() {
     useState<CameraPresetMap>(() =>
       cloneCameraPresetMap(DEFAULT_CAMERA_PRESETS),
     );
+  const [initialLibraryTrack] = useState<MidiLibraryItem | null>(() =>
+    getRandomLibraryTrack(),
+  );
 
   const {
     isPlaying,
@@ -297,7 +306,7 @@ export default function Home() {
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const cameraLabRef = useRef<HTMLDivElement>(null);
   const currentTrackTitleRef = useRef<string | null>(null);
-  const defaultTrackRequestedRef = useRef(false);
+  const initialTrackRequestedRef = useRef(false);
   const deferredLibraryQuery = useDeferredValue(libraryQuery);
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
@@ -336,6 +345,14 @@ export default function Home() {
       ? activeLibraryGroup.blurb
       : `${activeLibraryGroup.blurb} Currently showing ${activeLibraryCategory?.label ?? "the active set"}.`
     : activeLibraryCategoryMeta.blurb;
+  const currentLibraryTrack = useMemo<MidiLibraryItem | null>(
+    () =>
+      currentLibraryTrackId
+        ? LIBRARY_TRACK_INDEX.get(currentLibraryTrackId) ?? null
+        : null,
+    [currentLibraryTrackId],
+  );
+  const currentTrackSubtitle = currentLibraryTrack?.subtitle ?? null;
   const filteredLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
       return [];
@@ -397,18 +414,16 @@ export default function Home() {
   }, [currentTrackTitle]);
 
   useEffect(() => {
-    if (showLibrary && currentLibraryTrackId) {
-      const activeTrack = LIBRARY_TRACK_INDEX.get(currentLibraryTrackId);
-
-      if (activeTrack) {
-        setActiveLibraryCategoryId(activeTrack.categoryId);
+    if (showLibrary && currentLibraryTrack) {
+      if (currentLibraryTrack) {
+        setActiveLibraryCategoryId(currentLibraryTrack.categoryId);
       }
     }
 
     if (!showLibrary) {
       setLibraryQuery("");
     }
-  }, [currentLibraryTrackId, showLibrary]);
+  }, [currentLibraryTrack, showLibrary]);
 
   useEffect(() => {
     if (!showLibrary) {
@@ -548,19 +563,15 @@ export default function Home() {
   }, []);
 
   const openLibrary = useCallback(() => {
-    if (currentLibraryTrackId) {
-      const activeTrack = LIBRARY_TRACK_INDEX.get(currentLibraryTrackId);
-
-      if (activeTrack) {
-        setActiveLibraryCategoryId(activeTrack.categoryId);
-      }
+    if (currentLibraryTrack) {
+      setActiveLibraryCategoryId(currentLibraryTrack.categoryId);
     }
 
     setShowLibrary(true);
     setShowSettings(false);
     setShowInfo(false);
     setShowCameraLab(false);
-  }, [currentLibraryTrackId]);
+  }, [currentLibraryTrack]);
 
   const closeLibrary = useCallback(() => {
     setShowLibrary(false);
@@ -813,25 +824,25 @@ export default function Home() {
 
   useEffect(() => {
     if (
-      !DEFAULT_LIBRARY_TRACK ||
+      !initialLibraryTrack ||
       currentTrackTitle !== null ||
-      defaultTrackRequestedRef.current
+      initialTrackRequestedRef.current
     ) {
       return;
     }
 
-    defaultTrackRequestedRef.current = true;
+    initialTrackRequestedRef.current = true;
     let isCancelled = false;
 
-    const loadDefaultTrack = async () => {
+    const loadInitialTrack = async () => {
       setIsLoadingLibrary(true);
 
       try {
-        const response = await fetch(DEFAULT_LIBRARY_TRACK.url);
+        const response = await fetch(initialLibraryTrack.url);
 
         if (!response.ok) {
           throw new Error(
-            `Failed to fetch ${DEFAULT_LIBRARY_TRACK.url}: ${response.status}`,
+            `Failed to fetch ${initialLibraryTrack.url}: ${response.status}`,
           );
         }
 
@@ -841,16 +852,16 @@ export default function Home() {
           return;
         }
 
-        const file = new File([blob], DEFAULT_LIBRARY_TRACK.fileName, {
+        const file = new File([blob], initialLibraryTrack.fileName, {
           type: "audio/midi",
         });
 
         await loadMidiFile(file, {
-          libraryTrackId: DEFAULT_LIBRARY_TRACK.id,
-          title: DEFAULT_LIBRARY_TRACK.title,
+          libraryTrackId: initialLibraryTrack.id,
+          title: initialLibraryTrack.title,
         });
       } catch (error) {
-        console.error("Failed to load default library MIDI", error);
+        console.error("Failed to load initial library MIDI", error);
       } finally {
         if (!isCancelled) {
           setIsLoadingLibrary(false);
@@ -858,12 +869,12 @@ export default function Home() {
       }
     };
 
-    void loadDefaultTrack();
+    void loadInitialTrack();
 
     return () => {
       isCancelled = true;
     };
-  }, [currentTrackTitle, loadMidiFile]);
+  }, [currentTrackTitle, initialLibraryTrack, loadMidiFile]);
 
   const updateSetting = <K extends keyof AppSettings>(
     key: K,
@@ -953,8 +964,15 @@ export default function Home() {
 
         <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 sm:absolute sm:left-1/2 sm:top-0 sm:w-full sm:max-w-[min(46rem,calc(100%-24rem))] sm:-translate-x-1/2 sm:px-6 sm:pt-1">
           {currentTrackTitle && (
-            <div className="max-w-[min(42rem,100%)] truncate rounded-full border border-white/8 bg-black/20 px-4 py-2 text-center text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:text-base">
-              {currentTrackTitle}
+            <div className="max-w-[min(42rem,100%)] rounded-[1.4rem] border border-white/8 bg-black/25 px-4 py-2.5 text-center shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:px-5 sm:py-3">
+              <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                {currentTrackTitle}
+              </div>
+              {currentTrackSubtitle && (
+                <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
+                  {currentTrackSubtitle}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -22,11 +22,12 @@ export interface MusicSettings {
 interface TrackState {
   originalNotes: NoteEvent[];
   originalPedalEvents: PedalEvent[];
+  originalPlaybackGain: number;
   originalBpm: number;
   bpm: number;
 }
 
-const GLOBAL_VOLUME_BOOST = 1.4;
+const GLOBAL_VOLUME_BOOST = 1.75;
 
 /** Per-register release envelope — longer for bass, tighter for treble. */
 function getRegisterRelease(midi: number, pedalSustained: boolean): number {
@@ -60,6 +61,7 @@ export const useMusic = (settings: MusicSettings) => {
   const samplerRef = useRef<Tone.Sampler | null>(null);
   const partRef = useRef<Tone.Part | null>(null);
   const pedalPartRef = useRef<Tone.Part | null>(null);
+  const trackGainRef = useRef<Tone.Gain | null>(null);
   const dryGainRef = useRef<Tone.Gain | null>(null);
   const reverbSendRef = useRef<Tone.Gain | null>(null);
   const reverbToneRef = useRef<Tone.Filter | null>(null);
@@ -81,8 +83,16 @@ export const useMusic = (settings: MusicSettings) => {
     originalBpm: defaultMusic.bpm,
     originalNotes: defaultMusic.notes,
     originalPedalEvents: defaultMusic.pedalEvents,
+    originalPlaybackGain: defaultMusic.playbackGain,
   }));
-  const { bpm, originalBpm, originalNotes, originalPedalEvents } = trackState;
+  const {
+    bpm,
+    originalBpm,
+    originalNotes,
+    originalPedalEvents,
+    originalPlaybackGain,
+  } = trackState;
+  const trackPlaybackGain = originalPlaybackGain;
 
   const prevSpeedRef = useRef(1);
 
@@ -163,6 +173,7 @@ export const useMusic = (settings: MusicSettings) => {
         masterGainRef.current.connect(limiterRef.current);
         masterGainRef.current.connect(meterRef.current);
 
+        trackGainRef.current = new Tone.Gain(trackPlaybackGain);
         dryGainRef.current = new Tone.Gain(0.42).connect(eqRef.current);
         wetGainRef.current = new Tone.Gain(0.18).connect(eqRef.current);
         reverbToneRef.current = new Tone.Filter({
@@ -223,19 +234,21 @@ export const useMusic = (settings: MusicSettings) => {
           },
         });
 
-        samplerRef.current.connect(dryGainRef.current);
-        samplerRef.current.connect(reverbSendRef.current);
+        samplerRef.current.connect(trackGainRef.current);
+        trackGainRef.current.connect(dryGainRef.current);
+        trackGainRef.current.connect(reverbSendRef.current);
       });
     }
 
     await initPromiseRef.current;
-  }, [baseOutputGain, defaultReverbRoomSize, volumePercent]);
+  }, [baseOutputGain, defaultReverbRoomSize, trackPlaybackGain, volumePercent]);
 
   useEffect(() => {
     return () => {
       partRef.current?.dispose();
       pedalPartRef.current?.dispose();
       samplerRef.current?.dispose();
+      trackGainRef.current?.dispose();
       dryGainRef.current?.dispose();
       reverbSendRef.current?.dispose();
       reverbToneRef.current?.dispose();
@@ -295,6 +308,12 @@ export const useMusic = (settings: MusicSettings) => {
       masterGainRef.current.gain.value = baseOutputGain * (volumePercent / 100);
     }
   }, [baseOutputGain, volumePercent]);
+
+  useEffect(() => {
+    if (trackGainRef.current) {
+      trackGainRef.current.gain.value = trackPlaybackGain;
+    }
+  }, [trackPlaybackGain]);
 
   useEffect(() => {
     if (notes.length === 0) return;
@@ -379,7 +398,12 @@ export const useMusic = (settings: MusicSettings) => {
       partStartedRef.current = false;
       prevSpeedRef.current = 1;
 
-      const { notes: parsedNotes, bpm: parsedBpm, pedalEvents: parsedPedalEvents } = await parseMidiFile(file);
+      const {
+        notes: parsedNotes,
+        bpm: parsedBpm,
+        pedalEvents: parsedPedalEvents,
+        playbackGain: parsedPlaybackGain,
+      } = await parseMidiFile(file);
       if (parsedNotes.length > 0) {
         if (process.env.NODE_ENV !== "production") {
           console.info("[orbitone:music] upload.loadMidi.reset", {
@@ -397,6 +421,7 @@ export const useMusic = (settings: MusicSettings) => {
             originalBpm: roundedBpm,
             originalNotes: parsedNotes,
             originalPedalEvents: parsedPedalEvents,
+            originalPlaybackGain: parsedPlaybackGain,
           });
         });
 

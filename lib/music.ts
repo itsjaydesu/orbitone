@@ -19,9 +19,35 @@ export interface MusicData {
   notes: NoteEvent[];
   bpm: number;
   pedalEvents: PedalEvent[];
+  playbackGain: number;
 }
 
 const MAX_SUSTAIN_DURATION = 15;
+const MIN_VELOCITY_ANALYSIS_VALUE = 0.08;
+const QUIET_TRACK_MEAN_TARGET = 0.58;
+const QUIET_TRACK_P90_TARGET = 0.82;
+const FLAT_TRACK_P90_TARGET = 0.84;
+const MAX_TOTAL_TRACK_BOOST = 2.35;
+const MAX_EXPRESSIVE_VELOCITY_BOOST = 1.18;
+const MAX_FLAT_VELOCITY_BOOST = 2.2;
+const FLAT_VELOCITY_UNIQUE_VALUE_THRESHOLD = 3;
+const FLAT_VELOCITY_SPREAD_THRESHOLD = 0.12;
+const VELOCITY_HEADROOM_TARGET = 0.98;
+
+interface VelocityProfile {
+  mean: number;
+  p10: number;
+  p90: number;
+  p95: number;
+  uniqueCount: number;
+}
+
+interface VelocityNormalizationProfile {
+  desiredBoost: number;
+  hasVelocityDynamics: boolean;
+  playbackGain: number;
+  velocityScale: number;
+}
 
 /** Extra time (seconds) to model damper felt settling back onto strings. */
 function getDamperBuffer(midi: number): number {
@@ -32,6 +58,100 @@ function getDamperBuffer(midi: number): number {
 
 export const DEFAULT_NOTE_LEAD_IN_SECONDS = 0.35;
 export const MIN_UPLOAD_NOTE_LEAD_IN_SECONDS = 0.5;
+
+function getPercentile(sortedValues: number[], percentile: number): number {
+  if (sortedValues.length === 0) {
+    return 0;
+  }
+
+  const index = Math.min(
+    sortedValues.length - 1,
+    Math.floor(sortedValues.length * percentile),
+  );
+  return sortedValues[index];
+}
+
+function analyzeVelocityProfile(notes: NoteEvent[]): VelocityProfile | null {
+  if (notes.length === 0) {
+    return null;
+  }
+
+  const velocities = notes
+    .map((note) => Math.min(1, Math.max(0, note.velocity)))
+    .sort((left, right) => left - right);
+  const sum = velocities.reduce((total, velocity) => total + velocity, 0);
+
+  return {
+    mean: sum / velocities.length,
+    p10: getPercentile(velocities, 0.1),
+    p90: getPercentile(velocities, 0.9),
+    p95: getPercentile(velocities, 0.95),
+    uniqueCount: new Set(velocities.map((velocity) => velocity.toFixed(4))).size,
+  };
+}
+
+function getVelocityNormalizationProfile(
+  notes: NoteEvent[],
+): VelocityNormalizationProfile {
+  const profile = analyzeVelocityProfile(notes);
+
+  if (!profile) {
+    return {
+      desiredBoost: 1,
+      hasVelocityDynamics: true,
+      playbackGain: 1,
+      velocityScale: 1,
+    };
+  }
+
+  const hasVelocityDynamics =
+    profile.uniqueCount > FLAT_VELOCITY_UNIQUE_VALUE_THRESHOLD &&
+    profile.p90 - profile.p10 >= FLAT_VELOCITY_SPREAD_THRESHOLD;
+  const p90Boost = Math.max(
+    1,
+    QUIET_TRACK_P90_TARGET / Math.max(profile.p90, MIN_VELOCITY_ANALYSIS_VALUE),
+  );
+  const meanBoost = Math.max(
+    1,
+    QUIET_TRACK_MEAN_TARGET /
+      Math.max(profile.mean, MIN_VELOCITY_ANALYSIS_VALUE),
+  );
+  let desiredBoost = Math.min(
+    MAX_TOTAL_TRACK_BOOST,
+    Math.pow(p90Boost, 0.72) * Math.pow(meanBoost, 0.28),
+  );
+
+  if (!hasVelocityDynamics) {
+    desiredBoost = Math.min(
+      MAX_TOTAL_TRACK_BOOST,
+      Math.max(
+        desiredBoost,
+        FLAT_TRACK_P90_TARGET /
+          Math.max(profile.p90, MIN_VELOCITY_ANALYSIS_VALUE),
+      ),
+    );
+  }
+
+  const velocityBoostCap = hasVelocityDynamics
+    ? MAX_EXPRESSIVE_VELOCITY_BOOST
+    : MAX_FLAT_VELOCITY_BOOST;
+  const headroomLimitedBoost = Math.max(
+    1,
+    Math.min(
+      velocityBoostCap,
+      VELOCITY_HEADROOM_TARGET /
+        Math.max(profile.p95, MIN_VELOCITY_ANALYSIS_VALUE),
+    ),
+  );
+  const velocityScale = Math.min(desiredBoost, headroomLimitedBoost);
+
+  return {
+    desiredBoost,
+    hasVelocityDynamics,
+    playbackGain: desiredBoost / velocityScale,
+    velocityScale,
+  };
+}
 
 export const parseMidiFile = async (file: File): Promise<MusicData> => {
   const arrayBuffer = await file.arrayBuffer();
@@ -94,6 +214,14 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
     });
   });
 
+  const normalization = getVelocityNormalizationProfile(notes);
+
+  if (normalization.velocityScale !== 1) {
+    notes.forEach((note) => {
+      note.velocity = Math.min(1, Math.max(0, note.velocity * normalization.velocityScale));
+    });
+  }
+
   notes.sort((a, b) => a.time - b.time);
   pedalEvents.sort((a, b) => a.time - b.time);
 
@@ -116,7 +244,25 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
 
   const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120);
 
-  return { notes, bpm, pedalEvents };
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    normalization.desiredBoost > 1.05
+  ) {
+    console.info('[orbitone:music] midi.normalization', {
+      desiredBoost: Number(normalization.desiredBoost.toFixed(2)),
+      fileName: file.name,
+      playbackGain: Number(normalization.playbackGain.toFixed(2)),
+      usesVelocityDynamics: normalization.hasVelocityDynamics,
+      velocityScale: Number(normalization.velocityScale.toFixed(2)),
+    });
+  }
+
+  return {
+    notes,
+    bpm,
+    pedalEvents,
+    playbackGain: normalization.playbackGain,
+  };
 };
 
 export const generateBeautifulPianoPiece = (numMeasures: number = 32, bpm: number = 100): MusicData => {
@@ -213,5 +359,5 @@ export const generateBeautifulPianoPiece = (numMeasures: number = 32, bpm: numbe
     timeInSeconds += secondsPerMeasure;
   }
   
-  return { notes, bpm, pedalEvents: [] };
+  return { notes, bpm, pedalEvents: [], playbackGain: 1 };
 };
