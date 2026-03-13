@@ -14,8 +14,10 @@ import {
   generateBeautifulPianoPiece,
   parseMidiFile,
 } from "../lib/music";
+import type { AppLanguage } from "../lib/camera-presets";
 
 export interface MusicSettings {
+  language: AppLanguage;
   volumePercent: number;
 }
 
@@ -41,7 +43,7 @@ function getRegisterRelease(midi: number, pedalSustained: boolean): number {
 }
 
 export const useMusic = (settings: MusicSettings) => {
-  const { volumePercent } = settings;
+  const { language, volumePercent } = settings;
   const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST;
   const defaultReverbRoomSize = 0.8;
   const defaultMusic = useMemo(() => {
@@ -431,10 +433,14 @@ export const useMusic = (settings: MusicSettings) => {
       return false;
     } catch (error) {
       console.error("Error parsing MIDI file:", error);
-      alert("Failed to parse MIDI file.");
+      alert(
+        language === "ja"
+          ? "MIDIファイルを解析できませんでした。"
+          : "Failed to parse MIDI file.",
+      );
       return false;
     }
-  }, []);
+  }, [language]);
 
   const seek = useCallback((time: number) => {
     Tone.Transport.seconds = time;

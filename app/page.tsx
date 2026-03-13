@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { CameraLab } from "@/components/CameraLab";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
@@ -11,7 +12,7 @@ import {
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
-  CAMERA_VIEW_LABELS,
+  AppLanguage,
   CameraPose,
   CameraPresetMap,
   CameraView,
@@ -19,6 +20,7 @@ import {
   cameraPoseEquals,
   cloneCameraPose,
   cloneCameraPresetMap,
+  getCameraViewLabels,
   mergeCameraPresetMap,
 } from "@/lib/camera-presets";
 import { useMusic } from "@/hooks/useMusic";
@@ -36,9 +38,11 @@ import {
   Info,
   X,
   Library,
+  Globe,
+  ChevronDown,
+  Check,
   Music,
   Piano,
-  Search,
   TrainFront,
   Expand,
   Map as MapIcon,
@@ -47,12 +51,13 @@ import {
 } from "lucide-react";
 import {
   startTransition,
-  useDeferredValue,
   useState,
   useRef,
   useEffect,
   useCallback,
   useMemo,
+  type ReactElement,
+  type SVGProps,
 } from "react";
 import * as Tone from "tone";
 
@@ -82,6 +87,7 @@ const LIBRARY_TRACK_INDEX = new Map(
 type LibraryCategoryMeta = {
   blurb: string;
   icon: LucideIcon;
+  label: string;
   shortLabel: string;
 };
 
@@ -101,116 +107,462 @@ const TRAIN_LIBRARY_CATEGORY_IDS = [
   "train-signature-system",
 ] as const;
 
-const getLibraryCategoryMeta = (categoryId: string): LibraryCategoryMeta => {
+type ShortcutItem = {
+  keyLabel: string;
+  description: string;
+};
+
+type CreatorLink = {
+  href: string;
+  icon: (props: SVGProps<SVGSVGElement>) => ReactElement;
+  label: string;
+  subtitle: string;
+};
+
+type UiCopy = {
+  aboutTitle: string;
+  cameraView: string;
+  closeAbout: string;
+  closeLibrary: string;
+  closeSettings: string;
+  creatorTitle: string;
+  fullScreen: string;
+  fullScreenExit: string;
+  infoButton: string;
+  keyboardShortcutsTitle: string;
+  languageButton: string;
+  libraryButton: string;
+  libraryDefaultHeading: string;
+  libraryDescription: string;
+  libraryLoadError: string;
+  libraryTabList: string;
+  libraryTitle: string;
+  loaded: string;
+  loadingPiano: string;
+  midiRoll: string;
+  noTracksDescription: string;
+  noTracksTitle: (label: string) => string;
+  openSource: string;
+  resetDefaults: string;
+  settings: string;
+  show: string;
+  hide: string;
+  startPlayback: string;
+  stopPlayback: string;
+  techTitle: string;
+  trainSubcategories: string;
+  upload: string;
+  volume: string;
+};
+
+const FEATURED_LIBRARY_ORDER = new Map([
+  ["games-internet/theme-song-to-2008", 0],
+]);
+
+const LANGUAGE_OPTIONS: ReadonlyArray<{
+  value: AppLanguage;
+  label: string;
+}> = [
+  { value: "en", label: "English" },
+  { value: "ja", label: "日本語" },
+];
+
+const getBrandName = (language: AppLanguage) =>
+  language === "ja" ? "オービトーン" : "orbitone";
+
+const GitHubMark = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+    <path d="M12 1.25a10.75 10.75 0 0 0-3.4 20.95c.54.1.73-.23.73-.52 0-.25-.01-1.09-.02-1.97-2.96.64-3.58-1.26-3.58-1.26-.48-1.22-1.18-1.55-1.18-1.55-.97-.66.07-.65.07-.65 1.07.08 1.64 1.1 1.64 1.1.96 1.63 2.5 1.16 3.12.89.1-.69.37-1.16.68-1.43-2.37-.27-4.86-1.18-4.86-5.27 0-1.16.41-2.1 1.09-2.84-.11-.27-.47-1.37.1-2.84 0 0 .89-.29 2.91 1.09a10.06 10.06 0 0 1 5.3 0c2.01-1.38 2.9-1.09 2.9-1.09.58 1.47.22 2.57.11 2.84.68.74 1.09 1.68 1.09 2.84 0 4.1-2.5 4.99-4.88 5.25.38.33.72.97.72 1.95 0 1.41-.01 2.55-.01 2.89 0 .29.19.63.74.52A10.75 10.75 0 0 0 12 1.25Z" />
+  </svg>
+);
+
+const XMark = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+    <path d="M18.9 2.25h2.93l-6.4 7.33 7.52 12.17h-5.89l-4.62-7.4-6.45 7.4H3.06l6.85-7.86L2.7 2.25h6.04l4.18 6.74 5.98-6.74Zm-1.03 17.74h1.63L7.86 3.91H6.12l11.75 16.08Z" />
+  </svg>
+);
+
+const GlobeBadgeIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3.5 9h17" />
+    <path d="M3.5 15h17" />
+    <path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9Z" />
+  </svg>
+);
+
+const KEYBOARD_SHORTCUTS: Record<AppLanguage, ShortcutItem[]> = {
+  en: [
+    { keyLabel: "Space", description: "Play / Stop" },
+    { keyLabel: "C", description: "Cycle camera angles" },
+    { keyLabel: "M", description: "Toggle the MIDI roll" },
+    { keyLabel: "L", description: "Open the MIDI library" },
+    { keyLabel: "U", description: "Upload a MIDI file" },
+    { keyLabel: "S", description: "Toggle settings" },
+    { keyLabel: "F", description: "Toggle fullscreen" },
+    { keyLabel: "I", description: "Open the about panel" },
+    { keyLabel: "Esc", description: "Close any open panel" },
+  ],
+  ja: [
+    { keyLabel: "Space", description: "再生 / 停止" },
+    { keyLabel: "C", description: "カメラアングルを切り替え" },
+    { keyLabel: "M", description: "MIDIロールを表示 / 非表示" },
+    { keyLabel: "L", description: "MIDIライブラリを開く" },
+    { keyLabel: "U", description: "MIDIファイルをアップロード" },
+    { keyLabel: "S", description: "設定パネルを開閉" },
+    { keyLabel: "F", description: "フルスクリーンを切り替え" },
+    { keyLabel: "I", description: "概要パネルを開く" },
+    { keyLabel: "Esc", description: "開いているパネルを閉じる" },
+  ],
+};
+
+const CREATOR_LINKS: Record<AppLanguage, CreatorLink[]> = {
+  en: [
+    {
+      href: "https://github.com/itsjaydesu",
+      icon: GitHubMark,
+      label: "GitHub",
+      subtitle: "Code and repositories",
+    },
+    {
+      href: "https://x.com/itsjaydesu",
+      icon: XMark,
+      label: "X",
+      subtitle: "Updates and stray thoughts",
+    },
+    {
+      href: "https://itsjaydesu.com",
+      icon: GlobeBadgeIcon,
+      label: "Website",
+      subtitle: "itsjaydesu.com",
+    },
+  ],
+  ja: [
+    {
+      href: "https://github.com/itsjaydesu",
+      icon: GitHubMark,
+      label: "GitHub",
+      subtitle: "コードとリポジトリ",
+    },
+    {
+      href: "https://x.com/itsjaydesu",
+      icon: XMark,
+      label: "X",
+      subtitle: "更新と雑談",
+    },
+    {
+      href: "https://itsjaydesu.com",
+      icon: GlobeBadgeIcon,
+      label: "サイト",
+      subtitle: "itsjaydesu.com",
+    },
+  ],
+};
+
+const UI_COPY: Record<AppLanguage, UiCopy> = {
+  en: {
+    aboutTitle: "About",
+    cameraView: "Camera View",
+    closeAbout: "Close about panel",
+    closeLibrary: "Close MIDI library",
+    closeSettings: "Settings",
+    creatorTitle: "itsjaydesu",
+    fullScreen: "Enter fullscreen",
+    fullScreenExit: "Exit fullscreen",
+    infoButton: "Open about panel",
+    keyboardShortcutsTitle: "Keyboard shortcuts",
+    languageButton: "Change language",
+    libraryButton: "MIDI library",
+    libraryDefaultHeading: "MIDI Library",
+    libraryDescription:
+      "Browse the built-in collections. Japanese train melodies open a second row for stations, standards, and signature themes.",
+    libraryLoadError: "Failed to load MIDI file from the library.",
+    libraryTabList: "Library collections",
+    libraryTitle: "MIDI Library",
+    loaded: "Loaded",
+    loadingPiano: "Loading piano",
+    midiRoll: "MIDI Roll",
+    noTracksDescription: "Switch tabs and try another collection.",
+    noTracksTitle: (label) => `No tracks in ${label} yet`,
+    openSource: "Open Source",
+    resetDefaults: "Reset to Default",
+    settings: "Settings",
+    show: "On",
+    hide: "Off",
+    startPlayback: "Start playback",
+    stopPlayback: "Stop playback",
+    techTitle: "Built with",
+    trainSubcategories: "Japanese train melody subsets",
+    upload: "Upload MIDI",
+    volume: "Volume",
+  },
+  ja: {
+    aboutTitle: "オービトーンについて",
+    cameraView: "カメラアングル",
+    closeAbout: "概要を閉じる",
+    closeLibrary: "MIDIライブラリを閉じる",
+    closeSettings: "設定",
+    creatorTitle: "itsjaydesu",
+    fullScreen: "フルスクリーン",
+    fullScreenExit: "フルスクリーンを終了",
+    infoButton: "概要を開く",
+    keyboardShortcutsTitle: "キーボードショートカット",
+    languageButton: "言語を変更",
+    libraryButton: "MIDIライブラリ",
+    libraryDefaultHeading: "MIDIライブラリ",
+    libraryDescription:
+      "コレクションごとに曲を切り替えられます。日本の発車メロディでは、駅別・定番チャイム・シグネチャー曲のサブタブも使えます。",
+    libraryLoadError: "ライブラリのMIDIファイルを読み込めませんでした。",
+    libraryTabList: "ライブラリのコレクション",
+    libraryTitle: "MIDIライブラリ",
+    loaded: "読み込み済み",
+    loadingPiano: "ピアノ音源を読み込み中",
+    midiRoll: "MIDIロール",
+    noTracksDescription:
+      "別のコレクションに切り替えて、ほかのMIDIを試してみてください。",
+    noTracksTitle: (label) => `${label}の曲はまだありません`,
+    openSource: "オープンソース",
+    resetDefaults: "初期設定に戻す",
+    settings: "設定",
+    show: "表示",
+    hide: "非表示",
+    startPlayback: "再生を開始",
+    stopPlayback: "再生を停止",
+    techTitle: "中で使っているもの",
+    trainSubcategories: "日本の発車メロディのサブカテゴリ",
+    upload: "MIDIをアップロード",
+    volume: "音量",
+  },
+};
+
+const getLibraryCategoryMeta = (
+  categoryId: string,
+  language: AppLanguage,
+): LibraryCategoryMeta => {
   switch (categoryId) {
     case "classical-piano":
-      return {
-        blurb: "Concert works, nocturnes, and expressive piano repertoire.",
-        icon: Piano,
-        shortLabel: "Classical",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "夜想曲や協奏曲など、ピアノの表情がよく映えるクラシック作品を集めました。",
+            icon: Piano,
+            label: "クラシック / ピアノ",
+            shortLabel: "クラシック",
+          }
+        : {
+            blurb:
+              "Concert works, nocturnes, and expressive piano repertoire.",
+            icon: Piano,
+            label: "Classical & Piano",
+            shortLabel: "Classical",
+          };
     case "film-tv-anime":
-      return {
-        blurb: "Big-screen themes, anime openings, and prestige TV motifs.",
-        icon: Clapperboard,
-        shortLabel: "Screen",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "映画音楽、アニメ主題歌、印象的なテレビテーマを横断する映像音楽のコレクションです。",
+            icon: Clapperboard,
+            label: "映画 / テレビ / アニメ",
+            shortLabel: "映像",
+          }
+        : {
+            blurb:
+              "Big-screen themes, anime openings, and prestige TV motifs.",
+            icon: Clapperboard,
+            label: "Film, TV & Anime",
+            shortLabel: "Screen",
+          };
     case "games-internet":
-      return {
-        blurb: "Game scores, online relics, and endlessly replayable hooks.",
-        icon: Gamepad2,
-        shortLabel: "Games",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "ゲームの名曲やインターネットの記憶に残るメロディを、少しノスタルジックな温度感で。",
+            icon: Gamepad2,
+            label: "ゲーム / インターネット",
+            shortLabel: "ゲーム",
+          }
+        : {
+            blurb:
+              "Game scores, online relics, and endlessly replayable hooks.",
+            icon: Gamepad2,
+            label: "Games & Internet",
+            shortLabel: "Games",
+          };
     case "pop-electronic":
-      return {
-        blurb: "Anthems, club textures, and bright electronic melodies.",
-        icon: Disc3,
-        shortLabel: "Pop",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "ポップスの定番やエレクトロのきらめきを、ピアノで気持ちよく聴ける曲たちです。",
+            icon: Disc3,
+            label: "ポップ / エレクトロ",
+            shortLabel: "ポップ",
+          }
+        : {
+            blurb:
+              "Anthems, club textures, and bright electronic melodies.",
+            icon: Disc3,
+            label: "Pop & Electronic",
+            shortLabel: "Pop",
+          };
     case "train-stations":
-      return {
-        blurb: "Station-specific Japanese departure melodies and local favorites.",
-        icon: TrainFront,
-        shortLabel: "Stations",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "駅ごとの発車メロディやご当地色のあるチャイムを中心に集めています。",
+            icon: TrainFront,
+            label: "駅別メロディ",
+            shortLabel: "駅別",
+          }
+        : {
+            blurb:
+              "Station-specific Japanese departure melodies and local favorites.",
+            icon: TrainFront,
+            label: "Station Melodies",
+            shortLabel: "Stations",
+          };
     case "train-standard-chimes":
-      return {
-        blurb: "Classic JR standards, shared chimes, and core platform signals.",
-        icon: BellRing,
-        shortLabel: "Chimes",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "JRの定番チャイムや広く使われる標準メロディをまとめたセットです。",
+            icon: BellRing,
+            label: "定番チャイム",
+            shortLabel: "定番",
+          }
+        : {
+            blurb:
+              "Classic JR standards, shared chimes, and core platform signals.",
+            icon: BellRing,
+            label: "Standard Chimes",
+            shortLabel: "Chimes",
+          };
     case "train-signature-system":
-      return {
-        blurb: "Named rail melodies, medleys, and signature network themes.",
-        icon: MapIcon,
-        shortLabel: "Signature",
-      };
+      return language === "ja"
+        ? {
+            blurb:
+              "路線固有のメロディや有名な発車サウンド、印象に残るシグネチャー曲を揃えました。",
+            icon: MapIcon,
+            label: "シグネチャー曲",
+            shortLabel: "特色",
+          }
+        : {
+            blurb:
+              "Named rail melodies, medleys, and signature network themes.",
+            icon: MapIcon,
+            label: "Signature Themes",
+            shortLabel: "Signature",
+          };
     default:
-      return {
-        blurb: "Curated MIDI selections from the Orbitone library.",
-        icon: Music,
-        shortLabel: "Library",
-      };
+      return language === "ja"
+        ? {
+            blurb: "Orbitoneのために選んだMIDIコレクションです。",
+            icon: Music,
+            label: "MIDIライブラリ",
+            shortLabel: "ライブラリ",
+          }
+        : {
+            blurb: "Curated MIDI selections from the Orbitone library.",
+            icon: Music,
+            label: "MIDI Library",
+            shortLabel: "Library",
+          };
   }
 };
 
-const LIBRARY_PRIMARY_GROUPS: LibraryPrimaryGroup[] = [
+const getLibraryPrimaryGroups = (
+  language: AppLanguage,
+): LibraryPrimaryGroup[] => [
   {
     id: "classical-piano",
-    label: "Classical & Piano",
-    shortLabel: "Classical",
+    label: language === "ja" ? "クラシック / ピアノ" : "Classical & Piano",
+    shortLabel: language === "ja" ? "クラシック" : "Classical",
     icon: Piano,
-    blurb: "Concert works, nocturnes, and expressive piano repertoire.",
+    blurb:
+      language === "ja"
+        ? "夜想曲や協奏曲など、ピアノの響きが美しく映えるクラシック作品をまとめています。"
+        : "Concert works, nocturnes, and expressive piano repertoire.",
     categoryIds: ["classical-piano"],
     defaultCategoryId: "classical-piano",
   },
   {
     id: "film-tv-anime",
-    label: "Film, TV & Anime",
-    shortLabel: "Screen",
+    label: language === "ja" ? "映画 / テレビ / アニメ" : "Film, TV & Anime",
+    shortLabel: language === "ja" ? "映像" : "Screen",
     icon: Clapperboard,
-    blurb: "Big-screen themes, anime openings, and prestige TV motifs.",
+    blurb:
+      language === "ja"
+        ? "映画音楽、アニメ主題歌、ドラマや番組テーマまで、映像の記憶に残る曲たちです。"
+        : "Big-screen themes, anime openings, and prestige TV motifs.",
     categoryIds: ["film-tv-anime"],
     defaultCategoryId: "film-tv-anime",
   },
   {
     id: "games-internet",
-    label: "Games & Internet",
-    shortLabel: "Games",
+    label:
+      language === "ja" ? "ゲーム / インターネット" : "Games & Internet",
+    shortLabel: language === "ja" ? "ゲーム" : "Games",
     icon: Gamepad2,
-    blurb: "Game scores, online relics, and endlessly replayable hooks.",
+    blurb:
+      language === "ja"
+        ? "ゲームの名曲やネット文化の懐かしいメロディを、耳に残る順に並べたくなる棚です。"
+        : "Game scores, online relics, and endlessly replayable hooks.",
     categoryIds: ["games-internet"],
     defaultCategoryId: "games-internet",
   },
   {
     id: "pop-electronic",
-    label: "Pop & Electronic",
-    shortLabel: "Pop",
+    label: language === "ja" ? "ポップ / エレクトロ" : "Pop & Electronic",
+    shortLabel: language === "ja" ? "ポップ" : "Pop",
     icon: Disc3,
-    blurb: "Anthems, club textures, and bright electronic melodies.",
+    blurb:
+      language === "ja"
+        ? "ポップスの定番から電子音のきらめきまで、軽やかに聴けるメロディを集めています。"
+        : "Anthems, club textures, and bright electronic melodies.",
     categoryIds: ["pop-electronic"],
     defaultCategoryId: "pop-electronic",
   },
   {
     id: "japanese-train-melodies",
-    label: "Japanese Train Melodies",
-    shortLabel: "Trains",
+    label:
+      language === "ja"
+        ? "日本の発車メロディ"
+        : "Japanese Train Melodies",
+    shortLabel: language === "ja" ? "鉄道" : "Trains",
     icon: TrainFront,
     blurb:
-      "Station jingles, JR standards, and signature departure themes from across Japan's rail network.",
+      language === "ja"
+        ? "駅別の発車メロディ、JRの定番チャイム、路線のシグネチャー曲まで、日本の鉄道音を横断できます。"
+        : "Station jingles, JR standards, and signature departure themes from across Japan's rail network.",
     categoryIds: [...TRAIN_LIBRARY_CATEGORY_IDS],
     defaultCategoryId: "train-stations",
   },
 ];
 
-const LIBRARY_PRIMARY_GROUP_INDEX = new Map(
-  LIBRARY_PRIMARY_GROUPS.flatMap((group) =>
-    group.categoryIds.map((categoryId) => [categoryId, group] as const),
-  ),
-);
-
 const stripMidiExtension = (fileName: string) =>
   fileName.replace(/\.(mid|midi)$/i, "");
+
+const TRACK_SUBTITLE_TRANSLATIONS: Record<
+  AppLanguage,
+  Record<string, string>
+> = {
+  en: {
+    "Internet Classic": "Internet Classic",
+    "Unknown Artist": "Unknown Artist",
+  },
+  ja: {
+    "Internet Classic": "インターネット・クラシック",
+    "Unknown Artist": "作者不明",
+  },
+};
 
 const getRandomLibraryTrack = (): MidiLibraryItem | null => {
   if (MIDI_LIBRARY.length === 0) {
@@ -220,11 +572,11 @@ const getRandomLibraryTrack = (): MidiLibraryItem | null => {
   return MIDI_LIBRARY[Math.floor(Math.random() * MIDI_LIBRARY.length)] ?? null;
 };
 
-const formatLoadedTitle = (fileName: string) => {
+const formatLoadedTitle = (fileName: string, language: AppLanguage) => {
   const stem = stripMidiExtension(fileName).trim();
 
   if (stem.length === 0) {
-    return "Untitled MIDI";
+    return language === "ja" ? "無題のMIDI" : "Untitled MIDI";
   }
 
   if (/[A-Z]/.test(stem) || stem.includes(" ")) {
@@ -246,7 +598,19 @@ const isMidiFile = (file: File) => {
   );
 };
 
+const formatTrackSubtitle = (
+  subtitle: string | null | undefined,
+  language: AppLanguage,
+) => {
+  if (!subtitle) {
+    return null;
+  }
+
+  return TRACK_SUBTITLE_TRANSLATIONS[language][subtitle] ?? subtitle;
+};
+
 export default function Home() {
+  const [language, setLanguage] = useState<AppLanguage>("en");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isMenuReady, setIsMenuReady] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -256,11 +620,11 @@ export default function Home() {
   const [showCameraLab, setShowCameraLab] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState(
     DEFAULT_LIBRARY_CATEGORY_ID,
   );
-  const [libraryQuery, setLibraryQuery] = useState("");
   const [currentTrackTitle, setCurrentTrackTitle] = useState<string | null>(
     null,
   );
@@ -291,6 +655,7 @@ export default function Home() {
     setBpm,
     resetBpm,
   } = useMusic({
+    language,
     volumePercent: settings.volumePercent,
   });
 
@@ -298,16 +663,43 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const requestRef = useRef<number | undefined>(undefined);
   const idleTimerRef = useRef<number | undefined>(undefined);
+  const brandSwapTimerRef = useRef<number | undefined>(undefined);
+  const brandRevealTimerRef = useRef<number | undefined>(undefined);
   const uploadDragDepthRef = useRef(0);
   const infoRef = useRef<HTMLDivElement>(null);
   const libraryRef = useRef<HTMLDivElement>(null);
   const libraryListRef = useRef<HTMLDivElement>(null);
+  const languageRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const cameraLabRef = useRef<HTMLDivElement>(null);
   const currentTrackTitleRef = useRef<string | null>(null);
   const initialTrackRequestedRef = useRef(false);
-  const deferredLibraryQuery = useDeferredValue(libraryQuery);
+  const [headerBrandName, setHeaderBrandName] = useState<string>(() =>
+    getBrandName(language),
+  );
+  const [isHeaderBrandVisible, setIsHeaderBrandVisible] = useState(true);
+  const copy = UI_COPY[language];
+  const displayBrandName = getBrandName(language);
+  const cameraViewLabels = useMemo(
+    () => getCameraViewLabels(language),
+    [language],
+  );
+  const libraryPrimaryGroups = useMemo(
+    () => getLibraryPrimaryGroups(language),
+    [language],
+  );
+  const libraryPrimaryGroupIndex = useMemo(
+    () =>
+      new Map(
+        libraryPrimaryGroups.flatMap((group) =>
+          group.categoryIds.map((categoryId) => [categoryId, group] as const),
+        ),
+      ),
+    [libraryPrimaryGroups],
+  );
+  const keyboardShortcuts = KEYBOARD_SHORTCUTS[language];
+  const creatorLinks = CREATOR_LINKS[language];
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
       LIBRARY_CATEGORY_INDEX.get(activeLibraryCategoryId) ??
@@ -317,14 +709,14 @@ export default function Home() {
   );
   const activeLibraryGroup = useMemo<LibraryPrimaryGroup | null>(
     () =>
-      LIBRARY_PRIMARY_GROUP_INDEX.get(activeLibraryCategoryId) ??
-      LIBRARY_PRIMARY_GROUPS[0] ??
+      libraryPrimaryGroupIndex.get(activeLibraryCategoryId) ??
+      libraryPrimaryGroups[0] ??
       null,
-    [activeLibraryCategoryId],
+    [activeLibraryCategoryId, libraryPrimaryGroupIndex, libraryPrimaryGroups],
   );
   const activeLibraryCategoryMeta = activeLibraryCategory
-    ? getLibraryCategoryMeta(activeLibraryCategory.id)
-    : getLibraryCategoryMeta("");
+    ? getLibraryCategoryMeta(activeLibraryCategory.id, language)
+    : getLibraryCategoryMeta("", language);
   const ActiveLibraryCategoryIcon = activeLibraryCategoryMeta.icon;
   const ActiveLibraryGroupIcon = activeLibraryGroup?.icon ?? ActiveLibraryCategoryIcon;
   const activeTrainSubcategories = useMemo(
@@ -339,11 +731,15 @@ export default function Home() {
     [activeLibraryGroup],
   );
   const activeLibraryHeading =
-    activeLibraryGroup?.label ?? activeLibraryCategory?.label ?? "MIDI Library";
+    activeLibraryGroup?.label ??
+    activeLibraryCategoryMeta.label ??
+    copy.libraryDefaultHeading;
   const activeLibraryDescription = activeLibraryGroup
     ? activeLibraryGroup.categoryIds.length === 1
       ? activeLibraryGroup.blurb
-      : `${activeLibraryGroup.blurb} Currently showing ${activeLibraryCategory?.label ?? "the active set"}.`
+      : language === "ja"
+        ? `${activeLibraryGroup.blurb} 現在は${activeLibraryCategoryMeta.label}を表示しています。`
+        : `${activeLibraryGroup.blurb} Currently showing ${activeLibraryCategoryMeta.label}.`
     : activeLibraryCategoryMeta.blurb;
   const currentLibraryTrack = useMemo<MidiLibraryItem | null>(
     () =>
@@ -352,25 +748,28 @@ export default function Home() {
         : null,
     [currentLibraryTrackId],
   );
-  const currentTrackSubtitle = currentLibraryTrack?.subtitle ?? null;
-  const filteredLibraryItems = useMemo(() => {
+  const currentTrackSubtitle = formatTrackSubtitle(
+    currentLibraryTrack?.subtitle ?? null,
+    language,
+  );
+  const visibleLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
       return [];
     }
 
-    const normalizedQuery = deferredLibraryQuery.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return activeLibraryCategory.items;
-    }
-
-    return activeLibraryCategory.items.filter((item) =>
-      [item.title, item.subtitle, item.fileName]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [activeLibraryCategory, deferredLibraryQuery]);
+    return activeLibraryCategory.items
+      .map((item, index) => ({
+        item,
+        index,
+        featuredRank:
+          FEATURED_LIBRARY_ORDER.get(item.id) ?? Number.MAX_SAFE_INTEGER,
+      }))
+      .toSorted(
+        (left, right) =>
+          left.featuredRank - right.featuredRank || left.index - right.index,
+      )
+      .map(({ item }) => item);
+  }, [activeLibraryCategory]);
 
   const updateProgress = useCallback(() => {
     if (isPlaying) {
@@ -398,6 +797,10 @@ export default function Home() {
 
 
   useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
@@ -414,14 +817,46 @@ export default function Home() {
   }, [currentTrackTitle]);
 
   useEffect(() => {
+    if (headerBrandName === displayBrandName) {
+      return;
+    }
+
+    if (brandSwapTimerRef.current !== undefined) {
+      window.clearTimeout(brandSwapTimerRef.current);
+    }
+
+    if (brandRevealTimerRef.current !== undefined) {
+      window.clearTimeout(brandRevealTimerRef.current);
+    }
+
+    setIsHeaderBrandVisible(false);
+    brandSwapTimerRef.current = window.setTimeout(() => {
+      setHeaderBrandName(displayBrandName);
+      brandRevealTimerRef.current = window.setTimeout(() => {
+        setIsHeaderBrandVisible(true);
+        brandRevealTimerRef.current = undefined;
+      }, 34);
+      brandSwapTimerRef.current = undefined;
+    }, 140);
+
+    return () => {
+      if (brandSwapTimerRef.current !== undefined) {
+        window.clearTimeout(brandSwapTimerRef.current);
+        brandSwapTimerRef.current = undefined;
+      }
+
+      if (brandRevealTimerRef.current !== undefined) {
+        window.clearTimeout(brandRevealTimerRef.current);
+        brandRevealTimerRef.current = undefined;
+      }
+    };
+  }, [displayBrandName, headerBrandName]);
+
+  useEffect(() => {
     if (showLibrary && currentLibraryTrack) {
       if (currentLibraryTrack) {
         setActiveLibraryCategoryId(currentLibraryTrack.categoryId);
       }
-    }
-
-    if (!showLibrary) {
-      setLibraryQuery("");
     }
   }, [currentLibraryTrack, showLibrary]);
 
@@ -431,10 +866,15 @@ export default function Home() {
     }
 
     libraryListRef.current?.scrollTo({ behavior: "auto", top: 0 });
-  }, [activeLibraryCategoryId, deferredLibraryQuery, showLibrary]);
+  }, [activeLibraryCategoryId, showLibrary]);
 
   useEffect(() => {
-    const hasOpenLayer = showInfo || showLibrary || showSettings || showCameraLab;
+    const hasOpenLayer =
+      showInfo ||
+      showLibrary ||
+      showSettings ||
+      showCameraLab ||
+      showLanguageMenu;
 
     if (!hasOpenLayer) {
       return;
@@ -449,6 +889,8 @@ export default function Home() {
 
       const clickedInsideInfo = showInfo && infoRef.current?.contains(target);
       const clickedInsideLibrary = showLibrary && libraryRef.current?.contains(target);
+      const clickedInsideLanguage =
+        showLanguageMenu && languageRef.current?.contains(target);
       const clickedInsideSettings =
         showSettings &&
         ((settingsRef.current?.contains(target) ??
@@ -460,6 +902,7 @@ export default function Home() {
       if (
         clickedInsideInfo ||
         clickedInsideLibrary ||
+        clickedInsideLanguage ||
         clickedInsideSettings ||
         clickedInsideCameraLab
       ) {
@@ -468,6 +911,7 @@ export default function Home() {
 
       setShowInfo(false);
       setShowLibrary(false);
+      setShowLanguageMenu(false);
       setShowSettings(false);
       setShowCameraLab(false);
     };
@@ -477,7 +921,7 @@ export default function Home() {
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [showCameraLab, showInfo, showLibrary, showSettings]);
+  }, [showCameraLab, showInfo, showLanguageMenu, showLibrary, showSettings]);
 
   useEffect(() => {
     try {
@@ -536,12 +980,12 @@ export default function Home() {
         return false;
       }
 
-      setCurrentTrackTitle(options?.title ?? formatLoadedTitle(file.name));
+      setCurrentTrackTitle(options?.title ?? formatLoadedTitle(file.name, language));
       setCurrentLibraryTrackId(options?.libraryTrackId ?? null);
 
       return true;
     },
-    [loadMidi],
+    [language, loadMidi],
   );
 
   const toggleFullscreen = useCallback(async () => {
@@ -568,6 +1012,7 @@ export default function Home() {
     }
 
     setShowLibrary(true);
+    setShowLanguageMenu(false);
     setShowSettings(false);
     setShowInfo(false);
     setShowCameraLab(false);
@@ -616,6 +1061,7 @@ export default function Home() {
           e.preventDefault();
           setShowSettings((v) => !v);
           setShowInfo(false);
+          setShowLanguageMenu(false);
           closeLibrary();
           break;
         case "c":
@@ -631,6 +1077,7 @@ export default function Home() {
         case "i":
           e.preventDefault();
           setShowInfo((v) => !v);
+          setShowLanguageMenu(false);
           setShowSettings(false);
           closeLibrary();
           break;
@@ -649,6 +1096,7 @@ export default function Home() {
         case "escape":
           setShowSettings(false);
           setShowInfo(false);
+          setShowLanguageMenu(false);
           closeLibrary();
           setShowCameraLab(false);
           break;
@@ -691,7 +1139,7 @@ export default function Home() {
       return;
     }
 
-    if (showSettings || showCameraLab || showInfo || showLibrary) {
+    if (showSettings || showCameraLab || showInfo || showLibrary || showLanguageMenu) {
       clearIdleTimer();
       setIsMenuVisible(true);
       return;
@@ -707,6 +1155,7 @@ export default function Home() {
     scheduleIdleHide,
     showCameraLab,
     showInfo,
+    showLanguageMenu,
     showLibrary,
     showSettings,
   ]);
@@ -718,7 +1167,13 @@ export default function Home() {
 
     const handlePointerActivity = () => {
       setIsMenuVisible(true);
-      if (!showSettings && !showCameraLab && !showInfo && !showLibrary) {
+      if (
+        !showSettings &&
+        !showCameraLab &&
+        !showInfo &&
+        !showLibrary &&
+        !showLanguageMenu
+      ) {
         scheduleIdleHide();
       }
     };
@@ -737,6 +1192,7 @@ export default function Home() {
     scheduleIdleHide,
     showCameraLab,
     showInfo,
+    showLanguageMenu,
     showLibrary,
     showSettings,
   ]);
@@ -816,7 +1272,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Failed to load library MIDI", error);
-      alert("Failed to load MIDI file from library.");
+      alert(copy.libraryLoadError);
     } finally {
       setIsLoadingLibrary(false);
     }
@@ -958,8 +1414,15 @@ export default function Home() {
         className={cn("pointer-events-none", topChromeClass)}
         inert={!chromeVisible}
       >
-        <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
-          orbitone
+        <h1 className="pointer-events-auto text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
+          <span
+            className={cn(
+              "inline-block transition-opacity duration-150 ease-out motion-reduce:transition-none",
+              isHeaderBrandVisible ? "opacity-100" : "opacity-0",
+            )}
+          >
+            {headerBrandName}
+          </span>
         </h1>
 
         <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 sm:absolute sm:left-1/2 sm:top-0 sm:w-full sm:max-w-[min(46rem,calc(100%-24rem))] sm:-translate-x-1/2 sm:px-6 sm:pt-1">
@@ -994,7 +1457,7 @@ export default function Home() {
                   ? "nm-drag-active"
                   : "nm-raised",
               )}
-              aria-label="Upload MIDI"
+              aria-label={copy.upload}
             >
               <Upload className="h-5 w-5" />
             </button>
@@ -1009,7 +1472,7 @@ export default function Home() {
                   "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                   showLibrary ? "nm-pressed" : "nm-raised",
                 )}
-                aria-label="MIDI Library"
+                aria-label={copy.libraryButton}
               >
                 {isLoadingLibrary ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -1024,7 +1487,7 @@ export default function Home() {
                     type="button"
                     className="nm-animate-fade fixed inset-0 z-40 bg-black/35 backdrop-blur-[6px] sm:bg-black/20"
                     onClick={closeLibrary}
-                    aria-label="Close MIDI library"
+                    aria-label={copy.closeLibrary}
                   />
 
                   <div
@@ -1036,10 +1499,10 @@ export default function Home() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
-                            MIDI Library
+                            {copy.libraryTitle}
                           </h3>
                           <p className="mt-1 max-w-md text-xs leading-relaxed text-[var(--nm-text-dim)] sm:text-[13px]">
-                            Choose a collection, then search within the active set. Japanese train melodies open a second row for stations, standards, and signature themes.
+                            {copy.libraryDescription}
                           </p>
                         </div>
 
@@ -1047,31 +1510,19 @@ export default function Home() {
                           type="button"
                           onClick={closeLibrary}
                           className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                          aria-label="Close MIDI library"
+                          aria-label={copy.closeLibrary}
                         >
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-
-                      <label className="nm-input mt-4 flex items-center gap-3 rounded-2xl px-3 py-2.5">
-                        <Search className="h-4 w-4 shrink-0 text-[var(--nm-text-faint)]" />
-                        <input
-                          type="search"
-                          value={libraryQuery}
-                          onChange={(event) => setLibraryQuery(event.target.value)}
-                          placeholder={`Search ${activeLibraryCategory?.label ?? activeLibraryGroup?.label ?? "the library"}`}
-                          className="min-w-0 flex-1 bg-transparent text-sm text-[var(--nm-text)] outline-none placeholder:text-[var(--nm-text-faint)]"
-                          aria-label="Search MIDI library"
-                        />
-                      </label>
                     </div>
 
                     <div
                       className="mt-3 grid grid-cols-5 gap-2"
                       role="tablist"
-                      aria-label="Library collections"
+                      aria-label={copy.libraryTabList}
                     >
-                      {LIBRARY_PRIMARY_GROUPS.map((group) => {
+                      {libraryPrimaryGroups.map((group) => {
                         const isTabActive =
                           activeLibraryGroup?.id === group.id;
                         const GroupIcon = group.icon;
@@ -1114,13 +1565,14 @@ export default function Home() {
                       <div
                         className="nm-tabs-rail mt-2 flex gap-2 overflow-x-auto pb-1"
                         role="tablist"
-                        aria-label="Japanese train melody subsets"
+                        aria-label={copy.trainSubcategories}
                       >
                         {activeTrainSubcategories.map((category) => {
                           const isSubtabActive =
                             category.id === activeLibraryCategoryId;
                           const categoryMeta = getLibraryCategoryMeta(
                             category.id,
+                            language,
                           );
 
                           return (
@@ -1168,8 +1620,8 @@ export default function Home() {
                           ref={libraryListRef}
                           className="nm-scrollbar mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1 sm:pr-2"
                         >
-                          {filteredLibraryItems.length > 0 ? (
-                            filteredLibraryItems.map((item) => {
+                          {visibleLibraryItems.length > 0 ? (
+                            visibleLibraryItems.map((item) => {
                               const isActive = currentLibraryTrackId === item.id;
 
                               return (
@@ -1203,13 +1655,16 @@ export default function Home() {
                                           {item.title}
                                         </span>
                                         <span className="mt-1 block truncate text-xs text-[var(--nm-text-faint)]">
-                                          {item.subtitle}
+                                          {formatTrackSubtitle(
+                                            item.subtitle,
+                                            language,
+                                          )}
                                         </span>
                                       </span>
                                       <span className="flex shrink-0 items-center gap-2">
                                         {isActive && (
                                           <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text)]">
-                                            Loaded
+                                            {copy.loaded}
                                           </span>
                                         )}
                                         <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
@@ -1225,10 +1680,10 @@ export default function Home() {
                             <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
                               <ActiveLibraryCategoryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
                               <h4 className="text-sm font-semibold text-[var(--nm-text)]">
-                                No matches in {activeLibraryCategory.label}
+                                {copy.noTracksTitle(activeLibraryCategoryMeta.label)}
                               </h4>
                               <p className="mt-2 max-w-xs text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                                Try a different search term or switch tabs to another collection.
+                                {copy.noTracksDescription}
                               </p>
                             </div>
                           )}
@@ -1243,6 +1698,7 @@ export default function Home() {
             <button
               onClick={(e) => {
                 setShowInfo(true);
+                setShowLanguageMenu(false);
                 setShowSettings(false);
                 closeLibrary();
                 e.currentTarget.blur();
@@ -1251,25 +1707,95 @@ export default function Home() {
                 "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 showInfo ? "nm-pressed" : "nm-raised",
               )}
+              aria-label={copy.infoButton}
             >
               <Info className="h-5 w-5" />
             </button>
 
-            <button
-              ref={settingsTriggerRef}
-              onClick={(e) => {
-                setShowSettings(!showSettings);
-                setShowInfo(false);
-                closeLibrary();
-                e.currentTarget.blur();
-              }}
-              className={cn(
-                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
-                showSettings ? "nm-pressed" : "nm-raised",
-              )}
-            >
-              <SettingsIcon className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <div ref={languageRef} className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setShowLanguageMenu((current) => !current);
+                    setShowSettings(false);
+                    setShowInfo(false);
+                    closeLibrary();
+                    e.currentTarget.blur();
+                  }}
+                  className={cn(
+                    "flex items-center gap-1 rounded-xl px-2.5 py-2 text-[var(--nm-text)] sm:px-3 sm:py-2.5",
+                    showLanguageMenu ? "nm-pressed" : "nm-raised",
+                  )}
+                  aria-label={copy.languageButton}
+                  aria-expanded={showLanguageMenu}
+                  aria-haspopup="menu"
+                >
+                  <Globe className="h-4 w-4" />
+                  <ChevronDown className="h-3.5 w-3.5 text-[var(--nm-text-dim)]" />
+                </button>
+
+                {showLanguageMenu && (
+                  <div
+                    role="menu"
+                    aria-label={copy.languageButton}
+                    className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex min-w-44 flex-col gap-1 rounded-[1.1rem] p-2 text-[var(--nm-text)]"
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => {
+                      const isSelected = language === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={isSelected}
+                          onClick={(e) => {
+                            startTransition(() => {
+                              setLanguage(option.value);
+                            });
+                            setShowLanguageMenu(false);
+                            e.currentTarget.blur();
+                          }}
+                          className={cn(
+                            "flex items-center justify-between gap-3 rounded-[0.95rem] px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                            isSelected
+                              ? "nm-toggle-active"
+                              : "nm-list-item text-[var(--nm-text)]",
+                          )}
+                        >
+                          <span>{option.label}</span>
+                          <Check
+                            className={cn(
+                              "h-4 w-4",
+                              isSelected ? "opacity-100" : "opacity-0",
+                            )}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <button
+                ref={settingsTriggerRef}
+                onClick={(e) => {
+                  setShowSettings(!showSettings);
+                  setShowLanguageMenu(false);
+                  setShowInfo(false);
+                  closeLibrary();
+                  e.currentTarget.blur();
+                }}
+                className={cn(
+                  "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
+                  showSettings ? "nm-pressed" : "nm-raised",
+                )}
+                aria-label={copy.closeSettings}
+              >
+                <SettingsIcon className="h-5 w-5" />
+              </button>
+            </div>
 
             <button
               onClick={(e) => {
@@ -1280,7 +1806,7 @@ export default function Home() {
                 "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 isFullscreen ? "nm-pressed" : "nm-raised",
               )}
-              aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
+              aria-label={isFullscreen ? copy.fullScreenExit : copy.fullScreen}
             >
               {isFullscreen ? (
                 <Minimize className="h-5 w-5" />
@@ -1296,7 +1822,7 @@ export default function Home() {
               className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl p-5 text-[var(--nm-text)]"
             >
               <h2 className="border-b border-[var(--nm-border)] pb-2 text-lg font-semibold">
-                Settings
+                {copy.settings}
               </h2>
 
               <div className="flex flex-col gap-3">
@@ -1318,7 +1844,7 @@ export default function Home() {
 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
-                    <span>Volume</span>
+                    <span>{copy.volume}</span>
                     <span>{settings.volumePercent}%</span>
                   </div>
                   <input
@@ -1349,7 +1875,7 @@ export default function Home() {
                       : "nm-raised text-[var(--nm-text)]",
                   )}
                 >
-                  <span>MIDI Roll</span>
+                  <span>{copy.midiRoll}</span>
                   <span
                     className={cn(
                       "rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
@@ -1358,12 +1884,12 @@ export default function Home() {
                         : "text-[var(--nm-text-dim)]",
                     )}
                   >
-                    {settings.showMidiRoll ? "On" : "Off"}
+                    {settings.showMidiRoll ? copy.show : copy.hide}
                   </span>
                 </button>
 
                 <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-[var(--nm-text-dim)]">Camera View</span>
+                  <span className="text-sm text-[var(--nm-text-dim)]">{copy.cameraView}</span>
                   <div className="grid grid-cols-3 gap-2">
                     {CAMERA_VIEWS.map((view) => (
                       <button
@@ -1379,7 +1905,7 @@ export default function Home() {
                             : "nm-raised text-[var(--nm-text-dim)]",
                         )}
                       >
-                        {CAMERA_VIEW_LABELS[view]}
+                        {cameraViewLabels[view]}
                       </button>
                     ))}
                   </div>
@@ -1392,7 +1918,7 @@ export default function Home() {
                   }}
                   className="nm-destructive mt-2 w-full rounded-xl py-2 text-sm font-medium"
                 >
-                  Reset to Default
+                  {copy.resetDefaults}
                 </button>
               </div>
             </div>
@@ -1418,69 +1944,182 @@ export default function Home() {
             }
           }}
         >
-          <div className="nm-card nm-animate-modal w-full max-w-md rounded-2xl p-6 text-[var(--nm-text)]">
+          <div className="nm-card nm-animate-modal nm-scrollbar w-full max-w-[44rem] overflow-y-auto rounded-[2rem] p-5 text-[var(--nm-text)] sm:max-h-[88vh] sm:p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">About</h2>
+              <h2 className="text-xl font-bold tracking-[0.06em]">
+                {copy.aboutTitle}
+              </h2>
               <button
                 onClick={() => setShowInfo(false)}
                 className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                aria-label={copy.closeAbout}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-4 text-sm leading-relaxed text-[var(--nm-text-dim)]">
-              <p>
-                <strong className="text-[var(--nm-text)]">orbitone</strong> turns a MIDI performance into an interactive 3D score. Each note is placed on a concentric grand staff and keeps its original timing, sustain, and velocity, so you can hear the piece while reading a more faithful picture of how it was played.
-              </p>
-              <div className="nm-well rounded-2xl p-4">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--nm-text)]">
-                  Powered By
-                </h3>
-                <ul className="space-y-2">
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40"></span>
-                    <span className="font-medium text-[var(--nm-text)]">
-                      Three.js & R3F
-                    </span>{" "}
-                    - 3D Rendering
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/20"></span>
-                    <span className="font-medium text-[var(--nm-text)]">Tone.js</span>{" "}
-                    - Audio Synthesis
-                  </li>
-                </ul>
-              </div>
-              <div className="pt-2">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--nm-text)]">
-                  Created by itsjaydesu
-                </h3>
-                <div className="flex gap-4">
-                  <a
-                    href="http://github.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
-                  >
-                    GitHub
-                  </a>
-                  <a
-                    href="http://x.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
-                  >
-                    X (Twitter)
-                  </a>
-                  <a
-                    href="https://itsjaydesu.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="nm-link flex items-center gap-1 rounded-xl px-3 py-1.5 text-[var(--nm-text-dim)]"
-                  >
-                    Website
-                  </a>
+              <section className="relative overflow-hidden rounded-[1.75rem] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),rgba(255,255,255,0.03)_40%,rgba(0,0,0,0.12)_100%)] p-4 sm:p-5">
+                <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.03),transparent_55%)]" />
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="overflow-hidden rounded-[1.4rem] border border-white/10 bg-black/20 shadow-[0_16px_40px_rgba(0,0,0,0.32)]">
+                    <Image
+                      src="/jay-avatar.PNG"
+                      alt={
+                        language === "ja"
+                          ? "itsjaydesuのアバター"
+                          : "itsjaydesu avatar"
+                      }
+                      width={128}
+                      height={128}
+                      className="h-28 w-28 object-cover sm:h-32 sm:w-32"
+                      priority
+                    />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[var(--nm-text)] uppercase">
+                        {copy.openSource}
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[var(--nm-text-faint)] uppercase">
+                        MIT
+                      </span>
+                    </div>
+
+                    <p>
+                      {language === "ja" ? (
+                        <>
+                          <strong className="text-[var(--nm-text)]">{displayBrandName}</strong>
+                          はMIDIファイルを、目で楽しめるMIDIミュージックボックスに変えてくれます。
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
+                            C
+                          </span>
+                          を押すとカメラアングルが切り替わり、
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
+                            M
+                          </span>
+                          でMIDIロールを表示できます。内部ではリバーブに加えて、MIDIのベロシティやペダル情報も使っていて、ピアノがより自然に鳴るようにしています。収録したMIDIにはちょっとした懐かしさがあって、楽しんでもらえたらうれしいです。オープンソースで、MITライセンスです。好きな用途に自由に使ってください。何かに使ったら、ぜひリンクを送ってもらえるとうれしいです。改善アイデアがあれば、プルリクエストも大歓迎です。
+                        </>
+                      ) : (
+                        <>
+                          <strong className="text-[var(--nm-text)]">{displayBrandName}</strong>
+                          turns a MIDI file into a visualized MIDI music box. Try pressing
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
+                            C
+                          </span>
+                          for different camera angles and
+                          <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.16em] text-black uppercase">
+                            M
+                          </span>
+                          for a MIDI roll. There&apos;s some fun stuff under the hood, it uses reverb and MIDI velocity/pedal data for a more realistic piano sound. There&apos;s some nice nostalgia in the MIDI files, hope you enjoy. It&apos;s open source and MIT licensed. Please use it for anything you like. If you use it for something, send me a link. If you have ideas on how to improve it, I&apos;m very open to pull requests.
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
+              </section>
+
+              <section className="nm-well rounded-[1.6rem] p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
+                  {copy.keyboardShortcutsTitle}
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {keyboardShortcuts.map((shortcut) => (
+                    <div
+                      key={shortcut.keyLabel}
+                      className="flex items-center justify-between gap-3 rounded-[1.1rem] border border-white/6 bg-black/15 px-3 py-3"
+                    >
+                      <span className="inline-flex min-w-[4.75rem] items-center justify-center rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.18em] text-black uppercase">
+                        {shortcut.keyLabel}
+                      </span>
+                      <span className="text-right text-xs text-[var(--nm-text-dim)]">
+                        {shortcut.description}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+                <section className="nm-well rounded-[1.6rem] p-4">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
+                    {copy.techTitle}
+                  </h3>
+                  <ul className="space-y-3">
+                    <li className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
+                        <Library className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block font-medium text-[var(--nm-text)]">
+                          Three.js / React Three Fiber
+                        </span>
+                        {language === "ja"
+                          ? "立体的なMIDIビジュアライズとカメラ演出を担当しています。"
+                          : "Handles the 3D MIDI visualization and camera choreography."}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
+                        <Piano className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block font-medium text-[var(--nm-text)]">
+                          Tone.js
+                        </span>
+                        {language === "ja"
+                          ? "ピアノ音源の再生、リバーブ、ベロシティ、ペダル表現を支えています。"
+                          : "Drives piano playback, reverb, and the velocity / pedal expression."}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
+                        <Music className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block font-medium text-[var(--nm-text)]">
+                          Next.js / React
+                        </span>
+                        {language === "ja"
+                          ? "UI、ライブラリ管理、インタラクション全体をまとめています。"
+                          : "Keeps the UI, library flow, and the app interactions together."}
+                      </span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="nm-well rounded-[1.6rem] p-4">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--nm-text)]">
+                    {copy.creatorTitle}
+                  </h3>
+                  <div className="grid gap-2">
+                    {creatorLinks.map((link) => {
+                      const Icon = link.icon;
+
+                      return (
+                        <a
+                          key={link.href}
+                          href={link.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="nm-link flex items-center gap-3 rounded-[1.1rem] px-3 py-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                        >
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-[var(--nm-text)]">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-[var(--nm-text)]">
+                              {link.label}
+                            </span>
+                            <span className="block truncate text-xs text-[var(--nm-text-faint)]">
+                              {link.subtitle}
+                            </span>
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
             </div>
           </div>
@@ -1493,6 +2132,7 @@ export default function Home() {
             activeView={activeCameraView}
             draftPose={activeCameraDraft}
             isDirty={isActiveCameraDirty}
+            language={language}
             onClose={() => setShowCameraLab(false)}
             onPoseChange={(pose) => updateCameraDraft(activeCameraView, pose)}
             onResetToDefault={resetActiveCameraView}
@@ -1538,10 +2178,10 @@ export default function Home() {
           disabled={isAudioLoading}
           aria-label={
             isAudioLoading
-              ? "Loading piano"
+              ? copy.loadingPiano
               : isPlaying
-                ? "Stop playback"
-                : "Start playback"
+                ? copy.stopPlayback
+                : copy.startPlayback
           }
           className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
         >

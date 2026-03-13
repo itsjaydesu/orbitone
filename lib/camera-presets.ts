@@ -1,5 +1,7 @@
 "use client";
 
+export type AppLanguage = "en" | "ja";
+
 export type CameraView =
   | "topThird"
   | "front"
@@ -49,6 +51,21 @@ export const CAMERA_VIEW_LABELS: Record<CameraView, string> = {
   orbit: "Orbit",
   zenith: "Zenith",
 };
+
+export const CAMERA_VIEW_LABELS_JA: Record<CameraView, string> = {
+  topThird: "上方シネマ",
+  front: "正面",
+  top: "真上",
+  side: "横",
+  dynamic: "ダイナミック",
+  isometric: "アイソメ",
+  vortex: "ボルテックス",
+  orbit: "オービット",
+  zenith: "天頂",
+};
+
+export const getCameraViewLabels = (language: AppLanguage) =>
+  language === "ja" ? CAMERA_VIEW_LABELS_JA : CAMERA_VIEW_LABELS;
 
 export const CAMERA_PRESETS_STORAGE_KEY = "orbitone-camera-presets-v1";
 

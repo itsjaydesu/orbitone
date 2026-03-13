@@ -13,3 +13,4 @@ metadata.json
 package-lock.json
 .eslintrc.json
 /mouse_cursor.svg
+.vercel

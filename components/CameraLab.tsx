@@ -2,10 +2,11 @@
 
 import {
   CAMERA_VIEWS,
-  CAMERA_VIEW_LABELS,
   CameraPose,
   CameraView,
   PROCEDURAL_CAMERA_VIEWS,
+  AppLanguage,
+  getCameraViewLabels,
 } from "@/lib/camera-presets";
 import { cn } from "@/lib/utils";
 import { Save, RotateCcw, Undo2, X } from "lucide-react";
@@ -14,6 +15,7 @@ interface CameraLabProps {
   activeView: CameraView;
   draftPose: CameraPose;
   isDirty: boolean;
+  language: AppLanguage;
   onClose: () => void;
   onPoseChange: (pose: CameraPose) => void;
   onResetToDefault: () => void;
@@ -37,6 +39,7 @@ export const CameraLab = ({
   activeView,
   draftPose,
   isDirty,
+  language,
   onClose,
   onPoseChange,
   onResetToDefault,
@@ -46,6 +49,57 @@ export const CameraLab = ({
 }: CameraLabProps) => {
   const isProceduralView = PROCEDURAL_CAMERA_VIEWS.includes(activeView);
   const isFlatLocked = draftPose.flatLock;
+  const cameraViewLabels = getCameraViewLabels(language);
+  const copy =
+    language === "ja"
+      ? {
+          title: "カメララボ",
+          saved: "保存済み",
+          unsaved: "未保存",
+          description:
+            "キャンバスを直接ドラッグして微調整できます。固定視点ではパンとズーム、自由視点では通常のオービット操作になります。下の数値は調整に合わせてリアルタイムで更新されます。",
+          close: "カメララボを閉じる",
+          procedural:
+            "この視点は動きの演出を残したまま、保存したポーズで基本の構図、注視点、レンズ感を決められます。",
+          flatLockTitle: "正面フラット固定",
+          flatLockDescription:
+            "カメラをz軸に対してまっすぐ向け、正面構図をフラットに保ちます。ドラッグ操作は自由回転ではなく、パンとズームになります。",
+          locked: "固定",
+          free: "自由",
+          position: "位置",
+          cameraXYZ: "カメラ座標",
+          aim: "注視点",
+          lookAt: "注視ターゲット",
+          lens: "レンズ",
+          fieldOfView: "画角",
+          save: "保存",
+          revert: "戻す",
+          reset: "初期化",
+        }
+      : {
+          title: "Camera Lab",
+          saved: "Saved",
+          unsaved: "Unsaved",
+          description:
+            "Drag directly in the canvas to tune. Locked views use pan plus zoom; free views orbit normally. Values below update live while you tune.",
+          close: "Close camera lab",
+          procedural:
+            "This view still uses motion, but the saved pose controls its base framing, target, and lens.",
+          flatLockTitle: "Flat Front Lock",
+          flatLockDescription:
+            "Keeps the camera pointed straight down the z-axis so front crops stay mathematically flat. Dragging becomes pan plus zoom instead of free orbit.",
+          locked: "Locked",
+          free: "Free",
+          position: "Position",
+          cameraXYZ: "Camera XYZ",
+          aim: "Aim",
+          lookAt: "Look-at target",
+          lens: "Lens",
+          fieldOfView: "Field of view",
+          save: "Save View",
+          revert: "Revert",
+          reset: "Reset",
+        };
 
   const updateVectorAxis = (
     section: "position" | "target",
@@ -120,7 +174,7 @@ export const CameraLab = ({
         <div>
           <div className="mb-2 flex items-center gap-2">
             <span className="nm-badge rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--nm-text-dim)]">
-              Camera Lab
+              {copy.title}
             </span>
             <span
               className={cn(
@@ -128,22 +182,21 @@ export const CameraLab = ({
                 isDirty ? "nm-badge-amber" : "nm-badge-emerald",
               )}
             >
-              {isDirty ? "Unsaved" : "Saved"}
+              {isDirty ? copy.unsaved : copy.saved}
             </span>
           </div>
           <h2 className="text-xl font-semibold tracking-[0.08em] text-[var(--nm-text)]">
-            {CAMERA_VIEW_LABELS[activeView]}
+            {cameraViewLabels[activeView]}
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-[var(--nm-text-dim)]">
-            Drag directly in the canvas to tune. Locked views use pan plus zoom;
-            free views orbit normally. Values below update live while you tune.
+            {copy.description}
           </p>
         </div>
 
         <button
           onClick={onClose}
           className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] hover:text-[var(--nm-text)]"
-          aria-label="Close camera lab"
+          aria-label={copy.close}
         >
           <X className="h-4 w-4" />
         </button>
@@ -161,15 +214,14 @@ export const CameraLab = ({
                 : "nm-raised text-[var(--nm-text-dim)]",
             )}
           >
-            {CAMERA_VIEW_LABELS[view]}
+            {cameraViewLabels[view]}
           </button>
         ))}
       </div>
 
       {isProceduralView && (
         <div className="nm-info-box mb-4 rounded-2xl px-4 py-3 text-sm leading-relaxed text-[var(--nm-text-dim)]">
-          This view still uses motion, but the saved pose controls its base
-          framing, target, and lens.
+          {copy.procedural}
         </div>
       )}
 
@@ -177,12 +229,10 @@ export const CameraLab = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
-              Flat Front Lock
+              {copy.flatLockTitle}
             </h3>
             <p className="mt-1 text-sm leading-relaxed text-[var(--nm-text-faint)]">
-              Keeps the camera pointed straight down the z-axis so front crops
-              stay mathematically flat. Dragging becomes pan plus zoom instead
-              of free orbit.
+              {copy.flatLockDescription}
             </p>
           </div>
           <button
@@ -194,7 +244,7 @@ export const CameraLab = ({
                 : "nm-raised text-[var(--nm-text-dim)]",
             )}
           >
-            {isFlatLocked ? "Locked" : "Free"}
+            {isFlatLocked ? copy.locked : copy.free}
           </button>
         </div>
       </section>
@@ -203,9 +253,9 @@ export const CameraLab = ({
         <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
-              Position
+              {copy.position}
             </h3>
-            <span className="text-xs text-[var(--nm-text-faint)]">Camera XYZ</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">{copy.cameraXYZ}</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {AXES.map(({ key, label }) => (
@@ -230,9 +280,9 @@ export const CameraLab = ({
         <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
-              Aim
+              {copy.aim}
             </h3>
-            <span className="text-xs text-[var(--nm-text-faint)]">Look-at target</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">{copy.lookAt}</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {AXES.map(({ key, label }) => (
@@ -258,9 +308,9 @@ export const CameraLab = ({
         <section className="nm-well rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--nm-text-dim)]">
-              Lens
+              {copy.lens}
             </h3>
-            <span className="text-xs text-[var(--nm-text-faint)]">Field of view</span>
+            <span className="text-xs text-[var(--nm-text-faint)]">{copy.fieldOfView}</span>
           </div>
           <div className="grid grid-cols-[1fr_auto] items-center gap-3">
             <input
@@ -291,21 +341,21 @@ export const CameraLab = ({
           className="nm-accent-raised flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
         >
           <Save className="h-4 w-4" />
-          Save View
+          {copy.save}
         </button>
         <button
           onClick={onRevert}
           className="nm-raised flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-[var(--nm-text)]"
         >
           <Undo2 className="h-4 w-4" />
-          Revert
+          {copy.revert}
         </button>
         <button
           onClick={onResetToDefault}
           className="nm-destructive flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
         >
           <RotateCcw className="h-4 w-4" />
-          Reset
+          {copy.reset}
         </button>
       </div>
     </div>
