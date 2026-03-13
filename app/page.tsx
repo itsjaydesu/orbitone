@@ -2,7 +2,11 @@
 
 import { CameraLab } from "@/components/CameraLab";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
-import { MIDI_LIBRARY, MidiLibraryItem } from "@/lib/library";
+import {
+  MIDI_LIBRARY_CATEGORIES,
+  MidiLibraryCategory,
+  MidiLibraryItem,
+} from "@/lib/library";
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
@@ -19,6 +23,10 @@ import {
 import { useMusic } from "@/hooks/useMusic";
 import { cn } from "@/lib/utils";
 import {
+  BellRing,
+  Clapperboard,
+  Disc3,
+  Gamepad2,
   Play,
   Square,
   Loader2,
@@ -28,15 +36,22 @@ import {
   X,
   Library,
   Music,
+  Piano,
+  Search,
+  TrainFront,
   Expand,
+  Map as MapIcon,
   Minimize,
+  type LucideIcon,
 } from "lucide-react";
 import {
   startTransition,
+  useDeferredValue,
   useState,
   useRef,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import * as Tone from "tone";
 
@@ -53,6 +68,96 @@ const DEFAULT_SETTINGS: AppSettings = {
 const MENU_REVEAL_DELAY_MS = 3000;
 const MENU_IDLE_HIDE_MS = 2000;
 const MIDI_EXTENSIONS = [".mid", ".midi"];
+const DEFAULT_LIBRARY_CATEGORY_ID = MIDI_LIBRARY_CATEGORIES[0]?.id ?? "";
+const LIBRARY_CATEGORY_INDEX = new Map(
+  MIDI_LIBRARY_CATEGORIES.map((category) => [category.id, category]),
+);
+const LIBRARY_TRACK_INDEX = new Map(
+  MIDI_LIBRARY_CATEGORIES.flatMap((category) =>
+    category.items.map((item) => [item.id, item] as const),
+  ),
+);
+const DEFAULT_LIBRARY_TRACK_ID = "film-tv-anime/succession-theme";
+const DEFAULT_LIBRARY_TRACK =
+  LIBRARY_TRACK_INDEX.get(DEFAULT_LIBRARY_TRACK_ID) ?? null;
+
+type LibraryCategoryMeta = {
+  blurb: string;
+  icon: LucideIcon;
+  shortLabel: string;
+};
+
+const getLibraryCategoryMeta = (categoryId: string): LibraryCategoryMeta => {
+  switch (categoryId) {
+    case "classical-piano":
+      return {
+        blurb: "Concert works, nocturnes, and expressive piano repertoire.",
+        icon: Piano,
+        shortLabel: "Classical",
+      };
+    case "film-tv-anime":
+      return {
+        blurb: "Big-screen themes, anime openings, and prestige TV motifs.",
+        icon: Clapperboard,
+        shortLabel: "Screen",
+      };
+    case "games-internet":
+      return {
+        blurb: "Game scores, online relics, and endlessly replayable hooks.",
+        icon: Gamepad2,
+        shortLabel: "Games",
+      };
+    case "pop-electronic":
+      return {
+        blurb: "Anthems, club textures, and bright electronic melodies.",
+        icon: Disc3,
+        shortLabel: "Pop",
+      };
+    case "train-stations":
+      return {
+        blurb: "Station-specific Japanese departure melodies and local favorites.",
+        icon: TrainFront,
+        shortLabel: "Stations",
+      };
+    case "train-standard-chimes":
+      return {
+        blurb: "Classic JR standards, shared chimes, and core platform signals.",
+        icon: BellRing,
+        shortLabel: "Chimes",
+      };
+    case "train-signature-system":
+      return {
+        blurb: "Named rail melodies, medleys, and signature network themes.",
+        icon: MapIcon,
+        shortLabel: "Signature",
+      };
+    default:
+      return {
+        blurb: "Curated MIDI selections from the Orbitone library.",
+        icon: Music,
+        shortLabel: "Library",
+      };
+  }
+};
+
+const stripMidiExtension = (fileName: string) =>
+  fileName.replace(/\.(mid|midi)$/i, "");
+
+const formatLoadedTitle = (fileName: string) => {
+  const stem = stripMidiExtension(fileName).trim();
+
+  if (stem.length === 0) {
+    return "Untitled MIDI";
+  }
+
+  if (/[A-Z]/.test(stem) || stem.includes(" ")) {
+    return stem.replace(/_/g, " ");
+  }
+
+  return stem
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
 
 const isMidiFile = (file: File) => {
   const lowerName = file.name.toLowerCase();
@@ -75,6 +180,16 @@ export default function Home() {
   const [showInfo, setShowInfo] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+  const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState(
+    DEFAULT_LIBRARY_CATEGORY_ID,
+  );
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [currentTrackTitle, setCurrentTrackTitle] = useState<string | null>(
+    null,
+  );
+  const [currentLibraryTrackId, setCurrentLibraryTrackId] = useState<
+    string | null
+  >(null);
   const [savedCameraPresets, setSavedCameraPresets] =
     useState<CameraPresetMap>(() =>
       cloneCameraPresetMap(DEFAULT_CAMERA_PRESETS),
@@ -106,9 +221,42 @@ export default function Home() {
   const uploadDragDepthRef = useRef(0);
   const infoRef = useRef<HTMLDivElement>(null);
   const libraryRef = useRef<HTMLDivElement>(null);
+  const libraryListRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const cameraLabRef = useRef<HTMLDivElement>(null);
+  const currentTrackTitleRef = useRef<string | null>(null);
+  const defaultTrackRequestedRef = useRef(false);
+  const deferredLibraryQuery = useDeferredValue(libraryQuery);
+  const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
+    () =>
+      LIBRARY_CATEGORY_INDEX.get(activeLibraryCategoryId) ??
+      MIDI_LIBRARY_CATEGORIES[0] ??
+      null,
+    [activeLibraryCategoryId],
+  );
+  const activeLibraryCategoryMeta = activeLibraryCategory
+    ? getLibraryCategoryMeta(activeLibraryCategory.id)
+    : getLibraryCategoryMeta("");
+  const ActiveLibraryIcon = activeLibraryCategoryMeta.icon;
+  const filteredLibraryItems = useMemo(() => {
+    if (!activeLibraryCategory) {
+      return [];
+    }
+
+    const normalizedQuery = deferredLibraryQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return activeLibraryCategory.items;
+    }
+
+    return activeLibraryCategory.items.filter((item) =>
+      [item.title, item.subtitle, item.fileName]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [activeLibraryCategory, deferredLibraryQuery]);
 
   const updateProgress = useCallback(() => {
     if (isPlaying) {
@@ -146,6 +294,32 @@ export default function Home() {
     return () =>
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    currentTrackTitleRef.current = currentTrackTitle;
+  }, [currentTrackTitle]);
+
+  useEffect(() => {
+    if (showLibrary && currentLibraryTrackId) {
+      const activeTrack = LIBRARY_TRACK_INDEX.get(currentLibraryTrackId);
+
+      if (activeTrack) {
+        setActiveLibraryCategoryId(activeTrack.categoryId);
+      }
+    }
+
+    if (!showLibrary) {
+      setLibraryQuery("");
+    }
+  }, [currentLibraryTrackId, showLibrary]);
+
+  useEffect(() => {
+    if (!showLibrary) {
+      return;
+    }
+
+    libraryListRef.current?.scrollTo({ behavior: "auto", top: 0 });
+  }, [activeLibraryCategoryId, deferredLibraryQuery, showLibrary]);
 
   useEffect(() => {
     const hasOpenLayer = showInfo || showLibrary || showSettings || showCameraLab;
@@ -236,9 +410,24 @@ export default function Home() {
   );
 
   const loadMidiFile = useCallback(
-    async (file: File) => {
+    async (
+      file: File,
+      options?: {
+        libraryTrackId?: string | null;
+        title?: string;
+      },
+    ) => {
       setProgress(0);
-      await loadMidi(file);
+      const didLoad = await loadMidi(file);
+
+      if (!didLoad) {
+        return false;
+      }
+
+      setCurrentTrackTitle(options?.title ?? formatLoadedTitle(file.name));
+      setCurrentLibraryTrackId(options?.libraryTrackId ?? null);
+
+      return true;
     },
     [loadMidi],
   );
@@ -260,6 +449,34 @@ export default function Home() {
     uploadDragDepthRef.current = 0;
     setIsUploadDragActive(false);
   }, []);
+
+  const openLibrary = useCallback(() => {
+    if (currentLibraryTrackId) {
+      const activeTrack = LIBRARY_TRACK_INDEX.get(currentLibraryTrackId);
+
+      if (activeTrack) {
+        setActiveLibraryCategoryId(activeTrack.categoryId);
+      }
+    }
+
+    setShowLibrary(true);
+    setShowSettings(false);
+    setShowInfo(false);
+    setShowCameraLab(false);
+  }, [currentLibraryTrackId]);
+
+  const closeLibrary = useCallback(() => {
+    setShowLibrary(false);
+  }, []);
+
+  const toggleLibrary = useCallback(() => {
+    if (showLibrary) {
+      closeLibrary();
+      return;
+    }
+
+    openLibrary();
+  }, [closeLibrary, openLibrary, showLibrary]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -291,7 +508,7 @@ export default function Home() {
           e.preventDefault();
           setShowSettings((v) => !v);
           setShowInfo(false);
-          setShowLibrary(false);
+          closeLibrary();
           break;
         case "c":
           e.preventDefault();
@@ -307,13 +524,11 @@ export default function Home() {
           e.preventDefault();
           setShowInfo((v) => !v);
           setShowSettings(false);
-          setShowLibrary(false);
+          closeLibrary();
           break;
         case "l":
           e.preventDefault();
-          setShowLibrary((v) => !v);
-          setShowSettings(false);
-          setShowInfo(false);
+          toggleLibrary();
           break;
         case "u":
           e.preventDefault();
@@ -326,7 +541,7 @@ export default function Home() {
         case "escape":
           setShowSettings(false);
           setShowInfo(false);
-          setShowLibrary(false);
+          closeLibrary();
           setShowCameraLab(false);
           break;
       }
@@ -334,7 +549,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [togglePlay, toggleFullscreen]);
+  }, [closeLibrary, toggleFullscreen, toggleLibrary, togglePlay]);
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== undefined) {
@@ -473,13 +688,24 @@ export default function Home() {
 
   const loadLibraryMidi = async (item: MidiLibraryItem) => {
     setIsLoadingLibrary(true);
-    setShowLibrary(false);
 
     try {
       const response = await fetch(item.url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${item.url}: ${response.status}`);
+      }
+
       const blob = await response.blob();
       const file = new File([blob], item.fileName, { type: "audio/midi" });
-      await loadMidiFile(file);
+      const didLoad = await loadMidiFile(file, {
+        libraryTrackId: item.id,
+        title: item.title,
+      });
+
+      if (didLoad) {
+        closeLibrary();
+      }
     } catch (error) {
       console.error("Failed to load library MIDI", error);
       alert("Failed to load MIDI file from library.");
@@ -487,6 +713,60 @@ export default function Home() {
       setIsLoadingLibrary(false);
     }
   };
+
+  useEffect(() => {
+    if (
+      !DEFAULT_LIBRARY_TRACK ||
+      currentTrackTitle !== null ||
+      defaultTrackRequestedRef.current
+    ) {
+      return;
+    }
+
+    defaultTrackRequestedRef.current = true;
+    let isCancelled = false;
+
+    const loadDefaultTrack = async () => {
+      setIsLoadingLibrary(true);
+
+      try {
+        const response = await fetch(DEFAULT_LIBRARY_TRACK.url);
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch ${DEFAULT_LIBRARY_TRACK.url}: ${response.status}`,
+          );
+        }
+
+        const blob = await response.blob();
+
+        if (isCancelled || currentTrackTitleRef.current !== null) {
+          return;
+        }
+
+        const file = new File([blob], DEFAULT_LIBRARY_TRACK.fileName, {
+          type: "audio/midi",
+        });
+
+        await loadMidiFile(file, {
+          libraryTrackId: DEFAULT_LIBRARY_TRACK.id,
+          title: DEFAULT_LIBRARY_TRACK.title,
+        });
+      } catch (error) {
+        console.error("Failed to load default library MIDI", error);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingLibrary(false);
+        }
+      }
+    };
+
+    void loadDefaultTrack();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentTrackTitle, loadMidiFile]);
 
   const updateSetting = <K extends keyof AppSettings>(
     key: K,
@@ -544,7 +824,7 @@ export default function Home() {
 
   const chromeVisible = isMenuReady && isMenuVisible;
   const topChromeClass = cn(
-    "absolute top-0 left-0 z-10 flex w-full items-start justify-between p-6",
+    "absolute top-0 left-0 z-10 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:p-6",
     isMenuReady && "transition-opacity duration-700 ease-out",
     chromeVisible ? "opacity-100" : "opacity-0 pointer-events-none",
   );
@@ -570,12 +850,20 @@ export default function Home() {
         className={cn("pointer-events-none", topChromeClass)}
         inert={!chromeVisible}
       >
-        <h1 className="text-2xl font-semibold tracking-[0.18em] text-[var(--nm-text)]">
+        <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
           orbitone
         </h1>
 
-        <div className="relative">
-          <div className="pointer-events-auto flex items-center gap-3">
+        <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 sm:absolute sm:left-1/2 sm:top-0 sm:w-full sm:max-w-[min(46rem,calc(100%-24rem))] sm:-translate-x-1/2 sm:px-6 sm:pt-1">
+          {currentTrackTitle && (
+            <div className="max-w-[min(42rem,100%)] truncate rounded-full border border-white/8 bg-black/20 px-4 py-2 text-center text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:text-base">
+              {currentTrackTitle}
+            </div>
+          )}
+        </div>
+
+        <div className="relative justify-self-end">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
               onClick={(e) => {
                 fileInputRef.current?.click();
@@ -586,7 +874,7 @@ export default function Home() {
               onDragLeave={handleUploadDragLeave}
               onDrop={handleUploadDrop}
               className={cn(
-                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 isUploadDragActive
                   ? "nm-drag-active"
                   : "nm-raised",
@@ -599,13 +887,11 @@ export default function Home() {
             <div ref={libraryRef} className="relative">
               <button
                 onClick={(e) => {
-                  setShowLibrary(!showLibrary);
-                  setShowSettings(false);
-                  setShowInfo(false);
+                  toggleLibrary();
                   e.currentTarget.blur();
                 }}
                 className={cn(
-                  "rounded-xl p-2.5 text-[var(--nm-text)]",
+                  "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                   showLibrary ? "nm-pressed" : "nm-raised",
                 )}
                 aria-label="MIDI Library"
@@ -618,33 +904,184 @@ export default function Home() {
               </button>
 
               {showLibrary && (
-                <div className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-2 rounded-xl p-3">
-                  <h3 className="mb-1 border-b border-[var(--nm-border)] px-2 py-1 text-sm font-semibold text-[var(--nm-text)]">
-                    MIDI Library
-                  </h3>
-                  {MIDI_LIBRARY.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => loadLibraryMidi(item)}
-                      className="nm-list-item flex w-full items-start gap-3 px-3 py-2 text-left text-[var(--nm-text-dim)]"
-                    >
-                      <Music className="mt-0.5 h-4 w-4 shrink-0 text-[var(--nm-text-dim)]" />
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="truncate text-sm font-medium text-[var(--nm-text)]">
-                            {item.title}
-                          </span>
-                          <span className="shrink-0 text-[11px] uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
-                            {item.durationLabel}
-                          </span>
+                <>
+                  <button
+                    type="button"
+                    className="nm-animate-fade fixed inset-0 z-40 bg-black/35 backdrop-blur-[6px] sm:bg-black/20"
+                    onClick={closeLibrary}
+                    aria-label="Close MIDI library"
+                  />
+
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    className="nm-card nm-animate-dropdown pointer-events-auto fixed inset-x-3 top-20 bottom-4 z-50 flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] p-3 text-[var(--nm-text)] sm:absolute sm:top-12 sm:right-0 sm:bottom-auto sm:left-auto sm:h-[min(74vh,46rem)] sm:w-[min(38rem,calc(100vw-3rem))] sm:rounded-[1.75rem] sm:p-4"
+                  >
+                    <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
+                            MIDI Library
+                          </h3>
+                          <p className="mt-1 max-w-md text-xs leading-relaxed text-[var(--nm-text-dim)] sm:text-[13px]">
+                            Jump between collections, then search inside the active set.
+                          </p>
                         </div>
-                        <span className="truncate text-xs text-[var(--nm-text-faint)]">
-                          {item.artist}
-                        </span>
+
+                        <button
+                          type="button"
+                          onClick={closeLibrary}
+                          className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                          aria-label="Close MIDI library"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                    </button>
-                  ))}
-                </div>
+
+                      <label className="nm-input mt-4 flex items-center gap-3 rounded-2xl px-3 py-2.5">
+                        <Search className="h-4 w-4 shrink-0 text-[var(--nm-text-faint)]" />
+                        <input
+                          type="search"
+                          value={libraryQuery}
+                          onChange={(event) => setLibraryQuery(event.target.value)}
+                          placeholder={`Search ${activeLibraryCategory?.label ?? "the library"}`}
+                          className="min-w-0 flex-1 bg-transparent text-sm text-[var(--nm-text)] outline-none placeholder:text-[var(--nm-text-faint)]"
+                          aria-label="Search MIDI library"
+                        />
+                      </label>
+                    </div>
+
+                    <div
+                      className="mt-3 grid grid-cols-4 gap-2"
+                      role="tablist"
+                      aria-label="Library categories"
+                    >
+                      {MIDI_LIBRARY_CATEGORIES.map((category) => {
+                        const isTabActive = category.id === activeLibraryCategoryId;
+                        const categoryMeta = getLibraryCategoryMeta(category.id);
+                        const CategoryIcon = categoryMeta.icon;
+
+                        return (
+                          <button
+                            key={category.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={isTabActive}
+                            aria-label={category.label}
+                            onClick={() => setActiveLibraryCategoryId(category.id)}
+                            title={category.label}
+                            className={cn(
+                              "flex min-h-12 min-w-0 items-center justify-center rounded-[1.1rem] p-2.5 transition-all",
+                              isTabActive
+                                ? "nm-toggle-active"
+                                : "nm-raised text-[var(--nm-text-dim)]",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                                isTabActive
+                                  ? "border-black/10 bg-black/15 text-[var(--nm-bg)]"
+                                  : "border-white/6 bg-white/[0.02] text-[var(--nm-text)]",
+                              )}
+                            >
+                              <CategoryIcon className="h-5 w-5" />
+                            </span>
+                            <span className="sr-only">{categoryMeta.shortLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {activeLibraryCategory && (
+                      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-2 sm:p-3">
+                        <div className="px-2 py-1 sm:px-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--nm-text)]">
+                              <ActiveLibraryIcon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">
+                                {activeLibraryCategory.label}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs leading-relaxed text-[var(--nm-text-dim)]">
+                              {activeLibraryCategoryMeta.blurb}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          ref={libraryListRef}
+                          className="nm-scrollbar mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1 sm:pr-2"
+                        >
+                          {filteredLibraryItems.length > 0 ? (
+                            filteredLibraryItems.map((item) => {
+                              const isActive = currentLibraryTrackId === item.id;
+
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => loadLibraryMidi(item)}
+                                  disabled={isLoadingLibrary}
+                                  className={cn(
+                                    "nm-library-track flex w-full items-start gap-3 rounded-[1rem] px-3 py-3 text-left transition-all",
+                                    isActive
+                                      ? "nm-library-track-active"
+                                      : "nm-list-item text-[var(--nm-text-dim)]",
+                                    isLoadingLibrary && "opacity-70",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                                      isActive
+                                        ? "border-white/8 bg-white text-[var(--nm-bg)] shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
+                                        : "border-white/6 bg-white/[0.03] text-[var(--nm-text-dim)]",
+                                    )}
+                                  >
+                                    <ActiveLibraryIcon className="h-4 w-4" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex flex-wrap items-start justify-between gap-2">
+                                      <span className="min-w-0">
+                                        <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
+                                          {item.title}
+                                        </span>
+                                        <span className="mt-1 block truncate text-xs text-[var(--nm-text-faint)]">
+                                          {item.subtitle}
+                                        </span>
+                                      </span>
+                                      <span className="flex shrink-0 items-center gap-2">
+                                        {isActive && (
+                                          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text)]">
+                                            Loaded
+                                          </span>
+                                        )}
+                                        <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
+                                          {item.durationLabel}
+                                        </span>
+                                      </span>
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
+                              <ActiveLibraryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
+                              <h4 className="text-sm font-semibold text-[var(--nm-text)]">
+                                No matches in {activeLibraryCategory.label}
+                              </h4>
+                              <p className="mt-2 max-w-xs text-xs leading-relaxed text-[var(--nm-text-dim)]">
+                                Try a different search term or switch tabs to another collection.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
@@ -652,11 +1089,11 @@ export default function Home() {
               onClick={(e) => {
                 setShowInfo(true);
                 setShowSettings(false);
-                setShowLibrary(false);
+                closeLibrary();
                 e.currentTarget.blur();
               }}
               className={cn(
-                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 showInfo ? "nm-pressed" : "nm-raised",
               )}
             >
@@ -668,11 +1105,11 @@ export default function Home() {
               onClick={(e) => {
                 setShowSettings(!showSettings);
                 setShowInfo(false);
-                setShowLibrary(false);
+                closeLibrary();
                 e.currentTarget.blur();
               }}
               className={cn(
-                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 showSettings ? "nm-pressed" : "nm-raised",
               )}
             >
@@ -685,7 +1122,7 @@ export default function Home() {
                 toggleFullscreen();
               }}
               className={cn(
-                "rounded-xl p-2.5 text-[var(--nm-text)]",
+                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
                 isFullscreen ? "nm-pressed" : "nm-raised",
               )}
               aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}

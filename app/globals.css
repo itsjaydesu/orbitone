@@ -444,6 +444,84 @@
     inset -2px -2px 5px var(--nm-shadow-light);
 }
 
+/* ── Library Scrolling ── */
+
+.nm-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.03);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.nm-scrollbar::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.nm-scrollbar::-webkit-scrollbar-track {
+  margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    var(--nm-bg);
+  box-shadow:
+    inset 3px 3px 8px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 8px rgba(255, 255, 255, 0.03);
+}
+
+.nm-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.11))
+    padding-box;
+  box-shadow:
+    5px 5px 12px rgba(0, 0, 0, 0.45),
+    -3px -3px 10px rgba(255, 255, 255, 0.04);
+}
+
+.nm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.16))
+    padding-box;
+}
+
+.nm-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.nm-tabs-rail {
+  overscroll-behavior-x: contain;
+}
+
+.nm-library-track {
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    rgba(0, 0, 0, 0.14);
+}
+
+.nm-library-track:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.45),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.04),
+    0 14px 32px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.nm-library-track-active {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.028)),
+    rgba(255, 255, 255, 0.02);
+  box-shadow:
+    inset 2px 2px 6px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.04),
+    0 16px 34px rgba(0, 0, 0, 0.22);
+}
+
 /* ── Link Button ── */
 
 .nm-link {

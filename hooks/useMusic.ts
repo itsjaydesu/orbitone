@@ -371,7 +371,7 @@ export const useMusic = (settings: MusicSettings) => {
     }
   }, [ensureAudioReady, isPlaying]);
 
-  const loadMidi = async (file: File) => {
+  const loadMidi = useCallback(async (file: File) => {
     try {
       setIsPlaying(false);
       Tone.Transport.stop();
@@ -399,12 +399,17 @@ export const useMusic = (settings: MusicSettings) => {
             originalPedalEvents: parsedPedalEvents,
           });
         });
+
+        return true;
       }
+
+      return false;
     } catch (error) {
       console.error("Error parsing MIDI file:", error);
       alert("Failed to parse MIDI file.");
+      return false;
     }
-  };
+  }, []);
 
   const seek = useCallback((time: number) => {
     Tone.Transport.seconds = time;
