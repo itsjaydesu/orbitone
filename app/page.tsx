@@ -696,9 +696,9 @@ export default function Home() {
             </button>
 
             <button
-              onClick={async (e) => {
-                await toggleFullscreen();
+              onClick={(e) => {
                 e.currentTarget.blur();
+                toggleFullscreen();
               }}
               className={cn(
                 "rounded-xl p-2.5 text-[var(--nm-text)]",
@@ -954,7 +954,7 @@ export default function Home() {
           step={0.1}
           value={progress}
           onChange={handleSeek}
-          className="nm-seekbar cursor-pointer"
+          className="nm-seekbar"
         />
         <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
           <span>{formatTime(progress)}</span>
@@ -979,7 +979,7 @@ export default function Home() {
                 ? "Stop playback"
                 : "Start playback"
           }
-          className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:cursor-wait disabled:opacity-50"
+          className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
         >
           {isAudioLoading ? (
             <Loader2 className="h-6 w-6 animate-spin" />

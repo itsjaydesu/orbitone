@@ -7,7 +7,6 @@ export type CameraView =
   | "side"
   | "dynamic"
   | "isometric"
-  | "closeup"
   | "vortex"
   | "orbit"
   | "zenith";
@@ -34,7 +33,6 @@ export const CAMERA_VIEWS: CameraView[] = [
   "side",
   "dynamic",
   "isometric",
-  "closeup",
   "vortex",
   "orbit",
   "zenith",
@@ -47,7 +45,6 @@ export const CAMERA_VIEW_LABELS: Record<CameraView, string> = {
   side: "Side",
   dynamic: "Dynamic",
   isometric: "Isometric",
-  closeup: "Closeup",
   vortex: "Vortex",
   orbit: "Orbit",
   zenith: "Zenith",
@@ -90,12 +87,6 @@ export const DEFAULT_CAMERA_PRESETS: CameraPresetMap = {
   },
   isometric: {
     position: { x: 20, y: 20, z: 20 },
-    target: { x: 0, y: 0, z: 0 },
-    fov: 60,
-    flatLock: false,
-  },
-  closeup: {
-    position: { x: 0, y: 10, z: 12 },
     target: { x: 0, y: 0, z: 0 },
     fov: 60,
     flatLock: false,

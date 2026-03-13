@@ -18,8 +18,16 @@
 
 body.fine-pointer-cursor-hidden,
 body.fine-pointer-cursor-hidden *,
+body.fine-pointer-cursor-hidden *::before,
+body.fine-pointer-cursor-hidden *::after,
 body.fine-pointer-cursor-hidden *::-webkit-slider-thumb,
-body.fine-pointer-cursor-hidden *::-moz-range-thumb {
+body.fine-pointer-cursor-hidden *::-webkit-slider-runnable-track,
+body.fine-pointer-cursor-hidden *::-moz-range-thumb,
+body.fine-pointer-cursor-hidden *::-moz-range-track,
+body.fine-pointer-cursor-hidden button,
+body.fine-pointer-cursor-hidden a,
+body.fine-pointer-cursor-hidden input,
+body.fine-pointer-cursor-hidden label {
   cursor: none !important;
 }
 
@@ -266,7 +274,7 @@ body.fine-pointer-cursor-hidden *::-moz-range-thumb {
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: inherit;
+  cursor: none;
   transition: box-shadow 0.15s ease;
 }
 
@@ -292,7 +300,7 @@ body.fine-pointer-cursor-hidden *::-moz-range-thumb {
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: inherit;
+  cursor: none;
 }
 
 .nm-range::-moz-range-track {
@@ -326,7 +334,7 @@ body.fine-pointer-cursor-hidden *::-moz-range-thumb {
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: inherit;
+  cursor: none;
 }
 
 .nm-seekbar::-moz-range-thumb {
@@ -338,7 +346,7 @@ body.fine-pointer-cursor-hidden *::-moz-range-thumb {
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: inherit;
+  cursor: none;
 }
 
 .nm-seekbar::-moz-range-track {
@@ -360,7 +368,7 @@ body.fine-pointer-cursor-hidden *::-moz-range-thumb {
   box-shadow:
     inset 2px 2px 4px var(--nm-shadow-dark),
     inset -2px -2px 4px var(--nm-shadow-light);
-  cursor: inherit;
+  cursor: none;
   position: relative;
   transition: all 0.2s ease;
 }
