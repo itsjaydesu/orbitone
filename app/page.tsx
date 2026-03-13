@@ -544,12 +544,12 @@ export default function Home() {
 
   const chromeVisible = isMenuReady && isMenuVisible;
   const topChromeClass = cn(
-    "absolute top-0 left-0 z-10 flex w-full items-start justify-between p-6 transition-[opacity,transform] duration-700 ease-out",
-    chromeVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-6",
+    "absolute top-0 left-0 z-10 flex w-full items-start justify-between p-6 transition-opacity duration-700 ease-out",
+    chromeVisible ? "opacity-100" : "opacity-0 pointer-events-none",
   );
   const bottomChromeClass = cn(
-    "absolute left-1/2 z-10 -translate-x-1/2 transition-[opacity,transform] duration-700 ease-out",
-    chromeVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6",
+    "absolute left-1/2 z-10 -translate-x-1/2 transition-opacity duration-700 ease-out",
+    chromeVisible ? "opacity-100" : "opacity-0 pointer-events-none",
   );
 
   return (
