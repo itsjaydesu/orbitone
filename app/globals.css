@@ -16,19 +16,20 @@
   --nm-border: rgba(255, 255, 255, 0.04);
 }
 
-body.fine-pointer-cursor-hidden,
-body.fine-pointer-cursor-hidden *,
-body.fine-pointer-cursor-hidden *::before,
-body.fine-pointer-cursor-hidden *::after,
-body.fine-pointer-cursor-hidden *::-webkit-slider-thumb,
-body.fine-pointer-cursor-hidden *::-webkit-slider-runnable-track,
-body.fine-pointer-cursor-hidden *::-moz-range-thumb,
-body.fine-pointer-cursor-hidden *::-moz-range-track,
-body.fine-pointer-cursor-hidden button,
-body.fine-pointer-cursor-hidden a,
-body.fine-pointer-cursor-hidden input,
-body.fine-pointer-cursor-hidden label {
-  cursor: none !important;
+@media (pointer: fine) {
+  *,
+  *::before,
+  *::after,
+  *::-webkit-slider-thumb,
+  *::-webkit-slider-runnable-track,
+  *::-moz-range-thumb,
+  *::-moz-range-track,
+  button,
+  a,
+  input,
+  label {
+    cursor: url('/cursor.svg') 19 53, none !important;
+  }
 }
 
 /* ── Entrance Animations ── */

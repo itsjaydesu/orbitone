@@ -53,11 +53,6 @@ const DEFAULT_SETTINGS: AppSettings = {
 const MENU_REVEAL_DELAY_MS = 3000;
 const MENU_IDLE_HIDE_MS = 2000;
 const MIDI_EXTENSIONS = [".mid", ".midi"];
-const CURSOR_SIZE_PX = 96;
-const CURSOR_HOTSPOT_X_RATIO = 72.825 / 250;
-const CURSOR_HOTSPOT_Y_RATIO = 205.315 / 250;
-const CURSOR_HOTSPOT_X_PX = CURSOR_SIZE_PX * CURSOR_HOTSPOT_X_RATIO;
-const CURSOR_HOTSPOT_Y_PX = CURSOR_SIZE_PX * CURSOR_HOTSPOT_Y_RATIO;
 
 const isMidiFile = (file: File) => {
   const lowerName = file.name.toLowerCase();
@@ -73,8 +68,6 @@ export default function Home() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isMenuReady, setIsMenuReady] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [hasFinePointer, setHasFinePointer] = useState(false);
-  const [isCursorPrimed, setIsCursorPrimed] = useState(false);
   const [isUploadDragActive, setIsUploadDragActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -110,9 +103,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const requestRef = useRef<number | undefined>(undefined);
   const idleTimerRef = useRef<number | undefined>(undefined);
-  const cursorPrimedRef = useRef(false);
   const uploadDragDepthRef = useRef(0);
-  const cursorDotRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const libraryRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -143,25 +134,6 @@ export default function Home() {
     };
   }, [isPlaying, updateProgress]);
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(pointer: fine)");
-    const updatePointerMode = () => {
-      setHasFinePointer(mediaQuery.matches);
-    };
-
-    updatePointerMode();
-    mediaQuery.addEventListener("change", updatePointerMode);
-
-    return () => mediaQuery.removeEventListener("change", updatePointerMode);
-  }, []);
-
-  useEffect(() => {
-    document.body.classList.toggle("fine-pointer-cursor-hidden", hasFinePointer);
-
-    return () => {
-      document.body.classList.remove("fine-pointer-cursor-hidden");
-    };
-  }, [hasFinePointer]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -239,17 +211,6 @@ export default function Home() {
     }
   }, []);
 
-  const syncCursorPosition = useCallback((clientX: number, clientY: number) => {
-    if (cursorDotRef.current) {
-      cursorDotRef.current.style.left = `${clientX - CURSOR_HOTSPOT_X_PX}px`;
-      cursorDotRef.current.style.top = `${clientY - CURSOR_HOTSPOT_Y_PX}px`;
-    }
-
-    if (!cursorPrimedRef.current) {
-      cursorPrimedRef.current = true;
-      setIsCursorPrimed(true);
-    }
-  }, []);
 
   const persistCameraPresets = useCallback((nextPresets: CameraPresetMap) => {
     window.localStorage.setItem(
@@ -302,10 +263,6 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== "Space") {
-        return;
-      }
-
       if (
         e.target instanceof HTMLInputElement &&
         ["text", "number", "password", "email"].includes(e.target.type)
@@ -317,13 +274,67 @@ export default function Home() {
         return;
       }
 
-      e.preventDefault();
-      togglePlay();
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case " ":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "f":
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case "s":
+          e.preventDefault();
+          setShowSettings((v) => !v);
+          setShowInfo(false);
+          setShowLibrary(false);
+          break;
+        case "c":
+          e.preventDefault();
+          setSettings((s) => {
+            const idx = CAMERA_VIEWS.indexOf(s.cameraView);
+            return {
+              ...s,
+              cameraView: CAMERA_VIEWS[(idx + 1) % CAMERA_VIEWS.length],
+            };
+          });
+          break;
+        case "i":
+          e.preventDefault();
+          setShowInfo((v) => !v);
+          setShowSettings(false);
+          setShowLibrary(false);
+          break;
+        case "l":
+          e.preventDefault();
+          setShowLibrary((v) => !v);
+          setShowSettings(false);
+          setShowInfo(false);
+          break;
+        case "u":
+          e.preventDefault();
+          fileInputRef.current?.click();
+          break;
+        case "m":
+          e.preventDefault();
+          setSettings((s) => ({ ...s, showMidiRoll: !s.showMidiRoll }));
+          break;
+        case "escape":
+          setShowSettings(false);
+          setShowInfo(false);
+          setShowLibrary(false);
+          setShowCameraLab(false);
+          break;
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [togglePlay]);
+  }, [togglePlay, toggleFullscreen]);
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== undefined) {
@@ -382,11 +393,7 @@ export default function Home() {
       return;
     }
 
-    const handlePointerActivity = (event: PointerEvent) => {
-      if (hasFinePointer && event.pointerType !== "touch") {
-        syncCursorPosition(event.clientX, event.clientY);
-      }
-
+    const handlePointerActivity = () => {
       setIsMenuVisible(true);
       if (!showSettings && !showCameraLab && !showInfo && !showLibrary) {
         scheduleIdleHide();
@@ -403,14 +410,12 @@ export default function Home() {
       window.removeEventListener("pointerdown", handlePointerActivity);
     };
   }, [
-    hasFinePointer,
     isMenuReady,
     scheduleIdleHide,
     showCameraLab,
     showInfo,
     showLibrary,
     showSettings,
-    syncCursorPosition,
   ]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -549,10 +554,7 @@ export default function Home() {
 
   return (
     <main
-      className={cn(
-        "relative h-screen w-full overflow-hidden bg-black font-sans",
-        hasFinePointer && "cursor-none",
-      )}
+      className="relative h-screen w-full overflow-hidden bg-black font-sans"
     >
       <input
         type="file"
@@ -561,26 +563,6 @@ export default function Home() {
         ref={fileInputRef}
         onChange={handleFileChange}
       />
-
-      {hasFinePointer && (
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none fixed inset-0 z-[21000001] transition-opacity duration-200 ease-out",
-            isCursorPrimed ? "opacity-100" : "opacity-0",
-          )}
-        >
-          <div
-            ref={cursorDotRef}
-            className="pointer-events-none absolute top-0 left-0 bg-contain bg-center bg-no-repeat"
-            style={{
-              width: `${CURSOR_SIZE_PX}px`,
-              height: `${CURSOR_SIZE_PX}px`,
-              backgroundImage: 'url("/mouse_cursor.svg")',
-            }}
-          />
-        </div>
-      )}
 
       <div
         className={cn("pointer-events-none", topChromeClass)}
@@ -761,18 +743,30 @@ export default function Home() {
                   />
                 </div>
 
-                <label className="mt-2 flex items-center justify-between text-sm">
-                  <span>Show MIDI Roll</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.showMidiRoll}
-                    onChange={(e) => {
-                      updateSetting("showMidiRoll", e.target.checked);
-                      e.target.blur();
-                    }}
-                    className="nm-checkbox"
-                  />
-                </label>
+                <button
+                  onClick={(e) => {
+                    updateSetting("showMidiRoll", !settings.showMidiRoll);
+                    e.currentTarget.blur();
+                  }}
+                  className={cn(
+                    "mt-2 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                    settings.showMidiRoll
+                      ? "nm-toggle-active"
+                      : "nm-raised text-[var(--nm-text)]",
+                  )}
+                >
+                  <span>MIDI Roll</span>
+                  <span
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                      settings.showMidiRoll
+                        ? "text-[var(--nm-bg)]"
+                        : "text-[var(--nm-text-dim)]",
+                    )}
+                  >
+                    {settings.showMidiRoll ? "On" : "Off"}
+                  </span>
+                </button>
 
                 <div className="mt-2 flex flex-col gap-2">
                   <span className="text-sm text-[var(--nm-text-dim)]">Camera View</span>
@@ -795,20 +789,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      setShowCameraLab(true);
-                      setShowSettings(false);
-                      e.currentTarget.blur();
-                    }}
-                    className="nm-raised mt-2 rounded-xl px-3 py-2 text-left text-sm"
-                  >
-                    <span className="block font-medium text-[var(--nm-text)]">Open Camera Lab</span>
-                    <span className="block text-xs text-[var(--nm-text-faint)]">
-                      Tune position, aim, and lens with numeric controls and
-                      direct drag.
-                    </span>
-                  </button>
                 </div>
 
                 <button
