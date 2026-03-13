@@ -1073,18 +1073,25 @@ export const Visualizer = ({
   settings: VisualizerSettings;
 }) => {
   const initialPose = cameraPresets[settings.cameraView];
+  const cameraConfig = useMemo(
+    () => ({
+      fov: initialPose.fov,
+      position: [
+        initialPose.position.x,
+        initialPose.position.y,
+        initialPose.position.z,
+      ] as [number, number, number],
+    }),
+    [
+      initialPose.fov,
+      initialPose.position.x,
+      initialPose.position.y,
+      initialPose.position.z,
+    ],
+  );
 
   return (
-    <Canvas
-      camera={{
-        fov: initialPose.fov,
-        position: [
-          initialPose.position.x,
-          initialPose.position.y,
-          initialPose.position.z,
-        ],
-      }}
-    >
+    <Canvas camera={cameraConfig}>
       <Scene
         cameraPresets={cameraPresets}
         isCameraEditing={isCameraEditing}

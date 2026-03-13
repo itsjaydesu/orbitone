@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  startTransition,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import * as Tone from "tone";
 import {
   NoteEvent,
@@ -9,6 +16,12 @@ import {
 
 export interface MusicSettings {
   volumePercent: number;
+}
+
+interface TrackState {
+  originalNotes: NoteEvent[];
+  originalBpm: number;
+  bpm: number;
 }
 
 const GLOBAL_VOLUME_BOOST = 1.4;
@@ -49,11 +62,12 @@ export const useMusic = (settings: MusicSettings) => {
   const bpmRef = useRef(100);
   const lastDiagnosticLogRef = useRef(0);
 
-  const [originalNotes, setOriginalNotes] = useState<NoteEvent[]>(
-    defaultMusic.notes,
-  );
-  const [originalBpm, setOriginalBpm] = useState(defaultMusic.bpm);
-  const [bpm, setBpmState] = useState(defaultMusic.bpm);
+  const [trackState, setTrackState] = useState<TrackState>(() => ({
+    bpm: defaultMusic.bpm,
+    originalBpm: defaultMusic.bpm,
+    originalNotes: defaultMusic.notes,
+  }));
+  const { bpm, originalBpm, originalNotes } = trackState;
 
   const prevSpeedRef = useRef(1);
 
@@ -88,7 +102,18 @@ export const useMusic = (settings: MusicSettings) => {
   }, [bpm]);
 
   const setBpm = useCallback((value: number) => {
-    setBpmState(Math.round(value));
+    const nextBpm = Math.round(value);
+
+    setTrackState((current) => {
+      if (current.bpm === nextBpm) {
+        return current;
+      }
+
+      return {
+        ...current,
+        bpm: nextBpm,
+      };
+    });
   }, []);
 
   const ensureAudioReady = useCallback(async () => {
@@ -314,9 +339,15 @@ export const useMusic = (settings: MusicSettings) => {
           });
         }
 
-        setOriginalBpm(Math.round(parsedBpm));
-        setBpm(Math.round(parsedBpm));
-        setOriginalNotes(parsedNotes);
+        const roundedBpm = Math.round(parsedBpm);
+
+        startTransition(() => {
+          setTrackState({
+            bpm: roundedBpm,
+            originalBpm: roundedBpm,
+            originalNotes: parsedNotes,
+          });
+        });
       }
     } catch (error) {
       console.error("Error parsing MIDI file:", error);
