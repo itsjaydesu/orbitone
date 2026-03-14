@@ -26,7 +26,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "5:47",
         "fileName": "beethoven-moonlight-sonata.mid",
         "id": "classical-piano/beethoven-moonlight-sonata",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Piano_Sonata_No._14_(Beethoven)",
         "subtitle": "Ludwig van Beethoven",
         "title": "Moonlight Sonata",
         "url": "/midi/classical-piano/beethoven-moonlight-sonata.mid"
@@ -37,7 +36,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "6:56",
         "fileName": "mozart-piano-concerto-no-21-elvira-madigan.mid",
         "id": "classical-piano/mozart-piano-concerto-no-21-elvira-madigan",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Piano_Concerto_No._21_(Mozart)",
         "subtitle": "Wolfgang Amadeus Mozart",
         "title": "Piano Concerto No. 21 (Elvira Madigan)",
         "url": "/midi/classical-piano/mozart-piano-concerto-no-21-elvira-madigan.mid"
@@ -48,7 +46,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "2:26",
         "fileName": "bach-prelude-from-cello-suite.mid",
         "id": "classical-piano/bach-prelude-from-cello-suite",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Cello_Suites_(Bach)",
         "subtitle": "Johann Sebastian Bach",
         "title": "Prelude from Cello Suite",
         "url": "/midi/classical-piano/bach-prelude-from-cello-suite.mid"
@@ -59,7 +56,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "3:04",
         "fileName": "yiruma-river-flows-in-you.mid",
         "id": "classical-piano/yiruma-river-flows-in-you",
-        "sourceUrl": "https://en.wikipedia.org/wiki/River_Flows_in_You",
         "subtitle": "Yiruma",
         "title": "River Flows in You",
         "url": "/midi/classical-piano/yiruma-river-flows-in-you.mid"
@@ -70,7 +66,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "3:32",
         "fileName": "tchaikovsky-swan-lake.mid",
         "id": "classical-piano/tchaikovsky-swan-lake",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Swan_Lake",
         "subtitle": "Pyotr Ilyich Tchaikovsky",
         "title": "Swan Lake",
         "url": "/midi/classical-piano/tchaikovsky-swan-lake.mid"
@@ -87,7 +82,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "4:03",
         "fileName": "evangelion-cruel-angels-thesis.mid",
         "id": "film-tv-anime/evangelion-cruel-angels-thesis",
-        "sourceUrl": "https://en.wikipedia.org/wiki/A_Cruel_Angel%27s_Thesis",
         "subtitle": "Yoko Takahashi",
         "title": "Cruel Angel's Thesis",
         "url": "/midi/film-tv-anime/evangelion-cruel-angels-thesis.mid"
@@ -98,7 +92,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:46",
         "fileName": "star-wars-imperial-march.mid",
         "id": "film-tv-anime/star-wars-imperial-march",
-        "sourceUrl": "https://en.wikipedia.org/wiki/The_Imperial_March",
         "subtitle": "John Williams",
         "title": "Imperial March",
         "url": "/midi/film-tv-anime/star-wars-imperial-march.mid"
@@ -109,7 +102,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "3:12",
         "fileName": "nuovo-cinema-paradiso.mid",
         "id": "film-tv-anime/nuovo-cinema-paradiso",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Cinema_Paradiso",
         "subtitle": "Ennio Morricone",
         "title": "Nuovo Cinema Paradiso",
         "url": "/midi/film-tv-anime/nuovo-cinema-paradiso.mid"
@@ -130,7 +122,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:28",
         "fileName": "succession-theme.mid",
         "id": "film-tv-anime/succession-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Succession_(TV_series)",
         "subtitle": "Nicholas Britell",
         "title": "Succession Theme",
         "url": "/midi/film-tv-anime/succession-theme.mid"
@@ -141,7 +132,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:27",
         "fileName": "the-simpsons-theme.mid",
         "id": "film-tv-anime/the-simpsons-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/The_Simpsons",
         "subtitle": "Danny Elfman",
         "title": "The Simpsons Theme",
         "url": "/midi/film-tv-anime/the-simpsons-theme.mid"
@@ -158,7 +148,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:16",
         "fileName": "bubble-bobble.mid",
         "id": "games-internet/bubble-bobble",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Bubble_Bobble",
         "subtitle": "Taito",
         "title": "Bubble Bobble",
         "url": "/midi/games-internet/bubble-bobble.mid"
@@ -169,7 +158,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:11",
         "fileName": "chrono-trigger-main-theme.mid",
         "id": "games-internet/chrono-trigger-main-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Chrono_Trigger",
         "subtitle": "Yasunori Mitsuda",
         "title": "Chrono Trigger Main Theme",
         "url": "/midi/games-internet/chrono-trigger-main-theme.mid"
@@ -180,7 +168,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:24",
         "fileName": "ducktales-moon-theme.mid",
         "id": "games-internet/ducktales-moon-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/DuckTales_(video_game)",
         "subtitle": "DuckTales",
         "title": "DuckTales Moon Theme",
         "url": "/midi/games-internet/ducktales-moon-theme.mid"
@@ -201,7 +188,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "1:53",
         "fileName": "nyan-cat.mid",
         "id": "games-internet/nyan-cat",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Nyan_Cat",
         "subtitle": "Internet Classic",
         "title": "Nyan Cat",
         "url": "/midi/games-internet/nyan-cat.mid"
@@ -212,7 +198,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "2:55",
         "fileName": "portal-still-alive.mid",
         "id": "games-internet/portal-still-alive",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Still_Alive_(Portal_song)",
         "subtitle": "Portal / Jonathan Coulton",
         "title": "Still Alive",
         "url": "/midi/games-internet/portal-still-alive.mid"
@@ -243,7 +228,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:34",
         "fileName": "tetris-main-theme.mid",
         "id": "games-internet/tetris-main-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Korobeiniki",
         "subtitle": "Tetris",
         "title": "Tetris Main Theme",
         "url": "/midi/games-internet/tetris-main-theme.mid"
@@ -270,7 +254,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "5:10",
         "fileName": "coldplay-a-sky-full-of-stars.mid",
         "id": "pop-electronic/coldplay-a-sky-full-of-stars",
-        "sourceUrl": "https://en.wikipedia.org/wiki/A_Sky_Full_of_Stars",
         "subtitle": "Coldplay",
         "title": "A Sky Full of Stars",
         "url": "/midi/pop-electronic/coldplay-a-sky-full-of-stars.mid"
@@ -281,7 +264,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "3:48",
         "fileName": "fireflies.mid",
         "id": "pop-electronic/fireflies",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Fireflies_(Owl_City_song)",
         "subtitle": "Owl City",
         "title": "Fireflies",
         "url": "/midi/pop-electronic/fireflies.mid"
@@ -292,7 +274,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:14",
         "fileName": "kernkraft-400.mid",
         "id": "pop-electronic/kernkraft-400",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Kernkraft_400",
         "subtitle": "Zombie Nation",
         "title": "Kernkraft 400",
         "url": "/midi/pop-electronic/kernkraft-400.mid"
@@ -303,7 +284,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "5:49",
         "fileName": "piano-man.mid",
         "id": "pop-electronic/piano-man",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Piano_Man_(song)",
         "subtitle": "Billy Joel",
         "title": "Piano Man",
         "url": "/midi/pop-electronic/piano-man.mid"
@@ -314,7 +294,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "2:07",
         "fileName": "yesterday.mid",
         "id": "pop-electronic/yesterday",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Yesterday_(Beatles_song)",
         "subtitle": "The Beatles",
         "title": "Yesterday",
         "url": "/midi/pop-electronic/yesterday.mid"
@@ -351,7 +330,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:13",
         "fileName": "ebisu-third-man-theme.mid",
         "id": "train-stations/ebisu-third-man-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/The_Third_Man",
         "subtitle": "Yamanote Line Station",
         "title": "Ebisu Third Man Theme",
         "url": "/midi/train-stations/ebisu-third-man-theme.mid"
@@ -442,7 +420,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:19",
         "fileName": "komagome-sakura-sakura.mid",
         "id": "train-stations/komagome-sakura-sakura",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Sakura_Sakura",
         "subtitle": "Yamanote Line Station",
         "title": "Komagome Sakura Sakura",
         "url": "/midi/train-stations/komagome-sakura-sakura.mid"
@@ -453,7 +430,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:12",
         "fileName": "maihama-disney.mid",
         "id": "train-stations/maihama-disney",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Maihama_Station",
         "subtitle": "Tokyo Area Station",
         "title": "Maihama Disney",
         "url": "/midi/train-stations/maihama-disney.mid"
@@ -474,7 +450,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:17",
         "fileName": "niiza-astro-boy.mid",
         "id": "train-stations/niiza-astro-boy",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Astro_Boy",
         "subtitle": "Tokyo Area Station",
         "title": "Niiza Astro Boy",
         "url": "/midi/train-stations/niiza-astro-boy.mid"
@@ -495,7 +470,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:12",
         "fileName": "ome-akko-chan-theme.mid",
         "id": "train-stations/ome-akko-chan-theme",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Akko-chan%27s_Got_a_Secret!",
         "subtitle": "Tokyo Area Station",
         "title": "Ome Akko Chan Theme",
         "url": "/midi/train-stations/ome-akko-chan-theme.mid"
@@ -756,7 +730,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:17",
         "fileName": "takadanobaba-astro-boy.mid",
         "id": "train-stations/takadanobaba-astro-boy",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Astro_Boy",
         "subtitle": "Yamanote Line Station",
         "title": "Takadanobaba Astro Boy",
         "url": "/midi/train-stations/takadanobaba-astro-boy.mid"
@@ -813,7 +786,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:11",
         "fileName": "jnr-classic-chime.mid",
         "id": "train-standard-chimes/jnr-classic-chime",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Departure_melody",
         "subtitle": "JR-SH Standard Melody",
         "title": "JNR Classic Chime",
         "url": "/midi/train-standard-chimes/jnr-classic-chime.mid"
@@ -824,7 +796,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:08",
         "fileName": "jr-departure-chime.mid",
         "id": "train-standard-chimes/jr-departure-chime",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Departure_melody",
         "subtitle": "JR-SH Standard Melody",
         "title": "JR Departure Chime",
         "url": "/midi/train-standard-chimes/jr-departure-chime.mid"
@@ -961,7 +932,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:06",
         "fileName": "classic-sakura-sakura.mid",
         "id": "train-signature-system/classic-sakura-sakura",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Sakura_Sakura",
         "subtitle": "Named Train Melody",
         "title": "Classic Sakura Sakura",
         "url": "/midi/train-signature-system/classic-sakura-sakura.mid"
@@ -1002,7 +972,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:20",
         "fileName": "keikyu-melody.mid",
         "id": "train-signature-system/keikyu-melody",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Keikyu",
         "subtitle": "Metro / Private Railway Melody",
         "title": "Keikyu Melody",
         "url": "/midi/train-signature-system/keikyu-melody.mid"
@@ -1083,7 +1052,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:03",
         "fileName": "odakyu-melody.mid",
         "id": "train-signature-system/odakyu-melody",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Odakyu_Electric_Railway",
         "subtitle": "Metro / Private Railway Melody",
         "title": "Odakyu Melody",
         "url": "/midi/train-signature-system/odakyu-melody.mid"
@@ -1094,7 +1062,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:11",
         "fileName": "shinkansen-hikari-chime.mid",
         "id": "train-signature-system/shinkansen-hikari-chime",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Hikari_(train)",
         "subtitle": "Shinkansen Chime",
         "title": "Shinkansen Hikari Chime",
         "url": "/midi/train-signature-system/shinkansen-hikari-chime.mid"
@@ -1115,7 +1082,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:09",
         "fileName": "shinkansen-nozomi-chime.mid",
         "id": "train-signature-system/shinkansen-nozomi-chime",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Nozomi_(train)",
         "subtitle": "Shinkansen Chime",
         "title": "Shinkansen Nozomi Chime",
         "url": "/midi/train-signature-system/shinkansen-nozomi-chime.mid"
@@ -1126,7 +1092,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:10",
         "fileName": "shinkansen-tohoku-chime.mid",
         "id": "train-signature-system/shinkansen-tohoku-chime",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Tohoku_Shinkansen",
         "subtitle": "Shinkansen Chime",
         "title": "Shinkansen Tohoku Chime",
         "url": "/midi/train-signature-system/shinkansen-tohoku-chime.mid"
@@ -1157,7 +1122,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "0:08",
         "fileName": "tokyu-melody.mid",
         "id": "train-signature-system/tokyu-melody",
-        "sourceUrl": "https://en.wikipedia.org/wiki/Tokyu_Corporation",
         "subtitle": "Metro / Private Railway Melody",
         "title": "Tokyu Melody",
         "url": "/midi/train-signature-system/tokyu-melody.mid"
