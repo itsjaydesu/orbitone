@@ -14,35 +14,41 @@
   --nm-text-dim: rgba(255, 255, 255, 0.45);
   --nm-text-faint: rgba(255, 255, 255, 0.25);
   --nm-border: rgba(255, 255, 255, 0.04);
-  --nm-cursor-url: url('/cursor.png') 19 53, url('/cursor.svg') 19 53;
+  --nm-note-cursor-image: url('/cursor.svg');
 }
 
 @media (pointer: fine) {
-  html,
-  body {
-    cursor: var(--nm-cursor-url), auto;
+  html.nm-system-cursor-hidden,
+  html.nm-system-cursor-hidden body,
+  html.nm-system-cursor-hidden body *,
+  html.nm-system-cursor-hidden body *::before,
+  html.nm-system-cursor-hidden body *::after {
+    cursor: none !important;
   }
+}
 
-  button,
-  a,
-  input,
-  label,
-  select,
-  summary,
-  textarea,
-  [role="button"] {
-    cursor: var(--nm-cursor-url), auto;
-  }
+.nm-note-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 0;
+  background-image: var(--nm-note-cursor-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter:
+    drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
+  transform: translate3d(-999px, -999px, 0) scale(1);
+  transform-origin: center;
+  transition: opacity 120ms ease-out;
+  will-change: transform, opacity;
+}
 
-  input:not([type]),
-  input[type="text"],
-  input[type="search"],
-  input[type="email"],
-  input[type="number"],
-  input[type="password"],
-  textarea {
-    cursor: var(--nm-cursor-url), text;
-  }
+.nm-note-cursor[data-visible="true"] {
+  opacity: 1;
 }
 
 /* ── Entrance Animations ── */
@@ -159,7 +165,6 @@
 
 .nm-input:disabled {
   opacity: 0.35;
-  cursor: var(--nm-cursor-url), not-allowed;
 }
 
 /* ── Accent Button (primary CTA) ── */
@@ -288,7 +293,6 @@
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: var(--nm-cursor-url), auto;
   transition: box-shadow 0.15s ease;
 }
 
@@ -314,7 +318,6 @@
   box-shadow:
     3px 3px 8px var(--nm-shadow-dark),
     -3px -3px 8px var(--nm-shadow-light);
-  cursor: var(--nm-cursor-url), auto;
 }
 
 .nm-range::-moz-range-track {
@@ -348,7 +351,6 @@
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: var(--nm-cursor-url), auto;
 }
 
 .nm-seekbar::-moz-range-thumb {
@@ -360,7 +362,6 @@
   box-shadow:
     2px 2px 6px var(--nm-shadow-dark),
     -2px -2px 6px var(--nm-shadow-light);
-  cursor: var(--nm-cursor-url), auto;
 }
 
 .nm-seekbar::-moz-range-track {
@@ -382,7 +383,6 @@
   box-shadow:
     inset 2px 2px 4px var(--nm-shadow-dark),
     inset -2px -2px 4px var(--nm-shadow-light);
-  cursor: var(--nm-cursor-url), auto;
   position: relative;
   transition: all 0.2s ease;
 }

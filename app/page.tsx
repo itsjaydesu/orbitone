@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { CameraLab } from "@/components/CameraLab";
+import { NoteCursor } from "@/components/NoteCursor";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
   MIDI_LIBRARY,
@@ -2360,6 +2361,8 @@ export default function Home() {
           settings={settings}
         />
       </div>
+
+      <NoteCursor />
     </main>
   );
 }
