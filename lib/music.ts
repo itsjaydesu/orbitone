@@ -57,7 +57,25 @@ function getDamperBuffer(midi: number): number {
 }
 
 export const DEFAULT_NOTE_LEAD_IN_SECONDS = 0.35;
-export const MIN_UPLOAD_NOTE_LEAD_IN_SECONDS = 0.5;
+export const UPLOAD_NOTE_LEAD_IN_SECONDS = 0.5;
+
+function normalizePreStartPedalEvents(pedalEvents: PedalEvent[]) {
+  const futureEvents = pedalEvents.filter((event) => event.time > 0);
+  const latestPreStartEvent = [...pedalEvents]
+    .reverse()
+    .find((event) => event.time <= 0);
+
+  if (!latestPreStartEvent) {
+    return;
+  }
+
+  const normalizedEvents =
+    latestPreStartEvent.value >= 64
+      ? [{ ...latestPreStartEvent, time: 0 }, ...futureEvents]
+      : futureEvents;
+
+  pedalEvents.splice(0, pedalEvents.length, ...normalizedEvents);
+}
 
 function getPercentile(sortedValues: number[], percentile: number): number {
   if (sortedValues.length === 0) {
@@ -225,14 +243,10 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
   notes.sort((a, b) => a.time - b.time);
   pedalEvents.sort((a, b) => a.time - b.time);
 
-  // Keep uploads from starting at t=0 while preserving existing long-silence normalization.
+  // Normalize every loaded MIDI so the first note always lands 0.5s after load,
+  // regardless of how much dead air the source file has at the front.
   if (notes.length > 0) {
-    const firstNoteTime = notes[0].time;
-    const clampedFirstTime = Math.min(
-      1,
-      Math.max(MIN_UPLOAD_NOTE_LEAD_IN_SECONDS, firstNoteTime),
-    );
-    const offset = firstNoteTime - clampedFirstTime;
+    const offset = notes[0].time - UPLOAD_NOTE_LEAD_IN_SECONDS;
 
     notes.forEach(note => {
       note.time -= offset;
@@ -240,6 +254,7 @@ export const parseMidiFile = async (file: File): Promise<MusicData> => {
     pedalEvents.forEach(event => {
       event.time -= offset;
     });
+    normalizePreStartPedalEvents(pedalEvents);
   }
 
   const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120);
