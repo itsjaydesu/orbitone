@@ -776,6 +776,13 @@ const CameraController = ({
   const lookAtTarget = useRef(new THREE.Vector3(0, 0, 0));
   const targetPos = useRef(new THREE.Vector3());
   const targetLookAt = useRef(new THREE.Vector3());
+  const orbitStartTime = useRef<number | null>(null);
+  const dynamicTransition = useRef<{
+    position: THREE.Vector3;
+    target: THREE.Vector3;
+    fov: number;
+  } | null>(null);
+  const prevCameraView = useRef(cameraView);
   const activePose = cameraPresets[cameraView];
   const effectivePose =
     isCameraEditing || !isMobileView
@@ -789,12 +796,30 @@ const CameraController = ({
 
   useEffect(() => {
     if (cameraView !== "dynamic" && !isCameraEditing) {
+      prevCameraView.current = cameraView;
       return;
     }
 
     const camera = cameraRef.current;
     const nextPosition = vectorFromCameraVector(effectivePose.position);
     const nextTarget = vectorFromCameraVector(effectivePose.target);
+
+    // If transitioning TO dynamic from another view, lerp instead of snapping
+    if (
+      cameraView === "dynamic" &&
+      prevCameraView.current !== "dynamic" &&
+      !isCameraEditing
+    ) {
+      dynamicTransition.current = {
+        position: nextPosition,
+        target: nextTarget,
+        fov: effectivePose.fov,
+      };
+      prevCameraView.current = cameraView;
+      return;
+    }
+
+    prevCameraView.current = cameraView;
 
     camera.position.copy(nextPosition);
     lookAtTarget.current.copy(nextTarget);
@@ -820,6 +845,38 @@ const CameraController = ({
   ]);
 
   useFrame(({ clock }) => {
+    // Handle smooth transition into dynamic mode
+    if (dynamicTransition.current) {
+      const camera = cameraRef.current;
+      const t = dynamicTransition.current;
+      const lerpFactor = 0.05;
+
+      camera.position.lerp(t.position, lerpFactor);
+      lookAtTarget.current.lerp(t.target, lerpFactor);
+      const nextFov = THREE.MathUtils.lerp(camera.fov, t.fov, lerpFactor);
+      if (Math.abs(nextFov - camera.fov) > 0.001) {
+        camera.fov = nextFov;
+        camera.updateProjectionMatrix();
+      }
+      camera.lookAt(lookAtTarget.current);
+
+      // Once close enough, finalize and hand off to OrbitControls
+      if (camera.position.distanceTo(t.position) < 0.05) {
+        camera.position.copy(t.position);
+        lookAtTarget.current.copy(t.target);
+        camera.fov = t.fov;
+        camera.updateProjectionMatrix();
+        camera.lookAt(t.target);
+
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(t.target);
+          controlsRef.current.update();
+        }
+        dynamicTransition.current = null;
+      }
+      return;
+    }
+
     if (cameraView === "dynamic" || isCameraEditing) {
       return;
     }
@@ -855,19 +912,25 @@ const CameraController = ({
         progress,
       );
     } else if (cameraView === "orbit") {
+      if (orbitStartTime.current === null) {
+        orbitStartTime.current = clock.getElapsedTime();
+      }
       const orbitOffset = basePosition.clone().sub(baseTarget);
       const orbitRadius = Math.max(
         0.001,
         Math.hypot(orbitOffset.x, orbitOffset.z),
       );
       const orbitAngle = Math.atan2(orbitOffset.x, orbitOffset.z);
-      const orbitTime = clock.getElapsedTime() * 0.3;
+      const orbitTime =
+        (clock.getElapsedTime() - orbitStartTime.current) * 0.3;
 
       targetPos.current.set(
         baseTarget.x + Math.sin(orbitAngle + orbitTime) * orbitRadius,
         baseTarget.y + orbitOffset.y,
         baseTarget.z + Math.cos(orbitAngle + orbitTime) * orbitRadius,
       );
+    } else {
+      orbitStartTime.current = null;
     }
 
     const lerpFactor = cameraView === "topThird" ? 0.075 : 0.05;

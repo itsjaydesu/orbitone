@@ -114,9 +114,9 @@ type LibraryPrimaryGroup = {
 };
 
 const TRAIN_LIBRARY_CATEGORY_IDS = [
+  "train-signature-system",
   "train-stations",
   "train-standard-chimes",
-  "train-signature-system",
 ] as const;
 
 type ShortcutItem = {
@@ -1662,15 +1662,10 @@ export default function Home() {
                   >
                     {isMobile && <div className="nm-sheet-handle" />}
                     <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
-                            {copy.libraryTitle}
-                          </h3>
-                          <p className="mt-1 max-w-md text-xs leading-relaxed text-[var(--nm-text-dim)] sm:text-[13px]">
-                            {copy.libraryDescription}
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
+                          {copy.libraryTitle}
+                        </h3>
 
                         <button
                           type="button"
@@ -1729,7 +1724,7 @@ export default function Home() {
 
                     {activeTrainSubcategories.length > 0 && (
                       <div
-                        className="nm-tabs-rail mt-2 flex gap-2 overflow-x-auto pb-1"
+                        className="mt-2 flex gap-2"
                         role="tablist"
                         aria-label={copy.trainSubcategories}
                       >
@@ -1740,6 +1735,7 @@ export default function Home() {
                             category.id,
                             language,
                           );
+                          const SubIcon = categoryMeta.icon;
 
                           return (
                             <button
@@ -1747,15 +1743,17 @@ export default function Home() {
                               type="button"
                               role="tab"
                               aria-selected={isSubtabActive}
+                              aria-label={categoryMeta.shortLabel}
+                              title={categoryMeta.shortLabel}
                               onClick={() => setActiveLibraryCategoryId(category.id)}
                               className={cn(
-                                "shrink-0 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition-all",
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all",
                                 isSubtabActive
                                   ? "nm-toggle-active"
                                   : "nm-raised text-[var(--nm-text-dim)]",
                               )}
                             >
-                              {categoryMeta.shortLabel}
+                              <SubIcon className="h-4 w-4" />
                             </button>
                           );
                         })}
@@ -1900,7 +1898,7 @@ export default function Home() {
                   aria-expanded={showLanguageMenu}
                   aria-haspopup="menu"
                 >
-                  <SettingsIcon className="h-4 w-4" />
+                  <Globe className="h-4 w-4" />
                 </button>
 
                 {showLanguageMenu && isMobile && (
@@ -1976,7 +1974,7 @@ export default function Home() {
                 )}
                 aria-label={copy.closeSettings}
               >
-                <Globe className="h-5 w-5" />
+                <SettingsIcon className="h-5 w-5" />
               </button>
             </div>
 
@@ -2169,7 +2167,7 @@ export default function Home() {
         >
           <div
             className={cn(
-              "nm-scrollbar w-full overflow-y-auto border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)]",
+              "w-full overflow-y-auto border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
               isMobile
                 ? "nm-animate-sheet max-h-[92dvh] rounded-t-[1.5rem] border-b-0 px-5 py-4"
                 : "nm-animate-modal max-w-[42rem] rounded-[1.5rem] px-7 py-6",
@@ -2177,19 +2175,7 @@ export default function Home() {
             style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } : infoModalStyle}
           >
             {isMobile && <div className="nm-sheet-handle" />}
-            <div className="flex items-start justify-between gap-6 border-b border-white/12 pb-4">
-              <h2 className="text-xl tracking-[0.08em] text-[var(--nm-text)]">
-                {copy.aboutTitle}
-              </h2>
-              <button
-                onClick={() => setShowInfo(false)}
-                className="shrink-0 text-base tracking-[0.16em] text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                aria-label={copy.closeAbout}
-              >
-                (X)
-              </button>
-            </div>
-            <div className="mt-6 space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
+            <div className="space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
               <section className="space-y-5">
                 <div className="space-y-1">
                   <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
@@ -2200,18 +2186,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-5 rounded-[1.35rem] border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-start sm:p-5">
-                  <div className="mx-auto shrink-0 overflow-hidden rounded-[1.2rem] border border-white/12 bg-black/40 shadow-[0_16px_36px_rgba(0,0,0,0.35)]">
-                    <Image
-                      src="/jay-avatar.PNG"
-                      alt="Portrait of itsjaydesu"
-                      width={128}
-                      height={128}
-                      className="h-28 w-28 object-cover sm:h-32 sm:w-32"
-                      priority
-                    />
-                  </div>
-
+                <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.02] p-4 sm:p-5">
                   <div className="space-y-4">
                     {language === "ja" ? (
                       <>
@@ -2304,24 +2279,57 @@ export default function Home() {
 
               <section className="space-y-4 border-t border-white/12 pt-5">
                 <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                  {copy.creatorTitle}
+                  {language === "ja" ? "クレジット" : "Credits"}
                 </h3>
-                <div className="flex flex-wrap gap-x-6 gap-y-2 text-[var(--nm-text)]">
-                  {creatorLinks.map((link) => (
-                    <a
-                      key={link.href}
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
-                    >
-                      {link.label}
-                    </a>
-                  ))}
+                <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
+                  <p>
+                    {language === "ja"
+                      ? "日本の発車メロディは公開されている鉄道ファンの資料やMIDIアーカイブを参考にしています。"
+                      : "Japanese train departure melodies are sourced from publicly available railfan archives and community MIDI transcriptions."}
+                  </p>
+                  <p>
+                    {language === "ja"
+                      ? "Claudeの支援を受けて開発されました。"
+                      : "Built with assistance from Claude."}
+                  </p>
                 </div>
-                <p className="text-xs leading-[1.8] text-[var(--nm-text-faint)]">
-                  {creatorLinkNotes}
-                </p>
+              </section>
+
+              <section className="flex items-center justify-center gap-5 border-t border-white/12 pt-5">
+                <div className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+                  <Image
+                    src="/jay-avatar.PNG"
+                    alt="Portrait of itsjaydesu"
+                    width={128}
+                    height={128}
+                    className="h-12 w-12 object-cover"
+                    priority
+                  />
+                </div>
+                <div className="flex items-center gap-4 text-[var(--nm-text)]">
+                  {creatorLinks.map((link) => {
+                    const LinkIcon = link.icon;
+                    const displayLabel = link.label === "GitHub" || link.label === "X"
+                      ? null
+                      : (link.label === "Website" || link.label === "サイト" ? "www" : link.label);
+                    return (
+                      <a
+                        key={link.href}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-[var(--nm-text-dim)] transition-colors hover:text-white"
+                        aria-label={link.label}
+                        title={link.label}
+                      >
+                        <LinkIcon className="h-5 w-5" />
+                        {displayLabel && (
+                          <span className="text-xs tracking-[0.08em]">{displayLabel}</span>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
               </section>
             </div>
           </div>

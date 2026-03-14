@@ -237,7 +237,7 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         "durationLabel": "3:28",
         "fileName": "theme-song-to-2008.mid",
         "id": "games-internet/theme-song-to-2008",
-        "subtitle": "Unknown Artist",
+        "subtitle": "you'll know the artist",
         "title": "Theme Song to 2008",
         "url": "/midi/games-internet/theme-song-to-2008.mid"
       }
