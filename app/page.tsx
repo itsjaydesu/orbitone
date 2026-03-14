@@ -1912,7 +1912,7 @@ export default function Home() {
                   aria-expanded={showLanguageMenu}
                   aria-haspopup="menu"
                 >
-                  <Globe className="h-4 w-4" />
+                  <SettingsIcon className="h-4 w-4" />
                 </button>
 
                 {showLanguageMenu && (
@@ -1973,7 +1973,7 @@ export default function Home() {
                 )}
                 aria-label={copy.closeSettings}
               >
-                <SettingsIcon className="h-5 w-5" />
+                <Globe className="h-5 w-5" />
               </button>
             </div>
 
