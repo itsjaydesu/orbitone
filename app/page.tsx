@@ -68,6 +68,11 @@ type AppSettings = VisualizerSettings & {
   volumePercent: number;
 };
 
+type DisplayTrackMeta = {
+  title: string | null;
+  subtitle: string | null;
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   volumePercent: 100,
   showMidiRoll: false,
@@ -76,6 +81,8 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 const MENU_REVEAL_DELAY_MS = 3000;
 const MENU_IDLE_HIDE_MS = 2000;
+const TEXT_FADE_SWAP_DELAY_MS = 140;
+const TEXT_FADE_REVEAL_DELAY_MS = 34;
 const MIDI_EXTENSIONS = [".mid", ".midi"];
 const DEFAULT_LIBRARY_CATEGORY_ID = MIDI_LIBRARY_CATEGORIES[0]?.id ?? "";
 const LIBRARY_CATEGORY_INDEX = new Map(
@@ -589,6 +596,8 @@ const isMidiFile = (file: File) => {
 
 export default function Home() {
   const isMobile = useIsMobile();
+  // Keep primary controls accessible on touch devices instead of hiding on idle.
+  const shouldPersistChrome = isMobile;
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isMenuReady, setIsMenuReady] = useState(false);
@@ -658,6 +667,7 @@ export default function Home() {
     getBrandName(language),
   );
   const [isHeaderBrandVisible, setIsHeaderBrandVisible] = useState(true);
+  const headerBrandNameRef = useRef<string>(getBrandName(language));
   const copy = UI_COPY[language];
   const displayBrandName = getBrandName(language);
   const cameraViewLabels = useMemo(
@@ -762,12 +772,27 @@ export default function Home() {
         : null,
     [currentLibraryTrackId],
   );
-  const displayTrackTitle = currentLibraryTrack
+  const localizedTrackTitle = currentLibraryTrack
     ? getLocalizedTrackTitle(currentLibraryTrack, language)
     : currentTrackTitle;
-  const currentTrackSubtitle = getLocalizedTrackSubtitle(
+  const localizedTrackSubtitle = getLocalizedTrackSubtitle(
     currentLibraryTrack?.subtitle ?? null,
     language,
+  );
+  const [displayTrackMeta, setDisplayTrackMeta] = useState<DisplayTrackMeta>(
+    () => ({
+      title: localizedTrackTitle,
+      subtitle: localizedTrackSubtitle,
+    }),
+  );
+  const displayTrackMetaRef = useRef<DisplayTrackMeta>({
+    title: localizedTrackTitle,
+    subtitle: localizedTrackSubtitle,
+  });
+  const trackMetaSwapTimerRef = useRef<number | undefined>(undefined);
+  const trackMetaRevealTimerRef = useRef<number | undefined>(undefined);
+  const [isTrackMetaVisible, setIsTrackMetaVisible] = useState(() =>
+    Boolean(localizedTrackTitle || localizedTrackSubtitle),
   );
   const visibleLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
@@ -834,7 +859,16 @@ export default function Home() {
   }, [currentTrackTitle]);
 
   useEffect(() => {
-    if (headerBrandName === displayBrandName) {
+    headerBrandNameRef.current = headerBrandName;
+  }, [headerBrandName]);
+
+  useEffect(() => {
+    displayTrackMetaRef.current = displayTrackMeta;
+  }, [displayTrackMeta]);
+
+  useEffect(() => {
+    if (headerBrandNameRef.current === displayBrandName) {
+      setIsHeaderBrandVisible(true);
       return;
     }
 
@@ -849,12 +883,13 @@ export default function Home() {
     setIsHeaderBrandVisible(false);
     brandSwapTimerRef.current = window.setTimeout(() => {
       setHeaderBrandName(displayBrandName);
+      headerBrandNameRef.current = displayBrandName;
       brandRevealTimerRef.current = window.setTimeout(() => {
         setIsHeaderBrandVisible(true);
         brandRevealTimerRef.current = undefined;
-      }, 34);
+      }, TEXT_FADE_REVEAL_DELAY_MS);
       brandSwapTimerRef.current = undefined;
-    }, 140);
+    }, TEXT_FADE_SWAP_DELAY_MS);
 
     return () => {
       if (brandSwapTimerRef.current !== undefined) {
@@ -867,7 +902,71 @@ export default function Home() {
         brandRevealTimerRef.current = undefined;
       }
     };
-  }, [displayBrandName, headerBrandName]);
+  }, [displayBrandName]);
+
+  useEffect(() => {
+    const currentDisplay = displayTrackMetaRef.current;
+    const nextDisplay = {
+      title: localizedTrackTitle,
+      subtitle: localizedTrackSubtitle,
+    };
+
+    if (
+      currentDisplay.title === nextDisplay.title &&
+      currentDisplay.subtitle === nextDisplay.subtitle
+    ) {
+      setIsTrackMetaVisible(Boolean(nextDisplay.title || nextDisplay.subtitle));
+      return;
+    }
+
+    if (trackMetaSwapTimerRef.current !== undefined) {
+      window.clearTimeout(trackMetaSwapTimerRef.current);
+    }
+
+    if (trackMetaRevealTimerRef.current !== undefined) {
+      window.clearTimeout(trackMetaRevealTimerRef.current);
+    }
+
+    const hasCurrentMeta = Boolean(
+      currentDisplay.title || currentDisplay.subtitle,
+    );
+    const hasNextMeta = Boolean(nextDisplay.title || nextDisplay.subtitle);
+
+    if (!hasCurrentMeta) {
+      displayTrackMetaRef.current = nextDisplay;
+      setDisplayTrackMeta(nextDisplay);
+      setIsTrackMetaVisible(hasNextMeta);
+      return;
+    }
+
+    setIsTrackMetaVisible(false);
+    trackMetaSwapTimerRef.current = window.setTimeout(() => {
+      displayTrackMetaRef.current = nextDisplay;
+      setDisplayTrackMeta(nextDisplay);
+      trackMetaSwapTimerRef.current = undefined;
+
+      if (!hasNextMeta) {
+        return;
+      }
+
+      trackMetaRevealTimerRef.current = window.setTimeout(() => {
+        setIsTrackMetaVisible(true);
+        trackMetaRevealTimerRef.current = undefined;
+      }, TEXT_FADE_REVEAL_DELAY_MS);
+    }, TEXT_FADE_SWAP_DELAY_MS);
+
+    return () => {
+      if (trackMetaSwapTimerRef.current !== undefined) {
+        window.clearTimeout(trackMetaSwapTimerRef.current);
+        trackMetaSwapTimerRef.current = undefined;
+      }
+
+      if (trackMetaRevealTimerRef.current !== undefined) {
+        window.clearTimeout(trackMetaRevealTimerRef.current);
+        trackMetaRevealTimerRef.current = undefined;
+      }
+    };
+  }, [localizedTrackSubtitle, localizedTrackTitle]);
 
   useEffect(() => {
     if (showLibrary && currentLibraryTrack) {
@@ -1133,12 +1232,36 @@ export default function Home() {
 
   const scheduleIdleHide = useCallback(() => {
     clearIdleTimer();
+    if (shouldPersistChrome) {
+      return;
+    }
     idleTimerRef.current = window.setTimeout(() => {
       setIsMenuVisible(false);
     }, MENU_IDLE_HIDE_MS);
-  }, [clearIdleTimer]);
+  }, [clearIdleTimer, shouldPersistChrome]);
 
   useEffect(() => {
+    if (!shouldPersistChrome) {
+      return;
+    }
+
+    clearIdleTimer();
+    if (!isMenuReady) {
+      setIsMenuReady(true);
+    }
+    if (!isMenuVisible) {
+      setIsMenuVisible(true);
+    }
+  }, [clearIdleTimer, isMenuReady, isMenuVisible, shouldPersistChrome]);
+
+  useEffect(() => {
+    if (shouldPersistChrome) {
+      return;
+    }
+
+    setIsMenuReady(false);
+    setIsMenuVisible(false);
+
     const revealTimer = window.setTimeout(() => {
       setIsMenuReady(true);
       setIsMenuVisible(true);
@@ -1149,10 +1272,10 @@ export default function Home() {
       window.clearTimeout(revealTimer);
       clearIdleTimer();
     };
-  }, [clearIdleTimer, scheduleIdleHide]);
+  }, [clearIdleTimer, scheduleIdleHide, shouldPersistChrome]);
 
   useEffect(() => {
-    if (!isMenuReady) {
+    if (shouldPersistChrome || !isMenuReady) {
       return;
     }
 
@@ -1170,6 +1293,7 @@ export default function Home() {
     isMenuReady,
     isMenuVisible,
     scheduleIdleHide,
+    shouldPersistChrome,
     showCameraLab,
     showInfo,
     showLanguageMenu,
@@ -1178,7 +1302,7 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    if (!isMenuReady) {
+    if (shouldPersistChrome || !isMenuReady) {
       return;
     }
 
@@ -1207,6 +1331,7 @@ export default function Home() {
   }, [
     isMenuReady,
     scheduleIdleHide,
+    shouldPersistChrome,
     showCameraLab,
     showInfo,
     showLanguageMenu,
@@ -1403,7 +1528,7 @@ export default function Home() {
     updateCameraDraft(activeCameraView, DEFAULT_CAMERA_PRESETS[activeCameraView]);
   }, [activeCameraView, updateCameraDraft]);
 
-  const chromeVisible = isMenuReady && isMenuVisible;
+  const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible);
   const topChromeClass = cn(
     "absolute top-0 left-0 z-10 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:p-6",
     isMenuReady && "transition-opacity duration-700 ease-out",
@@ -1467,16 +1592,25 @@ export default function Home() {
         </h1>
 
         <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 sm:absolute sm:left-1/2 sm:top-0 sm:w-full sm:max-w-[min(46rem,calc(100%-24rem))] sm:-translate-x-1/2 sm:px-6 sm:pt-1">
-          {displayTrackTitle && (
+          {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
             <div className="max-w-[min(42rem,100%)] rounded-[1.4rem] border border-white/8 bg-black/25 px-4 py-2.5 text-center shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:px-5 sm:py-3">
-              <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                {displayTrackTitle}
+              <div
+                className={cn(
+                  "transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                  isTrackMetaVisible ? "opacity-100" : "opacity-0",
+                )}
+              >
+                {displayTrackMeta.title && (
+                  <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                    {displayTrackMeta.title}
+                  </div>
+                )}
+                {displayTrackMeta.subtitle && (
+                  <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
+                    {displayTrackMeta.subtitle}
+                  </div>
+                )}
               </div>
-              {currentTrackSubtitle && (
-                <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
-                  {currentTrackSubtitle}
-                </div>
-              )}
             </div>
           )}
         </div>
