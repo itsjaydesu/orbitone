@@ -35,6 +35,7 @@ import {
   Disc3,
   Gamepad2,
   Play,
+  RotateCcw,
   Square,
   Loader2,
   Upload,
@@ -63,7 +64,6 @@ import {
   type ReactElement,
   type SVGProps,
 } from "react";
-import * as Tone from "tone";
 
 type AppSettings = VisualizerSettings & {
   volumePercent: number;
@@ -158,6 +158,7 @@ type UiCopy = {
   settings: string;
   show: string;
   hide: string;
+  restartPlayback: string;
   startPlayback: string;
   stopPlayback: string;
   techTitle: string;
@@ -309,6 +310,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     settings: "Settings",
     show: "On",
     hide: "Off",
+    restartPlayback: "Restart playback",
     startPlayback: "Start playback",
     stopPlayback: "Stop playback",
     techTitle: "Built with",
@@ -346,6 +348,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     settings: "設定",
     show: "表示",
     hide: "非表示",
+    restartPlayback: "最初から再生",
     startPlayback: "再生を開始",
     stopPlayback: "再生を停止",
     techTitle: "中で使っているもの",
@@ -635,6 +638,8 @@ export default function Home() {
   const {
     isPlaying,
     isAudioLoading,
+    currentTime,
+    hasEnded,
     togglePlay,
     notes,
     loadMidi,
@@ -649,8 +654,6 @@ export default function Home() {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [progress, setProgress] = useState(0);
-  const requestRef = useRef<number | undefined>(undefined);
   const idleTimerRef = useRef<number | undefined>(undefined);
   const brandSwapTimerRef = useRef<number | undefined>(undefined);
   const brandRevealTimerRef = useRef<number | undefined>(undefined);
@@ -813,31 +816,6 @@ export default function Home() {
       )
       .map(({ item }) => item);
   }, [activeLibraryCategory]);
-
-  const updateProgress = useCallback(() => {
-    if (isPlaying) {
-      setProgress(Tone.Transport.seconds);
-      requestRef.current = requestAnimationFrame(updateProgress);
-    }
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      requestRef.current = requestAnimationFrame(updateProgress);
-    } else {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-      setProgress(Tone.Transport.seconds);
-    }
-
-    return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
-  }, [isPlaying, updateProgress]);
-
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -1090,7 +1068,6 @@ export default function Home() {
         title?: string;
       },
     ) => {
-      setProgress(0);
       const didLoad = await loadMidi(file);
 
       if (!didLoad) {
@@ -1342,11 +1319,14 @@ export default function Home() {
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
-    setProgress(time);
     seek(time);
   };
 
   const formatTime = (secs: number) => {
+    if (!Number.isFinite(secs) || secs < 0) {
+      return "0:00";
+    }
+
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
@@ -2311,12 +2291,12 @@ export default function Home() {
           min={0}
           max={duration || 100}
           step={0.1}
-          value={progress}
+          value={currentTime}
           onChange={handleSeek}
           className="nm-seekbar"
         />
         <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
-          <span>{formatTime(progress)}</span>
+          <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
       </div>
@@ -2328,13 +2308,15 @@ export default function Home() {
       >
         <button
           onClick={(e) => {
-            togglePlay();
+            void togglePlay();
             e.currentTarget.blur();
           }}
           disabled={isAudioLoading}
           aria-label={
             isAudioLoading
               ? copy.loadingPiano
+              : hasEnded
+                ? copy.restartPlayback
               : isPlaying
                 ? copy.stopPlayback
                 : copy.startPlayback
@@ -2345,6 +2327,8 @@ export default function Home() {
             <Loader2 className="h-6 w-6 animate-spin" />
           ) : isPlaying ? (
             <Square className="h-5 w-5 fill-current" />
+          ) : hasEnded ? (
+            <RotateCcw className="h-5 w-5" />
           ) : (
             <Play className="ml-1 h-6 w-6 fill-current" />
           )}

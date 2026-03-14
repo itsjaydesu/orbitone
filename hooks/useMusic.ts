@@ -30,6 +30,7 @@ interface TrackState {
 }
 
 const GLOBAL_VOLUME_BOOST = 1.75;
+const TRACK_END_EPSILON_SECONDS = 0.05;
 
 /** Per-register release envelope — longer for bass, tighter for treble. */
 function getRegisterRelease(midi: number, pedalSustained: boolean): number {
@@ -60,6 +61,8 @@ export const useMusic = (settings: MusicSettings) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [hasEnded, setHasEnded] = useState(false);
   const samplerRef = useRef<Tone.Sampler | null>(null);
   const partRef = useRef<Tone.Part | null>(null);
   const pedalPartRef = useRef<Tone.Part | null>(null);
@@ -79,6 +82,9 @@ export const useMusic = (settings: MusicSettings) => {
   const isPlayingRef = useRef(false);
   const bpmRef = useRef(100);
   const lastDiagnosticLogRef = useRef(0);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   const [trackState, setTrackState] = useState<TrackState>(() => ({
     bpm: defaultMusic.bpm,
@@ -135,6 +141,54 @@ export const useMusic = (settings: MusicSettings) => {
   useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+    const nextTime = Math.min(currentTimeRef.current, duration);
+    currentTimeRef.current = nextTime;
+  }, [duration]);
+
+  const clearPlaybackFrame = useCallback(() => {
+    if (animationFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+  }, []);
+
+  const clampTime = useCallback((time: number) => {
+    if (!Number.isFinite(time) || durationRef.current <= 0) {
+      return 0;
+    }
+
+    return Math.min(Math.max(time, 0), durationRef.current);
+  }, []);
+
+  const setPlaybackTime = useCallback((time: number) => {
+    currentTimeRef.current = time;
+    setCurrentTime(time);
+  }, []);
+
+  const syncTransportTime = useCallback(
+    (time: number) => {
+      const nextTime = clampTime(time);
+      Tone.Transport.seconds = nextTime;
+      setPlaybackTime(nextTime);
+      return nextTime;
+    },
+    [clampTime, setPlaybackTime],
+  );
+
+  const finishPlayback = useCallback(() => {
+    clearPlaybackFrame();
+
+    const finalTime = clampTime(durationRef.current);
+
+    Tone.Transport.pause();
+    Tone.Transport.seconds = finalTime;
+    setPlaybackTime(finalTime);
+    setIsPlaying(false);
+    setHasEnded(finalTime > 0);
+  }, [clampTime, clearPlaybackFrame, setPlaybackTime]);
 
   const setBpm = useCallback((value: number) => {
     const nextBpm = Math.round(value);
@@ -247,6 +301,7 @@ export const useMusic = (settings: MusicSettings) => {
 
   useEffect(() => {
     return () => {
+      clearPlaybackFrame();
       partRef.current?.dispose();
       pedalPartRef.current?.dispose();
       samplerRef.current?.dispose();
@@ -262,7 +317,7 @@ export const useMusic = (settings: MusicSettings) => {
       limiterRef.current?.dispose();
       initPromiseRef.current = null;
     };
-  }, []);
+  }, [clearPlaybackFrame]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") {
@@ -330,6 +385,13 @@ export const useMusic = (settings: MusicSettings) => {
     Tone.Transport.seconds = newTransportTime;
     prevSpeedRef.current = playbackSpeed;
 
+    if (!wasPlaying) {
+      currentTimeRef.current = Math.min(
+        Math.max(newTransportTime, 0),
+        durationRef.current,
+      );
+    }
+
     if (partRef.current) {
       partRef.current.dispose();
     }
@@ -376,25 +438,82 @@ export const useMusic = (settings: MusicSettings) => {
     }
   }, [notes, pedalEvents, bpm, originalBpm, defaultReverbRoomSize]);
 
-  const togglePlay = useCallback(async () => {
-    if (!isPlaying) {
-      await ensureAudioReady();
-      if (!partStartedRef.current) {
-        partRef.current?.start(0);
-        pedalPartRef.current?.start(0);
-        partStartedRef.current = true;
-      }
-      Tone.Transport.start();
-      setIsPlaying(true);
-    } else {
-      Tone.Transport.pause();
-      setIsPlaying(false);
+  useEffect(() => {
+    if (isPlaying) {
+      const tickPlayback = () => {
+        if (!isPlayingRef.current) {
+          return;
+        }
+
+        const nextTime = clampTime(Tone.Transport.seconds);
+
+        if (
+          durationRef.current > 0 &&
+          nextTime >= durationRef.current - TRACK_END_EPSILON_SECONDS
+        ) {
+          finishPlayback();
+          return;
+        }
+
+        setPlaybackTime(nextTime);
+        animationFrameRef.current = window.requestAnimationFrame(tickPlayback);
+      };
+
+      clearPlaybackFrame();
+      animationFrameRef.current = window.requestAnimationFrame(tickPlayback);
+      return clearPlaybackFrame;
     }
-  }, [ensureAudioReady, isPlaying]);
+
+    clearPlaybackFrame();
+    return clearPlaybackFrame;
+  }, [clampTime, clearPlaybackFrame, finishPlayback, isPlaying, setPlaybackTime]);
+
+  const togglePlay = useCallback(async () => {
+    if (isPlayingRef.current) {
+      clearPlaybackFrame();
+      Tone.Transport.pause();
+      setPlaybackTime(clampTime(Tone.Transport.seconds));
+      setIsPlaying(false);
+      setHasEnded(false);
+      return;
+    }
+
+    await ensureAudioReady();
+
+    const shouldRestartFromBeginning =
+      hasEnded ||
+      (durationRef.current > 0 &&
+        currentTimeRef.current >= durationRef.current - TRACK_END_EPSILON_SECONDS);
+
+    if (shouldRestartFromBeginning) {
+      syncTransportTime(0);
+    }
+
+    if (!partStartedRef.current) {
+      partRef.current?.start(0);
+      pedalPartRef.current?.start(0);
+      partStartedRef.current = true;
+    }
+
+    Tone.Transport.start();
+    setHasEnded(false);
+    setIsPlaying(true);
+  }, [
+    clampTime,
+    clearPlaybackFrame,
+    ensureAudioReady,
+    hasEnded,
+    setPlaybackTime,
+    syncTransportTime,
+  ]);
 
   const loadMidi = useCallback(async (file: File) => {
     try {
+      clearPlaybackFrame();
       setIsPlaying(false);
+      setHasEnded(false);
+      setPlaybackTime(0);
+      samplerRef.current?.releaseAll();
       Tone.Transport.stop();
       Tone.Transport.seconds = 0;
       partStartedRef.current = false;
@@ -440,20 +559,39 @@ export const useMusic = (settings: MusicSettings) => {
       );
       return false;
     }
-  }, [language]);
+  }, [clearPlaybackFrame, language, setPlaybackTime]);
 
   const seek = useCallback((time: number) => {
-    Tone.Transport.seconds = time;
-  }, []);
+    const nextTime = syncTransportTime(time);
+    const reachedTrackEnd =
+      durationRef.current > 0 &&
+      nextTime >= durationRef.current - TRACK_END_EPSILON_SECONDS;
+
+    if (reachedTrackEnd) {
+      clearPlaybackFrame();
+      Tone.Transport.pause();
+      setIsPlaying(false);
+      setHasEnded(true);
+      return;
+    }
+
+    setHasEnded(false);
+  }, [clearPlaybackFrame, syncTransportTime]);
 
   const resetBpm = useCallback(() => {
     setBpm(Math.round(originalBpm));
   }, [originalBpm, setBpm]);
 
+  const displayTime = Number.isFinite(currentTime)
+    ? Math.min(Math.max(currentTime, 0), duration)
+    : 0;
+
   return {
     isPlaying,
     isLoaded,
     isAudioLoading,
+    currentTime: displayTime,
+    hasEnded,
     togglePlay,
     notes,
     loadMidi,
