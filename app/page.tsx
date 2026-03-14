@@ -1523,17 +1523,17 @@ export default function Home() {
   );
   const topChromeStyle = isMobile
     ? {
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 3.25rem)",
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 2rem)",
       }
     : undefined;
   const timelineChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 13.25rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 42dvh)",
       }
     : undefined;
   const playChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 34dvh)",
       }
     : undefined;
   const infoOverlayStyle = {
