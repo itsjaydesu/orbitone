@@ -52,6 +52,7 @@ import {
   Map as MapIcon,
   Minimize,
   Camera,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1511,7 +1512,7 @@ export default function Home() {
   }, [activeCameraView, updateCameraDraft]);
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible);
-  const hasOpenOverlay = showLibrary || showSettings || (showLanguageMenu && isMobile);
+  const hasOpenOverlay = showLibrary || showSettings || showLanguageMenu;
   const topChromeClass = cn(
     "absolute top-0 left-0 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:p-6",
     hasOpenOverlay ? "z-40" : "z-10",
@@ -1823,10 +1824,22 @@ export default function Home() {
                                             language,
                                           )}
                                         </span>
-                                        <span className="mt-1 block truncate text-xs text-[var(--nm-text-faint)]">
+                                        <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--nm-text-faint)]">
                                           {getLocalizedTrackSubtitle(
                                             item.subtitle,
                                             language,
+                                          )}
+                                          {item.sourceUrl && (
+                                            <a
+                                              href={item.sourceUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="inline-flex shrink-0 text-[var(--nm-text-faint)] transition-colors hover:text-white"
+                                              aria-label="Source"
+                                            >
+                                              <ExternalLink className="h-3 w-3" />
+                                            </a>
                                           )}
                                         </span>
                                       </span>
@@ -1903,27 +1916,19 @@ export default function Home() {
                   <Globe className="h-4 w-4" />
                 </button>
 
-                {showLanguageMenu && isMobile && (
-                  <button
-                    type="button"
-                    className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
-                    onClick={() => setShowLanguageMenu(false)}
-                    aria-label={copy.languageButton}
-                  />
-                )}
                 {showLanguageMenu && (
-                  <div
-                    role="menu"
-                    aria-label={copy.languageButton}
-                    className={cn(
-                      "nm-card pointer-events-auto z-50 flex flex-col gap-1 text-[var(--nm-text)]",
-                      isMobile
-                        ? "nm-animate-sheet fixed inset-x-0 bottom-0 rounded-t-[1.6rem] p-3"
-                        : "nm-animate-dropdown absolute top-12 right-0 min-w-44 rounded-[1.1rem] p-2",
-                    )}
-                    style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" } : undefined}
-                  >
-                    {isMobile && <div className="nm-sheet-handle" />}
+                  <>
+                    <button
+                      type="button"
+                      className="nm-animate-fade fixed inset-0 z-40 bg-transparent"
+                      onClick={() => setShowLanguageMenu(false)}
+                      aria-label={copy.languageButton}
+                    />
+                    <div
+                      role="menu"
+                      aria-label={copy.languageButton}
+                      className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex min-w-44 flex-col gap-1 rounded-[1.1rem] p-2 text-[var(--nm-text)]"
+                    >
                     {LANGUAGE_OPTIONS.map((option) => {
                       const isSelected = language === option.value;
 
@@ -1958,6 +1963,7 @@ export default function Home() {
                       );
                     })}
                   </div>
+                  </>
                 )}
               </div>
 
@@ -2018,26 +2024,18 @@ export default function Home() {
             )}
           </div>
 
-          {showSettings && isMobile && (
+          {showSettings && (
+            <>
             <button
               type="button"
-              className="pointer-events-auto nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
+              className="pointer-events-auto nm-animate-fade fixed inset-0 z-40 bg-transparent"
               onClick={() => setShowSettings(false)}
               aria-label={copy.closeSettings}
             />
-          )}
-          {showSettings && (
             <div
               ref={settingsRef}
-              className={cn(
-                "nm-card pointer-events-auto z-50 flex flex-col gap-4 text-[var(--nm-text)]",
-                isMobile
-                  ? "nm-animate-sheet fixed inset-x-0 bottom-0 rounded-t-[1.6rem] p-5"
-                  : "nm-animate-dropdown absolute top-12 right-0 w-80 rounded-xl p-5",
-              )}
-              style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } : undefined}
+              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl p-5 text-[var(--nm-text)]"
             >
-              {isMobile && <div className="nm-sheet-handle" />}
               <h2 className="border-b border-[var(--nm-border)] pb-2 text-lg font-semibold">
                 {copy.settings}
               </h2>
@@ -2139,6 +2137,7 @@ export default function Home() {
                 </button>
               </div>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -2146,16 +2145,11 @@ export default function Home() {
       {showInfo && (
         <div
           ref={infoRef}
-          className={cn(
-            "nm-animate-fade fixed inset-0 z-[20000000] flex overflow-y-auto bg-black/70 backdrop-blur-sm",
-            isMobile
-              ? "items-end p-0"
-              : "items-center justify-center p-4",
-          )}
+          className="nm-animate-fade fixed inset-0 z-[20000000] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
-          style={isMobile ? undefined : infoOverlayStyle}
+          style={infoOverlayStyle}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowInfo(false);
@@ -2169,14 +2163,13 @@ export default function Home() {
         >
           <div
             className={cn(
-              "w-full overflow-y-auto border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              "nm-animate-modal w-full overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
               isMobile
-                ? "nm-animate-sheet max-h-[92dvh] rounded-t-[1.5rem] border-b-0 px-5 py-4"
-                : "nm-animate-modal max-w-[42rem] rounded-[1.5rem] px-7 py-6",
+                ? "max-w-full px-5 py-5"
+                : "max-w-[42rem] px-7 py-6",
             )}
-            style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } : infoModalStyle}
+            style={infoModalStyle}
           >
-            {isMobile && <div className="nm-sheet-handle" />}
             <div className="space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
               <section className="space-y-5">
                 <div className="space-y-1">
@@ -2297,8 +2290,38 @@ export default function Home() {
                 </div>
               </section>
 
-              <section className="flex items-center justify-center gap-5 border-t border-white/12 pt-5">
-                <div className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+              <section className="space-y-4 border-t border-white/12 pt-5">
+                <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                  {language === "ja" ? "今後やりたいこと" : "Roadmap"}
+                </h3>
+                <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
+                  {language === "ja" ? (
+                    <ul className="list-inside list-disc space-y-1">
+                      <li>ピアノ以外の楽器を追加する（シンセ、ストリングスなど）</li>
+                      <li>本物のアコースティックピアノの音源を使った、よりオーガニックなサウンド</li>
+                      <li>マルチトラックMIDIのサポートとトラック別の可視化</li>
+                      <li>プレイリスト・キュー機能</li>
+                    </ul>
+                  ) : (
+                    <ul className="list-inside list-disc space-y-1">
+                      <li>Additional instruments beyond piano (synth, strings, etc.)</li>
+                      <li>Authentic organic piano using real acoustic samples</li>
+                      <li>Multi-track MIDI support with per-track visualization</li>
+                      <li>Playlist queue for continuous playback</li>
+                    </ul>
+                  )}
+                </div>
+              </section>
+
+              <section className="flex items-center justify-center gap-6 border-t border-white/12 pt-5">
+                <a
+                  href="https://itsjaydesu.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-opacity hover:opacity-80"
+                  aria-label={language === "ja" ? "サイト" : "Website"}
+                  title={language === "ja" ? "サイト" : "Website"}
+                >
                   <Image
                     src="/jay-avatar.PNG"
                     alt="Portrait of itsjaydesu"
@@ -2307,27 +2330,21 @@ export default function Home() {
                     className="h-12 w-12 object-cover"
                     priority
                   />
-                </div>
-                <div className="flex items-center gap-4 text-[var(--nm-text)]">
+                </a>
+                <div className="flex items-center gap-5 text-[var(--nm-text)]">
                   {creatorLinks.map((link) => {
                     const LinkIcon = link.icon;
-                    const displayLabel = link.label === "GitHub" || link.label === "X"
-                      ? null
-                      : (link.label === "Website" || link.label === "サイト" ? "www" : link.label);
                     return (
                       <a
                         key={link.href}
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-[var(--nm-text-dim)] transition-colors hover:text-white"
+                        className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
                         aria-label={link.label}
                         title={link.label}
                       >
-                        <LinkIcon className="h-5 w-5" />
-                        {displayLabel && (
-                          <span className="text-xs tracking-[0.08em]">{displayLabel}</span>
-                        )}
+                        <LinkIcon className="h-8 w-8" />
                       </a>
                     );
                   })}
