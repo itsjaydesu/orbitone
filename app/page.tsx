@@ -1511,8 +1511,10 @@ export default function Home() {
   }, [activeCameraView, updateCameraDraft]);
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible);
+  const hasOpenOverlay = showLibrary || showSettings || (showLanguageMenu && isMobile);
   const topChromeClass = cn(
-    "absolute top-0 left-0 z-10 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:p-6",
+    "absolute top-0 left-0 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:p-6",
+    hasOpenOverlay ? "z-40" : "z-10",
     isMenuReady && "transition-opacity duration-700 ease-out",
     chromeVisible ? "opacity-100" : "opacity-0 pointer-events-none",
   );
@@ -2019,7 +2021,7 @@ export default function Home() {
           {showSettings && isMobile && (
             <button
               type="button"
-              className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
+              className="pointer-events-auto nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
               onClick={() => setShowSettings(false)}
               aria-label={copy.closeSettings}
             />
