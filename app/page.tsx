@@ -1522,7 +1522,7 @@ export default function Home() {
   );
   const topChromeStyle = isMobile
     ? {
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.875rem)",
+        paddingTop: "calc(env(safe-area-inset-top, 0px) + 3.25rem)",
       }
     : undefined;
   const timelineChromeStyle = isMobile
@@ -1643,7 +1643,7 @@ export default function Home() {
                 <>
                   <button
                     type="button"
-                    className="nm-animate-fade fixed inset-0 z-40 bg-black/35 backdrop-blur-[6px] sm:bg-black/20"
+                    className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px] sm:bg-black/20"
                     onClick={closeLibrary}
                     aria-label={copy.closeLibrary}
                   />
@@ -1651,8 +1651,15 @@ export default function Home() {
                   <div
                     role="dialog"
                     aria-modal="true"
-                    className="nm-card nm-animate-dropdown pointer-events-auto fixed inset-x-3 top-20 bottom-4 z-50 flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] p-3 text-[var(--nm-text)] sm:absolute sm:top-12 sm:right-0 sm:bottom-auto sm:left-auto sm:h-[min(74vh,46rem)] sm:w-[min(38rem,calc(100vw-3rem))] sm:rounded-[1.75rem] sm:p-4"
+                    className={cn(
+                      "nm-card pointer-events-auto fixed z-50 flex min-h-0 flex-col overflow-hidden text-[var(--nm-text)]",
+                      isMobile
+                        ? "nm-animate-sheet inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[1.6rem] p-3"
+                        : "nm-animate-dropdown absolute top-12 right-0 bottom-auto left-auto h-[min(74vh,46rem)] w-[min(38rem,calc(100vw-3rem))] rounded-[1.75rem] p-4",
+                    )}
+                    style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" } : undefined}
                   >
+                    {isMobile && <div className="nm-sheet-handle" />}
                     <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
@@ -1895,12 +1902,27 @@ export default function Home() {
                   <SettingsIcon className="h-4 w-4" />
                 </button>
 
+                {showLanguageMenu && isMobile && (
+                  <button
+                    type="button"
+                    className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
+                    onClick={() => setShowLanguageMenu(false)}
+                    aria-label={copy.languageButton}
+                  />
+                )}
                 {showLanguageMenu && (
                   <div
                     role="menu"
                     aria-label={copy.languageButton}
-                    className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex min-w-44 flex-col gap-1 rounded-[1.1rem] p-2 text-[var(--nm-text)]"
+                    className={cn(
+                      "nm-card pointer-events-auto z-50 flex flex-col gap-1 text-[var(--nm-text)]",
+                      isMobile
+                        ? "nm-animate-sheet fixed inset-x-0 bottom-0 rounded-t-[1.6rem] p-3"
+                        : "nm-animate-dropdown absolute top-12 right-0 min-w-44 rounded-[1.1rem] p-2",
+                    )}
+                    style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" } : undefined}
                   >
+                    {isMobile && <div className="nm-sheet-handle" />}
                     {LANGUAGE_OPTIONS.map((option) => {
                       const isSelected = language === option.value;
 
@@ -1976,11 +1998,26 @@ export default function Home() {
             </button>
           </div>
 
+          {showSettings && isMobile && (
+            <button
+              type="button"
+              className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px]"
+              onClick={() => setShowSettings(false)}
+              aria-label={copy.closeSettings}
+            />
+          )}
           {showSettings && (
             <div
               ref={settingsRef}
-              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl p-5 text-[var(--nm-text)]"
+              className={cn(
+                "nm-card pointer-events-auto z-50 flex flex-col gap-4 text-[var(--nm-text)]",
+                isMobile
+                  ? "nm-animate-sheet fixed inset-x-0 bottom-0 rounded-t-[1.6rem] p-5"
+                  : "nm-animate-dropdown absolute top-12 right-0 w-80 rounded-xl p-5",
+              )}
+              style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } : undefined}
             >
+              {isMobile && <div className="nm-sheet-handle" />}
               <h2 className="border-b border-[var(--nm-border)] pb-2 text-lg font-semibold">
                 {copy.settings}
               </h2>
@@ -2089,11 +2126,16 @@ export default function Home() {
       {showInfo && (
         <div
           ref={infoRef}
-          className="nm-animate-fade fixed inset-0 z-[20000000] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+          className={cn(
+            "nm-animate-fade fixed inset-0 z-[20000000] flex overflow-y-auto bg-black/70 backdrop-blur-sm",
+            isMobile
+              ? "items-end p-0"
+              : "items-center justify-center p-4",
+          )}
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
-          style={infoOverlayStyle}
+          style={isMobile ? undefined : infoOverlayStyle}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowInfo(false);
@@ -2106,9 +2148,15 @@ export default function Home() {
           }}
         >
           <div
-            className="nm-animate-modal nm-scrollbar w-full max-w-[42rem] overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] px-5 py-5 font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] sm:px-7 sm:py-6"
-            style={infoModalStyle}
+            className={cn(
+              "nm-scrollbar w-full overflow-y-auto border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)]",
+              isMobile
+                ? "nm-animate-sheet max-h-[92dvh] rounded-t-[1.5rem] border-b-0 px-5 py-4"
+                : "nm-animate-modal max-w-[42rem] rounded-[1.5rem] px-7 py-6",
+            )}
+            style={isMobile ? { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } : infoModalStyle}
           >
+            {isMobile && <div className="nm-sheet-handle" />}
             <div className="flex items-start justify-between gap-6 border-b border-white/12 pb-4">
               <h2 className="text-xl tracking-[0.08em] text-[var(--nm-text)]">
                 {copy.aboutTitle}

@@ -80,6 +80,45 @@
   animation: nm-fade-in 0.2s ease-out both;
 }
 
+/* ── Mobile Bottom Sheet ── */
+
+@keyframes nm-sheet-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.nm-animate-sheet {
+  animation: nm-sheet-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.nm-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 auto 12px;
+  flex-shrink: 0;
+}
+
+/* Thinner scrollbar inside bottom sheets on mobile */
+@media (max-width: 767px) {
+  .nm-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .nm-scrollbar::-webkit-scrollbar-track {
+    margin: 4px 0;
+    border: none;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .nm-scrollbar::-webkit-scrollbar-thumb {
+    min-height: 32px;
+    border: 1px solid transparent;
+  }
+}
+
 /* ── Raised Surface ── */
 
 .nm-raised {
