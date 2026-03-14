@@ -1835,7 +1835,7 @@ export default function Home() {
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               onClick={(e) => e.stopPropagation()}
-                                              className="inline-flex shrink-0 text-[var(--nm-text-faint)] transition-colors hover:text-white"
+                                              className="inline-flex shrink-0 text-white/70 transition-colors hover:text-white"
                                               aria-label="Source"
                                             >
                                               <ExternalLink className="h-3 w-3" />
@@ -2276,17 +2276,104 @@ export default function Home() {
                 <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
                   {language === "ja" ? "クレジット" : "Credits"}
                 </h3>
-                <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
-                  <p>
-                    {language === "ja"
-                      ? "日本の発車メロディは公開されている鉄道ファンの資料やMIDIアーカイブを参考にしています。"
-                      : "Japanese train departure melodies are sourced from publicly available railfan archives and community MIDI transcriptions."}
-                  </p>
-                  <p>
-                    {language === "ja"
-                      ? "Claudeの支援を受けて開発されました。"
-                      : "Built with assistance from Claude."}
-                  </p>
+                <div className="space-y-4 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
+                  {language === "ja" ? (
+                    <>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://shtr-m.net/" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            shtr-m.net
+                          </a>
+                        </p>
+                        <p>
+                          日本の鉄道発車メロディのMIDI音源を提供していただきました。JR東日本の駅メロディ、新幹線チャイム、私鉄メロディなど、幅広いコレクションです。鉄道ファンと音楽ファンの両方にとって貴重なアーカイブです。
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            BitMidi
+                          </a>
+                        </p>
+                        <p>
+                          ゲーム、映画、テレビなどのクラシックMIDIファイルのコミュニティアーカイブです。収録されているゲーム音楽やポップカルチャーの名曲MIDIの多くはBitMidiから提供されています。
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://www.vgmusic.com" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            VGMusic
+                          </a>
+                        </p>
+                        <p>
+                          1996年から続くビデオゲーム音楽のMIDIアーカイブです。コミュニティの投稿者によって何千ものゲーム音楽が手作業で打ち込まれ、保存されています。一部のゲームMIDIはVGMusicのアーカイブから使用させていただいています。
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://magenta.tensorflow.org/datasets/maestro" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            MAESTRO Dataset
+                          </a>
+                        </p>
+                        <p>
+                          Google Magentaによる「MIDI and Audio Edited for Synchronous TRacks and Organization」データセットです。国際ピアノeコンペティションの演奏から収録された、ベロシティやペダル情報を含む高品質なピアノMIDI録音です。一部のライブピアノ演奏の収録にはMAESTROのデータを使用しています。
+                        </p>
+                      </div>
+                      <div>
+                        <p>
+                          Claudeの支援を受けて開発されました。
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://shtr-m.net/" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            shtr-m.net
+                          </a>
+                        </p>
+                        <p>
+                          Japanese train station departure melodies (hassha melody) sourced from this railfan archive. Includes JR East station melodies, Shinkansen chimes, and private railway jingles — a carefully maintained collection for railway and music enthusiasts alike.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            BitMidi
+                          </a>
+                        </p>
+                        <p>
+                          A community archive of classic MIDI files spanning games, film, and television. Many of the pop culture and game soundtrack MIDIs included here are sourced from BitMidi.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://www.vgmusic.com" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            VGMusic
+                          </a>
+                        </p>
+                        <p>
+                          A video game music MIDI archive running since 1996. Thousands of game soundtracks hand-sequenced and preserved by community contributors. Some of the game MIDIs included here are from the VGMusic archive.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--nm-text)]">
+                          <a href="https://magenta.tensorflow.org/datasets/maestro" target="_blank" rel="noopener noreferrer" className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white">
+                            MAESTRO Dataset
+                          </a>
+                        </p>
+                        <p>
+                          The &quot;MIDI and Audio Edited for Synchronous TRacks and Organization&quot; dataset by Google Magenta. High-fidelity piano MIDI recordings captured from International Piano-e-Competition performances, with velocity and pedal data intact. Some of the live piano recordings are sourced from MAESTRO.
+                        </p>
+                      </div>
+                      <div>
+                        <p>
+                          Built with assistance from Claude.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </section>
 
