@@ -198,11 +198,21 @@ const getResponsiveCameraPose = (
 
   nextPosition.sub(target).multiplyScalar(distanceMultiplier).add(target);
 
+  // Shift scene upward on mobile so the visualisation sits higher,
+  // leaving room for the play controls at the bottom.
+  const mobileTargetYShift = 1.2;
+  const shiftedTarget: CameraVector = {
+    x: pose.target.x,
+    y: pose.target.y - mobileTargetYShift,
+    z: pose.target.z,
+  };
+  nextPosition.y -= mobileTargetYShift;
+
   return {
     flatLock: pose.flatLock,
     fov: nextFov,
     position: vectorToCameraVector(nextPosition),
-    target: pose.target,
+    target: shiftedTarget,
   };
 };
 

@@ -51,6 +51,7 @@ import {
   Expand,
   Map as MapIcon,
   Minimize,
+  Camera,
   type LucideIcon,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1527,12 +1528,12 @@ export default function Home() {
     : undefined;
   const timelineChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 9.5rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 6.5rem)",
       }
     : undefined;
   const playChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 3.75rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
       }
     : undefined;
   const infoOverlayStyle = {
@@ -1979,23 +1980,42 @@ export default function Home() {
               </button>
             </div>
 
-            <button
-              onClick={(e) => {
-                e.currentTarget.blur();
-                toggleFullscreen();
-              }}
-              className={cn(
-                "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
-                isFullscreen ? "nm-pressed" : "nm-raised",
-              )}
-              aria-label={isFullscreen ? copy.fullScreenExit : copy.fullScreen}
-            >
-              {isFullscreen ? (
-                <Minimize className="h-5 w-5" />
-              ) : (
-                <Expand className="h-5 w-5" />
-              )}
-            </button>
+            {isMobile ? (
+              <button
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  setSettings((s) => {
+                    const idx = CAMERA_VIEWS.indexOf(s.cameraView);
+                    return {
+                      ...s,
+                      cameraView: CAMERA_VIEWS[(idx + 1) % CAMERA_VIEWS.length],
+                    };
+                  });
+                }}
+                className="nm-raised rounded-xl p-2 text-[var(--nm-text)]"
+                aria-label={cameraViewLabels[settings.cameraView]}
+              >
+                <Camera className="h-5 w-5" />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  toggleFullscreen();
+                }}
+                className={cn(
+                  "rounded-xl p-2 text-[var(--nm-text)] sm:p-2.5",
+                  isFullscreen ? "nm-pressed" : "nm-raised",
+                )}
+                aria-label={isFullscreen ? copy.fullScreenExit : copy.fullScreen}
+              >
+                {isFullscreen ? (
+                  <Minimize className="h-5 w-5" />
+                ) : (
+                  <Expand className="h-5 w-5" />
+                )}
+              </button>
+            )}
           </div>
 
           {showSettings && isMobile && (
