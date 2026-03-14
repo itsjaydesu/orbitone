@@ -200,7 +200,7 @@ const getResponsiveCameraPose = (
 
   // Shift scene upward on mobile so the visualisation sits higher,
   // leaving room for the play controls at the bottom.
-  const mobileTargetYShift = 1.2;
+  const mobileTargetYShift = 2.0;
   const shiftedTarget: CameraVector = {
     x: pose.target.x,
     y: pose.target.y - mobileTargetYShift,

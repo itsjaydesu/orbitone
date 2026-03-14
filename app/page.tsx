@@ -1528,12 +1528,12 @@ export default function Home() {
     : undefined;
   const timelineChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 6.5rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 13.25rem)",
       }
     : undefined;
   const playChromeStyle = isMobile
     ? {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)",
       }
     : undefined;
   const infoOverlayStyle = {
