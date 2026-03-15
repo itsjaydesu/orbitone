@@ -4,6 +4,7 @@ import { CameraLab } from "@/components/CameraLab";
 import { NoteCursor } from "@/components/NoteCursor";
 import { Visualizer, VisualizerSettings } from "@/components/Visualizer";
 import {
+  DEFAULT_LIBRARY_TRACK,
   MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
   MidiLibraryCategory,
@@ -47,6 +48,7 @@ import {
   Check,
   Music,
   Piano,
+  Feather,
   TrainFront,
   Expand,
   Map as MapIcon,
@@ -365,6 +367,22 @@ const getLibraryCategoryMeta = (
   language: AppLanguage,
 ): LibraryCategoryMeta => {
   switch (categoryId) {
+    case "originals":
+      return language === "ja"
+        ? {
+            blurb:
+              "コミュニティから寄せられたオリジナル楽曲です。",
+            icon: Feather,
+            label: "オリジナル",
+            shortLabel: "オリジナル",
+          }
+        : {
+            blurb:
+              "Original compositions from the community.",
+            icon: Feather,
+            label: "Originals",
+            shortLabel: "Originals",
+          };
     case "classical-piano":
       return language === "ja"
         ? {
@@ -498,6 +516,18 @@ const getLibraryPrimaryGroups = (
   language: AppLanguage,
 ): LibraryPrimaryGroup[] => [
   {
+    id: "originals",
+    label: language === "ja" ? "オリジナル" : "Originals",
+    shortLabel: language === "ja" ? "オリジナル" : "Originals",
+    icon: Feather,
+    blurb:
+      language === "ja"
+        ? "コミュニティから寄せられたオリジナル楽曲です。"
+        : "Original compositions from the community.",
+    categoryIds: ["originals"],
+    defaultCategoryId: "originals",
+  },
+  {
     id: "classical-piano",
     label: language === "ja" ? "クラシック / ピアノ" : "Classical & Piano",
     shortLabel: language === "ja" ? "クラシック" : "Classical",
@@ -566,11 +596,13 @@ const getLibraryPrimaryGroups = (
 const stripMidiExtension = (fileName: string) =>
   fileName.replace(/\.(mid|midi)$/i, "");
 
-const getRandomLibraryTrack = (): MidiLibraryItem | null => {
+const getDefaultLibraryTrack = (): MidiLibraryItem | null => {
+  if (DEFAULT_LIBRARY_TRACK) {
+    return DEFAULT_LIBRARY_TRACK;
+  }
   if (MIDI_LIBRARY.length === 0) {
     return null;
   }
-
   return MIDI_LIBRARY[Math.floor(Math.random() * MIDI_LIBRARY.length)] ?? null;
 };
 
@@ -634,7 +666,7 @@ export default function Home() {
       cloneCameraPresetMap(DEFAULT_CAMERA_PRESETS),
     );
   const [initialLibraryTrack] = useState<MidiLibraryItem | null>(() =>
-    getRandomLibraryTrack(),
+    getDefaultLibraryTrack(),
   );
 
   const {
@@ -1682,7 +1714,7 @@ export default function Home() {
                     </div>
 
                     <div
-                      className="mt-3 grid grid-cols-5 gap-2"
+                      className="mt-3 grid grid-cols-6 gap-1.5"
                       role="tablist"
                       aria-label={copy.libraryTabList}
                     >
@@ -1703,22 +1735,18 @@ export default function Home() {
                             }
                             title={group.label}
                             className={cn(
-                              "flex min-h-12 min-w-0 items-center justify-center rounded-[1.1rem] p-2.5 transition-all",
+                              "flex min-h-10 min-w-0 items-center justify-center rounded-xl p-1.5 transition-all",
                               isTabActive
                                 ? "nm-toggle-active"
                                 : "nm-raised text-[var(--nm-text-dim)]",
                             )}
                           >
-                            <span
-                              className={cn(
-                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
-                                isTabActive
-                                  ? "border-black/10 bg-black/15 text-[var(--nm-bg)]"
-                                  : "border-white/6 bg-white/[0.02] text-[var(--nm-text)]",
-                              )}
-                            >
-                              <GroupIcon className="h-5 w-5" />
-                            </span>
+                            <GroupIcon className={cn(
+                              "h-[1.125rem] w-[1.125rem] shrink-0",
+                              isTabActive
+                                ? "text-[var(--nm-bg)]"
+                                : "text-[var(--nm-text)]",
+                            )} />
                             <span className="sr-only">{group.shortLabel}</span>
                           </button>
                         );
@@ -1868,6 +1896,15 @@ export default function Home() {
                                 {copy.noTracksDescription}
                               </p>
                             </div>
+                          )}
+                          {activeLibraryCategory?.id === "originals" && (
+                            <p className="mt-3 px-3 text-xs leading-relaxed text-[var(--nm-text-faint)]">
+                              {language === "ja" ? (
+                                <>作曲していますか？あなたのMIDIファイルを<a href="https://x.com/itsjaydesu" target="_blank" rel="noopener noreferrer" className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors">Xでお送りください</a>。確認のうえ追加いたします。</>
+                              ) : (
+                                <>Are you a composer? If you&#39;d like to add your MIDI file here, please <a href="https://x.com/itsjaydesu" target="_blank" rel="noopener noreferrer" className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors">message me on X</a> with your MIDI, and I&#39;ll review and add when I can.</>
+                              )}
+                            </p>
                           )}
                         </div>
                       </div>

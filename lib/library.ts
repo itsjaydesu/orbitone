@@ -18,6 +18,22 @@ export interface MidiLibraryCategory {
 
 export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
   {
+    "id": "originals",
+    "items": [
+      {
+        "categoryId": "originals",
+        "categoryLabel": "Originals",
+        "durationLabel": "2:50",
+        "fileName": "miras-theme.mid",
+        "id": "originals/miras-theme",
+        "subtitle": "itsjaydesu",
+        "title": "Mira's Theme",
+        "url": "/midi/originals/miras-theme.mid"
+      }
+    ],
+    "label": "Originals"
+  },
+  {
     "id": "classical-piano",
     "items": [
       {
@@ -1214,3 +1230,6 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
 export const MIDI_LIBRARY: MidiLibraryItem[] = MIDI_LIBRARY_CATEGORIES.flatMap(
   (category) => category.items,
 );
+
+export const DEFAULT_LIBRARY_TRACK: MidiLibraryItem | undefined =
+  MIDI_LIBRARY.find((item) => item.id === "originals/miras-theme");
