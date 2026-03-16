@@ -1,0 +1,47 @@
+{
+  "name": "orbitone",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "clean": "next clean"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "@tonejs/midi": "^2.0.28",
+    "@vercel/analytics": "^2.0.1",
+    "autoprefixer": "^10.4.21",
+    "clsx": "^2.1.1",
+    "leva": "^0.10.1",
+    "lucide-react": "^0.553.0",
+    "motion": "^12.23.24",
+    "next": "^16.1.6",
+    "postcss": "^8.5.6",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.183.2",
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^7.7.2",
+    "@eslint-react/eslint-plugin": "^2.13.0",
+    "@lightpanda/browser": "^1.2.0",
+    "@tailwindcss/postcss": "4.1.11",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.183.1",
+    "eslint": "9.39.1",
+    "eslint-config-next": "^16.1.6",
+    "eslint-plugin-format": "^2.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "tailwindcss": "4.1.11",
+    "typescript": "5.9.3"
+  }
+}
