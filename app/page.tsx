@@ -2,6 +2,7 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactElement, SVGProps } from 'react'
 import type { VisualizerSettings } from '@/components/Visualizer'
+import type { ExportCameraMode, ExportFormat } from '@/hooks/useVideoExport'
 import type {
   AppLanguage,
   CameraPose,
@@ -51,10 +52,12 @@ import {
   useState,
 } from 'react'
 import { CameraLab } from '@/components/CameraLab'
+import { ExportOverlay } from '@/components/ExportOverlay'
 import { NoteCursor } from '@/components/NoteCursor'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMusic } from '@/hooks/useMusic'
+import { useVideoExport } from '@/hooks/useVideoExport'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
@@ -178,6 +181,12 @@ interface UiCopy {
 
   trainSubcategories: string
   upload: string
+  videoExport: string
+  exportFormat: string
+  exportCameraMode: string
+  exportCameraCurrent: string
+  exportCameraCycle: string
+  exportButton: string
   volume: string
 }
 
@@ -307,6 +316,12 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     stopPlayback: 'Stop playback',
     trainSubcategories: 'Japanese train melody subsets',
     upload: 'Upload MIDI',
+    videoExport: 'Video Export',
+    exportFormat: 'Format',
+    exportCameraMode: 'Camera',
+    exportCameraCurrent: 'Current',
+    exportCameraCycle: 'Cycle 10s',
+    exportButton: 'Export Video',
     volume: 'Volume',
   },
   ja: {
@@ -347,6 +362,12 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     stopPlayback: '再生を停止',
     trainSubcategories: '日本の発車メロディのサブカテゴリ',
     upload: 'MIDIをアップロード',
+    videoExport: '動画エクスポート',
+    exportFormat: 'フォーマット',
+    exportCameraMode: 'カメラ',
+    exportCameraCurrent: '現在のカメラ',
+    exportCameraCycle: '10秒サイクル',
+    exportButton: '動画をエクスポート',
     volume: '音量',
   },
 }
@@ -650,6 +671,9 @@ export default function Home() {
     getRandomLibraryTrack(),
   )
 
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('webm')
+  const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>('current')
+
   const {
     isPlaying,
     isAudioLoading,
@@ -663,10 +687,30 @@ export default function Home() {
     bpm,
     setBpm,
     resetBpm,
+    ensureAudioReady,
+    getAudioStream,
   } = useMusic({
     language,
     volumePercent: settings.volumePercent,
   })
+
+  const {
+    phase: exportPhase,
+    progress: exportProgress,
+    exportCameraView,
+    startExport,
+    cancelExport,
+    setExportCanvas,
+  } = useVideoExport({
+    ensureAudioReady,
+    getAudioStream,
+    togglePlay,
+    seek,
+    duration,
+    isPlaying,
+  })
+
+  const isExporting = exportPhase !== 'idle'
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -1513,6 +1557,16 @@ export default function Home() {
     )
   }, [activeCameraView, updateCameraDraft])
 
+  const handleStartExport = useCallback(() => {
+    setShowSettings(false)
+    startExport(exportFormat, exportCameraMode, settings.cameraView)
+  }, [exportFormat, exportCameraMode, settings.cameraView, startExport])
+
+  const exportVisualizerSettings = useMemo(() => ({
+    showMidiRoll: true,
+    cameraView: exportCameraView,
+  }), [exportCameraView])
+
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const hasOpenOverlay = showLibrary || showSettings
   const topChromeClass = cn(
@@ -2159,6 +2213,83 @@ export default function Home() {
 
                   <div className="mt-2 flex flex-col gap-2">
                     <span className="text-sm text-[var(--nm-text-dim)]">
+                      {copy.videoExport}
+                    </span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-[var(--nm-text-faint)]">
+                          {copy.exportFormat}
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(['webm', 'mp4'] as const).map(fmt => (
+                            <button
+                              key={fmt}
+                              onClick={(e) => {
+                                setExportFormat(fmt)
+                                e.currentTarget.blur()
+                              }}
+                              className={cn(
+                                'rounded-xl px-2 py-1.5 text-xs font-medium uppercase',
+                                exportFormat === fmt
+                                  ? 'nm-toggle-active'
+                                  : 'nm-raised text-[var(--nm-text-dim)]',
+                              )}
+                            >
+                              {fmt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-[var(--nm-text-faint)]">
+                          {copy.exportCameraMode}
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={(e) => {
+                              setExportCameraMode('current')
+                              e.currentTarget.blur()
+                            }}
+                            className={cn(
+                              'rounded-xl px-2 py-1.5 text-xs font-medium',
+                              exportCameraMode === 'current'
+                                ? 'nm-toggle-active'
+                                : 'nm-raised text-[var(--nm-text-dim)]',
+                            )}
+                          >
+                            {copy.exportCameraCurrent}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              setExportCameraMode('cycle')
+                              e.currentTarget.blur()
+                            }}
+                            className={cn(
+                              'rounded-xl px-2 py-1.5 text-xs font-medium',
+                              exportCameraMode === 'cycle'
+                                ? 'nm-toggle-active'
+                                : 'nm-raised text-[var(--nm-text-dim)]',
+                            )}
+                          >
+                            {copy.exportCameraCycle}
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          handleStartExport()
+                          e.currentTarget.blur()
+                        }}
+                        disabled={notes.length === 0 || isExporting}
+                        className="nm-accent-raised w-full rounded-xl py-2 text-sm font-medium disabled:opacity-40"
+                      >
+                        {copy.exportButton}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex flex-col gap-2">
+                    <span className="text-sm text-[var(--nm-text-dim)]">
                       {copy.language}
                     </span>
                     <div className="grid grid-cols-2 gap-2">
@@ -2671,6 +2802,28 @@ export default function Home() {
           settings={settings}
         />
       </div>
+
+      {isExporting && (
+        <div style={{ position: 'fixed', left: -9999, top: 0, width: 1080, height: 1920, pointerEvents: 'none' }}>
+          <Visualizer
+            exportMode
+            onCanvasElement={setExportCanvas}
+            cameraPresets={cameraDraftPresets}
+            isMobileView={false}
+            notes={notes}
+            settings={exportVisualizerSettings}
+          />
+        </div>
+      )}
+
+      {exportPhase !== 'idle' && (
+        <ExportOverlay
+          phase={exportPhase}
+          progress={exportProgress}
+          language={language}
+          onCancel={cancelExport}
+        />
+      )}
 
       <NoteCursor />
 

@@ -8,7 +8,7 @@ import type {
   CameraView,
 } from '@/lib/camera-presets'
 import type { NoteEvent } from '@/lib/music'
-import { Billboard, Html, OrbitControls } from '@react-three/drei'
+import { Billboard, OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import {
@@ -21,6 +21,18 @@ import {
 } from 'react'
 import * as THREE from 'three'
 import * as Tone from 'tone'
+import {
+  INTRO_CAMERA_DELAY,
+  INTRO_CAMERA_DURATION,
+  INTRO_NOTE_APPEAR_DELAY,
+  INTRO_NOTE_BASE_DELAY,
+  INTRO_NOTE_DURATION,
+  INTRO_NOTE_SWEEP_SPAN,
+  INTRO_PLAYHEAD_DELAY,
+  INTRO_PLAYHEAD_DURATION,
+  INTRO_RING_DRAW_DURATION,
+  INTRO_RING_STAGGER,
+} from '@/lib/visualizer-intro'
 
 export interface VisualizerSettings {
   showMidiRoll: boolean
@@ -31,7 +43,6 @@ const DEFAULT_TIME_WINDOW = 10
 const DEFAULT_BLOOM_INTENSITY = 1.2
 const CLEF_FONT_STACK
   = '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif'
-const CLEF_FONT_SIZE_PX = 72
 const TREBLE_CLEF_SCALE = 1.05
 const BASS_CLEF_SCALE = 0.656
 const CLEF_Z_OFFSET = 0.08
@@ -42,15 +53,7 @@ const BASE_STAFF_RADII = [...BASE_BASS_RADII, ...BASE_TREBLE_RADII]
 // These glyphs are optically centered by anchoring them to their notation lines,
 // then applying a small font-metric correction.
 const TREBLE_CLEF_LINE_RADIUS = BASE_TREBLE_RADII[2]
-const TREBLE_CLEF_OFFSET_Y_EM = -0.02
 const BASS_CLEF_LINE_RADIUS = BASE_BASS_RADII[2]
-const BASS_CLEF_OFFSET_Y_EM = -0.02
-const INTRO_RING_DRAW_DURATION = 1.07
-const INTRO_RING_STAGGER = 0.065
-const INTRO_NOTE_BASE_DELAY = 0.75
-const INTRO_NOTE_SWEEP_SPAN = 0.96
-const INTRO_NOTE_DURATION = 0.99
-const INTRO_NOTE_APPEAR_DELAY = 1
 const CROSSFADE_EXIT_DURATION = 0.6
 const CROSSFADE_ENTER_DURATION = 0.7
 const CROSSFADE_ENTER_DELAY = 0.1
@@ -63,10 +66,6 @@ const CROSSFADE_TOTAL_DURATION = Math.max(
   + CROSSFADE_ENTER_DURATION,
 )
 const MIDI_ROLL_FLAT_SPEED = 1.8
-const INTRO_CAMERA_DELAY = 0
-const INTRO_PLAYHEAD_DELAY = 0.6
-const INTRO_PLAYHEAD_DURATION = 2
-const INTRO_CAMERA_DURATION = 1.95
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
   front: 1.24,
@@ -205,6 +204,21 @@ function getResponsiveCameraPose(pose: CameraPose, cameraView: CameraView, isMob
   }
 }
 
+function getExportCameraPose(pose: CameraPose, _cameraView: CameraView): CameraPose {
+  const target = vectorFromCameraVector(pose.target)
+  const nextPosition = vectorFromCameraVector(pose.position)
+  // Pull camera back to compensate for 9:16 portrait crop
+  const distanceMultiplier = 1.55
+  nextPosition.sub(target).multiplyScalar(distanceMultiplier).add(target)
+
+  return {
+    flatLock: pose.flatLock,
+    fov: Math.min(90, pose.fov + 6),
+    position: vectorToCameraVector(nextPosition),
+    target: pose.target,
+  }
+}
+
 function poseToSignature(pose: CameraPose) {
   return [
     pose.position.x,
@@ -262,10 +276,6 @@ function getNotesSignature(notes: NoteEvent[]) {
 
 function getNoteRadius(midi: number) {
   return 10.0 + (getDiatonicStep(midi) - 28) * NOTE_RADIUS_STEP
-}
-
-function getClefTransform(scale: number, offsetYEm: number) {
-  return `translate3d(0,${offsetYEm.toFixed(3)}em,0) scale(${scale.toFixed(3)})`
 }
 
 function StaffRing({
@@ -646,62 +656,80 @@ function MidiRoll({
   )
 }
 
-function ClefIcon({
+function createClefTexture(glyph: string): THREE.CanvasTexture {
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, size, size)
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  // Try each font in the stack individually until one renders the glyph
+  const fonts = CLEF_FONT_STACK.split(',').map(f => f.trim().replace(/^["']|["']$/g, ''))
+  const fontSize = Math.round(size * 0.65)
+  let rendered = false
+  for (const font of fonts) {
+    ctx.font = `${fontSize}px "${font}"`
+    const metrics = ctx.measureText(glyph)
+    // If the font can render it, the width will be non-trivial
+    if (metrics.width > fontSize * 0.1) {
+      ctx.fillText(glyph, size / 2, size / 2)
+      rendered = true
+      break
+    }
+  }
+  if (!rendered) {
+    ctx.font = `${fontSize}px serif`
+    ctx.fillText(glyph, size / 2, size / 2)
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.needsUpdate = true
+  return texture
+}
+
+const clefPlaneGeo = new THREE.PlaneGeometry(1, 1)
+
+function ClefSprite({
   glyph,
-  iconRef,
+  spriteRef,
   position,
   scale = 1,
-  offsetYEm = 0,
 }: {
   glyph: string
-  iconRef: RefObject<HTMLDivElement | null>
+  spriteRef: RefObject<THREE.Mesh | null>
   position: [number, number, number]
   scale?: number
-  offsetYEm?: number
 }) {
+  const texture = useMemo(() => createClefTexture(glyph), [glyph])
+  const spriteScale = 3.2 * scale
+
+  useEffect(() => {
+    return () => {
+      texture.dispose()
+    }
+  }, [texture])
+
   return (
-    <Html
-      position={position}
-      center
-      distanceFactor={14}
-      pointerEvents="none"
-      style={{ pointerEvents: 'none' }}
-      transform
-      zIndexRange={[0, 0]}
-    >
-      <div
-        ref={iconRef}
-        style={{
-          alignItems: 'center',
-          color: '#ffffff',
-          display: 'flex',
-          fontFamily: CLEF_FONT_STACK,
-          fontSize: `${CLEF_FONT_SIZE_PX}px`,
-          height: '1em',
-          justifyContent: 'center',
-          lineHeight: '1',
-          opacity: 0,
-          overflow: 'visible',
-          pointerEvents: 'none',
-          textShadow: '0 0 1px rgba(255,255,255,0.55)',
-          transform: getClefTransform(0.82 * scale, offsetYEm),
-          transformOrigin: '50% 50%',
-          userSelect: 'none',
-          whiteSpace: 'pre',
-          WebkitFontSmoothing: 'antialiased',
-          width: '1em',
-        }}
-      >
-        {glyph}
-      </div>
-    </Html>
+    <mesh ref={spriteRef} position={position} geometry={clefPlaneGeo} scale={[spriteScale, spriteScale, 1]}>
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   )
 }
 
 function Playhead({ introStartRef }: { introStartRef: IntroClockRef }) {
   const groupRef = useRef<THREE.Group>(null)
-  const trebleRef = useRef<HTMLDivElement>(null)
-  const bassRef = useRef<HTMLDivElement>(null)
+  const trebleRef = useRef<THREE.Mesh>(null)
+  const bassRef = useRef<THREE.Mesh>(null)
 
   useFrame(({ clock }) => {
     if (!groupRef.current) {
@@ -714,44 +742,33 @@ function Playhead({ introStartRef }: { introStartRef: IntroClockRef }) {
       INTRO_PLAYHEAD_DELAY,
       INTRO_PLAYHEAD_DURATION,
     )
-    const opacity = 0.86 * progress
+    const opacity = 0.55 * progress
 
     groupRef.current.scale.setScalar(0.82 + progress * 0.18)
     groupRef.current.position.y = (1 - progress) * 0.55
     groupRef.current.position.z = 0
-    const iconScale = 0.84 + progress * 0.16
 
     if (trebleRef.current) {
-      trebleRef.current.style.opacity = opacity.toFixed(3)
-      trebleRef.current.style.transform = getClefTransform(
-        iconScale * TREBLE_CLEF_SCALE,
-        TREBLE_CLEF_OFFSET_Y_EM,
-      )
+      (trebleRef.current.material as THREE.MeshBasicMaterial).opacity = opacity
     }
 
     if (bassRef.current) {
-      bassRef.current.style.opacity = opacity.toFixed(3)
-      bassRef.current.style.transform = getClefTransform(
-        iconScale * BASS_CLEF_SCALE,
-        BASS_CLEF_OFFSET_Y_EM,
-      )
+      (bassRef.current.material as THREE.MeshBasicMaterial).opacity = opacity
     }
   })
 
   return (
     <group ref={groupRef} scale={0.001}>
-      <ClefIcon
+      <ClefSprite
         glyph="𝄞"
-        iconRef={trebleRef}
+        spriteRef={trebleRef}
         position={[0, TREBLE_CLEF_LINE_RADIUS, CLEF_Z_OFFSET]}
-        offsetYEm={TREBLE_CLEF_OFFSET_Y_EM}
         scale={TREBLE_CLEF_SCALE}
       />
-      <ClefIcon
+      <ClefSprite
         glyph="𝄢"
-        iconRef={bassRef}
+        spriteRef={bassRef}
         position={[0, BASS_CLEF_LINE_RADIUS, CLEF_Z_OFFSET]}
-        offsetYEm={BASS_CLEF_OFFSET_Y_EM}
         scale={BASS_CLEF_SCALE}
       />
     </group>
@@ -762,6 +779,7 @@ function CameraController({
   cameraView,
   cameraPresets,
   controlsRef,
+  exportMode,
   isCameraEditing,
   isMobileView,
   introStartRef,
@@ -769,6 +787,7 @@ function CameraController({
   cameraView: VisualizerSettings['cameraView']
   cameraPresets: CameraPresetMap
   controlsRef: OrbitControlsRef
+  exportMode: boolean
   isCameraEditing: boolean
   isMobileView: boolean
   introStartRef: IntroClockRef
@@ -782,9 +801,11 @@ function CameraController({
   const prevCameraView = useRef(cameraView)
   const activePose = cameraPresets[cameraView]
   const effectivePose
-    = isCameraEditing || !isMobileView
-      ? activePose
-      : getResponsiveCameraPose(activePose, cameraView, isMobileView)
+    = exportMode
+      ? getExportCameraPose(activePose, cameraView)
+      : isCameraEditing || !isMobileView
+        ? activePose
+        : getResponsiveCameraPose(activePose, cameraView, isMobileView)
   const activePoseSignature = poseToSignature(activePose)
 
   useEffect(() => {
@@ -907,6 +928,7 @@ function CameraController({
 
 function Scene({
   cameraPresets,
+  exportMode,
   isCameraEditing,
   notes,
   onCameraPoseChange,
@@ -914,6 +936,7 @@ function Scene({
   isMobileView,
 }: {
   cameraPresets: CameraPresetMap
+  exportMode: boolean
   isCameraEditing: boolean
   isMobileView: boolean
   notes: NoteEvent[]
@@ -1151,6 +1174,7 @@ function Scene({
         cameraPresets={cameraPresets}
         cameraView={cameraView}
         controlsRef={controlsRef}
+        exportMode={exportMode}
         introStartRef={introStartRef}
         isCameraEditing={isCameraEditing}
         isMobileView={isMobileView}
@@ -1190,26 +1214,40 @@ function Scene({
   )
 }
 
+function CanvasElementBridge({ onCanvasElement }: { onCanvasElement: (el: HTMLCanvasElement) => void }) {
+  const { gl } = useThree()
+  useEffect(() => {
+    onCanvasElement(gl.domElement)
+  }, [gl, onCanvasElement])
+  return null
+}
+
 export function Visualizer({
   cameraPresets,
+  exportMode = false,
   isCameraEditing = false,
   isMobileView = false,
   notes,
   onCameraPoseChange,
+  onCanvasElement,
   settings,
 }: {
   cameraPresets: CameraPresetMap
+  exportMode?: boolean
   isCameraEditing?: boolean
   isMobileView?: boolean
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
+  onCanvasElement?: (el: HTMLCanvasElement) => void
   settings: VisualizerSettings
 }) {
   const activePose = cameraPresets[settings.cameraView]
   const initialPose
-    = isCameraEditing || !isMobileView
-      ? activePose
-      : getResponsiveCameraPose(activePose, settings.cameraView, isMobileView)
+    = exportMode
+      ? getExportCameraPose(activePose, settings.cameraView)
+      : isCameraEditing || !isMobileView
+        ? activePose
+        : getResponsiveCameraPose(activePose, settings.cameraView, isMobileView)
   const cameraConfig = useMemo(
     () => ({
       fov: initialPose.fov,
@@ -1227,10 +1265,16 @@ export function Visualizer({
     ],
   )
 
+  const glProps = exportMode
+    ? { preserveDrawingBuffer: true, alpha: false }
+    : undefined
+
   return (
-    <Canvas camera={cameraConfig}>
+    <Canvas camera={cameraConfig} dpr={exportMode ? 1 : undefined} gl={glProps}>
+      {onCanvasElement && <CanvasElementBridge onCanvasElement={onCanvasElement} />}
       <Scene
         cameraPresets={cameraPresets}
+        exportMode={exportMode}
         isCameraEditing={isCameraEditing}
         isMobileView={isMobileView}
         notes={notes}

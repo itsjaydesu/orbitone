@@ -86,6 +86,8 @@ export function useMusic(settings: MusicSettings) {
   const reverbRef = useRef<Tone.Freeverb | null>(null)
   const limiterRef = useRef<Tone.Limiter | null>(null)
   const meterRef = useRef<Tone.Meter | null>(null)
+  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
+  const exportBoostRef = useRef<GainNode | null>(null)
   const initPromiseRef = useRef<Promise<void> | null>(null)
   const partStartedRef = useRef(false)
   const notesRef = useRef<NoteEvent[]>([])
@@ -347,10 +349,17 @@ export function useMusic(settings: MusicSettings) {
       masterGainRef.current?.dispose()
       meterRef.current?.dispose()
       limiterRef.current?.dispose()
+      if (exportBoostRef.current) {
+        exportBoostRef.current.disconnect()
+        exportBoostRef.current = null
+      }
+      if (audioDestRef.current) {
+        audioDestRef.current.disconnect()
+        audioDestRef.current = null
+      }
       initPromiseRef.current = null
     }
   }, [clearPlaybackFrame])
-
 
   useEffect(() => {
     if (masterGainRef.current) {
@@ -573,6 +582,27 @@ export function useMusic(settings: MusicSettings) {
     setHasEnded(false)
   }, [clearPlaybackFrame, syncTransportTime])
 
+  const getAudioStream = useCallback((): MediaStream | null => {
+    if (!limiterRef.current) {
+      return null
+    }
+
+    const rawContext = Tone.getContext().rawContext as AudioContext
+    const destNode = rawContext.createMediaStreamDestination()
+    audioDestRef.current = destNode
+
+    // +8 dB boost for export audio (10^(8/20) ≈ 2.512)
+    const boostNode = rawContext.createGain()
+    boostNode.gain.value = 2.512
+    exportBoostRef.current = boostNode
+
+    const limiterOutput = (limiterRef.current as any).output ?? limiterRef.current
+    Tone.connect(limiterOutput, boostNode)
+    boostNode.connect(destNode)
+
+    return destNode.stream
+  }, [])
+
   const resetBpm = useCallback(() => {
     setBpm(Math.round(originalBpm))
   }, [originalBpm, setBpm])
@@ -595,5 +625,7 @@ export function useMusic(settings: MusicSettings) {
     bpm,
     setBpm,
     resetBpm,
+    ensureAudioReady,
+    getAudioStream,
   }
 }
