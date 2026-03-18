@@ -1,6 +1,6 @@
 'use client'
 
-import type { MutableRefObject, RefObject } from 'react'
+import type { ComponentRef, MutableRefObject, RefObject } from 'react'
 import type {
   CameraPose,
   CameraPresetMap,
@@ -37,6 +37,11 @@ import {
 export interface VisualizerSettings {
   showMidiRoll: boolean
   cameraView: CameraView
+}
+
+export interface VisualizerRenderTimeline {
+  globalTime: number
+  transportTime: number
 }
 
 const DEFAULT_TIME_WINDOW = 10
@@ -87,7 +92,7 @@ const noteGeo = new THREE.CircleGeometry(0.15, 32)
 const boxGeo = new THREE.BoxGeometry(1, 1, 1)
 
 type IntroClockRef = MutableRefObject<number | null>
-type OrbitControlsRef = RefObject<any>
+type OrbitControlsRef = RefObject<ComponentRef<typeof OrbitControls> | null>
 type FadePhase = 'steady' | 'entering' | 'exiting'
 
 interface CrossfadeState {
@@ -112,6 +117,24 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value))
 
 function smootherStep(value: number) {
   return value * value * value * (value * (value * 6 - 15) + 10)
+}
+
+function getResolvedGlobalTime(
+  elapsedClockTime: number,
+  timeline?: VisualizerRenderTimeline,
+) {
+  return timeline?.globalTime ?? elapsedClockTime
+}
+
+function getResolvedTransportTime(
+  timeline?: VisualizerRenderTimeline,
+  frozenTime?: number,
+) {
+  if (frozenTime !== undefined) {
+    return frozenTime
+  }
+
+  return timeline?.transportTime ?? Tone.Transport.seconds
 }
 
 function getIntroProgress(clockTime: number, introStartRef: IntroClockRef, delay: number, duration: number) {
@@ -282,10 +305,12 @@ function StaffRing({
   radius,
   index,
   introStartRef,
+  timeline,
 }: {
   radius: number
   index: number
   introStartRef: IntroClockRef
+  timeline?: VisualizerRenderTimeline
 }) {
   const geometry = useMemo(() => createCircularLineGeometry(radius), [radius])
   const line = useMemo(
@@ -318,8 +343,9 @@ function StaffRing({
       return
     }
 
+    const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const progress = getIntroProgress(
-      clock.getElapsedTime(),
+      globalTime,
       introStartRef,
       index * INTRO_RING_STAGGER,
       INTRO_RING_DRAW_DURATION,
@@ -337,7 +363,13 @@ function StaffRing({
   return <primitive object={line} ref={ringRef} />
 }
 
-function Staff({ introStartRef }: { introStartRef: IntroClockRef }) {
+function Staff({
+  introStartRef,
+  timeline,
+}: {
+  introStartRef: IntroClockRef
+  timeline?: VisualizerRenderTimeline
+}) {
   return (
     <group>
       {BASE_STAFF_RADII.map((radius, index) => (
@@ -346,6 +378,7 @@ function Staff({ introStartRef }: { introStartRef: IntroClockRef }) {
           radius={radius}
           index={index}
           introStartRef={introStartRef}
+          timeline={timeline}
         />
       ))}
     </group>
@@ -361,6 +394,7 @@ function NoteMesh({
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
+  timeline,
 }: {
   note: NoteEvent
   timeWindow: number
@@ -370,6 +404,7 @@ function NoteMesh({
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
+  timeline?: VisualizerRenderTimeline
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const meshMatRef = useRef<THREE.MeshStandardMaterial>(null)
@@ -382,9 +417,8 @@ function NoteMesh({
       return
     }
 
-    const currentTime
-      = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds
-    const elapsed = clock.getElapsedTime()
+    const currentTime = getResolvedTransportTime(timeline, frozenTime)
+    const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
 
     let displayProgress: number
     if (fadePhase === 'exiting') {
@@ -485,6 +519,7 @@ function MidiRollNote({
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
+  timeline,
 }: {
   isFlatView: boolean
   note: NoteEvent
@@ -495,6 +530,7 @@ function MidiRollNote({
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
+  timeline?: VisualizerRenderTimeline
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshStandardMaterial>(null)
@@ -507,9 +543,8 @@ function MidiRollNote({
       return
     }
 
-    const currentTime
-      = frozenTime !== undefined ? frozenTime : Tone.Transport.seconds
-    const elapsed = clock.getElapsedTime()
+    const currentTime = getResolvedTransportTime(timeline, frozenTime)
+    const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
 
     let displayProgress: number
     if (fadePhase === 'exiting') {
@@ -608,6 +643,7 @@ function MidiRoll({
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
+  timeline,
 }: {
   isFlatView: boolean
   notes: NoteEvent[]
@@ -617,6 +653,7 @@ function MidiRoll({
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
+  timeline?: VisualizerRenderTimeline
 }) {
   const speed = isFlatView ? MIDI_ROLL_FLAT_SPEED : 10
   const lookAhead = timeWindow * 1.5
@@ -650,6 +687,7 @@ function MidiRoll({
           fadePhase={fadePhase}
           crossfadeStartClock={crossfadeStartClock}
           frozenTime={frozenTime}
+          timeline={timeline}
         />
       ))}
     </group>
@@ -726,7 +764,13 @@ function ClefSprite({
   )
 }
 
-function Playhead({ introStartRef }: { introStartRef: IntroClockRef }) {
+function Playhead({
+  introStartRef,
+  timeline,
+}: {
+  introStartRef: IntroClockRef
+  timeline?: VisualizerRenderTimeline
+}) {
   const groupRef = useRef<THREE.Group>(null)
   const trebleRef = useRef<THREE.Mesh>(null)
   const bassRef = useRef<THREE.Mesh>(null)
@@ -736,8 +780,9 @@ function Playhead({ introStartRef }: { introStartRef: IntroClockRef }) {
       return
     }
 
+    const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const progress = getIntroProgress(
-      clock.getElapsedTime(),
+      globalTime,
       introStartRef,
       INTRO_PLAYHEAD_DELAY,
       INTRO_PLAYHEAD_DURATION,
@@ -783,6 +828,7 @@ function CameraController({
   isCameraEditing,
   isMobileView,
   introStartRef,
+  timeline,
 }: {
   cameraView: VisualizerSettings['cameraView']
   cameraPresets: CameraPresetMap
@@ -791,6 +837,7 @@ function CameraController({
   isCameraEditing: boolean
   isMobileView: boolean
   introStartRef: IntroClockRef
+  timeline?: VisualizerRenderTimeline
 }) {
   const { camera: rawCamera } = useThree()
   const cameraRef = useRef(rawCamera as THREE.PerspectiveCamera)
@@ -852,6 +899,7 @@ function CameraController({
       return
     }
 
+    const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const camera = cameraRef.current
     const basePosition = vectorFromCameraVector(effectivePose.position)
     const baseTarget = vectorFromCameraVector(effectivePose.target)
@@ -866,7 +914,7 @@ function CameraController({
         isMobileView,
       )
       const progress = getIntroProgress(
-        clock.getElapsedTime(),
+        globalTime,
         introStartRef,
         INTRO_CAMERA_DELAY,
         INTRO_CAMERA_DURATION,
@@ -885,7 +933,7 @@ function CameraController({
     }
     else if (cameraView === 'orbit') {
       if (orbitStartTime.current === null) {
-        orbitStartTime.current = clock.getElapsedTime()
+        orbitStartTime.current = globalTime
       }
       const orbitOffset = basePosition.clone().sub(baseTarget)
       const orbitRadius = Math.max(
@@ -894,7 +942,7 @@ function CameraController({
       )
       const orbitAngle = Math.atan2(orbitOffset.x, orbitOffset.z)
       const orbitTime
-        = (clock.getElapsedTime() - orbitStartTime.current) * 0.3
+        = (globalTime - orbitStartTime.current) * 0.3
 
       targetPos.current.set(
         baseTarget.x + Math.sin(orbitAngle + orbitTime) * orbitRadius,
@@ -934,6 +982,7 @@ function Scene({
   onCameraPoseChange,
   settings,
   isMobileView,
+  timeline,
 }: {
   cameraPresets: CameraPresetMap
   exportMode: boolean
@@ -942,6 +991,7 @@ function Scene({
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
   settings: VisualizerSettings
+  timeline?: VisualizerRenderTimeline
 }) {
   const [displayNotes, setDisplayNotes] = useState<NoteEvent[]>(notes)
   const [crossfadeState, setCrossfadeState] = useState<CrossfadeState>({
@@ -950,7 +1000,7 @@ function Scene({
   const [filterTime, setFilterTime] = useState(0)
   const introStartRef = useRef<number | null>(null)
   const noteIntroStartRef = useRef<number | null>(null)
-  const controlsRef = useRef<any>(null)
+  const controlsRef = useRef<ComponentRef<typeof OrbitControls> | null>(null)
   const crossfadeRef = useRef<CrossfadeState>({ ...CROSSFADE_IDLE })
   const lastClockRef = useRef(0)
   const displaySignatureRef = useRef(getNotesSignature(notes))
@@ -963,6 +1013,17 @@ function Scene({
   )
   const activePose = cameraPresets[cameraView]
   const isFlatEditing = isCameraEditing && activePose.flatLock
+  const hasExplicitTimeline = Boolean(timeline)
+  const resolvedFilterTime = timeline?.transportTime ?? filterTime
+
+  useEffect(() => {
+    if (!hasExplicitTimeline) {
+      return
+    }
+
+    introStartRef.current = 0
+    noteIntroStartRef.current = 0
+  }, [hasExplicitTimeline])
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -1022,33 +1083,38 @@ function Scene({
     crossfadeRef.current = nextCrossfade
     setCrossfadeState(nextCrossfade)
     displaySignatureRef.current = activeNoteSignature
-    setFilterTime(Tone.Transport.seconds)
-  }, [activeNoteSignature, displayNotes, filterTime, notes])
+    setFilterTime(resolvedFilterTime)
+  }, [activeNoteSignature, displayNotes, notes, resolvedFilterTime])
 
   useFrame(({ clock }) => {
-    lastClockRef.current = clock.getElapsedTime()
+    const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
+    const transportTime = timeline?.transportTime ?? Tone.Transport.seconds
 
-    if (Math.abs(Tone.Transport.seconds - filterTime) > 0.5) {
-      setFilterTime(Tone.Transport.seconds)
+    lastClockRef.current = globalTime
+
+    if (!timeline && Math.abs(transportTime - filterTime) > 0.5) {
+      setFilterTime(transportTime)
     }
 
     const cf = crossfadeRef.current
     if (
       cf.active
-      && lastClockRef.current - cf.startClock >= CROSSFADE_TOTAL_DURATION
+      && globalTime - cf.startClock >= CROSSFADE_TOTAL_DURATION
     ) {
       if (cf.pending) {
         const nextCrossfade = {
           active: true,
           oldNotes: cf.newNotes,
           newNotes: cf.pending,
-          startClock: lastClockRef.current,
-          oldFilterTime: Tone.Transport.seconds,
+          startClock: globalTime,
+          oldFilterTime: transportTime,
           pending: null,
         }
         crossfadeRef.current = nextCrossfade
         setCrossfadeState(nextCrossfade)
-        setFilterTime(Tone.Transport.seconds)
+        if (!timeline) {
+          setFilterTime(transportTime)
+        }
       }
       else {
         const settled = cf.newNotes
@@ -1069,12 +1135,12 @@ function Scene({
     const paddedWindow = timeWindow + 4
     return displayNotes.filter(
       note =>
-        note.time >= filterTime - paddedWindow / 2
-        && note.time <= filterTime + paddedWindow / 2,
+        note.time >= resolvedFilterTime - paddedWindow / 2
+        && note.time <= resolvedFilterTime + paddedWindow / 2,
     )
-  }, [displayNotes, filterTime, timeWindow])
+  }, [displayNotes, resolvedFilterTime, timeWindow])
 
-  const exitFilterTime = cf.active ? cf.oldFilterTime : filterTime
+  const exitFilterTime = cf.active ? cf.oldFilterTime : resolvedFilterTime
   const crossfadeOldNotes = cf.active ? cf.oldNotes : displayNotes
   const visibleExitingNotes = useMemo(() => {
     if (!isCrossfading)
@@ -1094,10 +1160,10 @@ function Scene({
     const paddedWindow = timeWindow + 4
     return crossfadeNewNotes.filter(
       note =>
-        note.time >= filterTime - paddedWindow / 2
-        && note.time <= filterTime + paddedWindow / 2,
+        note.time >= resolvedFilterTime - paddedWindow / 2
+        && note.time <= resolvedFilterTime + paddedWindow / 2,
     )
-  }, [crossfadeNewNotes, filterTime, isCrossfading, timeWindow])
+  }, [crossfadeNewNotes, isCrossfading, resolvedFilterTime, timeWindow])
 
   return (
     <>
@@ -1117,22 +1183,24 @@ function Scene({
               fadePhase="exiting"
               crossfadeStartClock={crossfadeStartClock}
               frozenTime={exitFilterTime}
+              timeline={timeline}
             />
           )}
           <MidiRoll
             isFlatView={activePose.flatLock}
             notes={isCrossfading ? crossfadeNewNotes : displayNotes}
-            filterTime={filterTime}
+            filterTime={resolvedFilterTime}
             timeWindow={timeWindow}
             introStartRef={noteIntroStartRef}
             fadePhase={isCrossfading ? 'entering' : 'steady'}
             crossfadeStartClock={crossfadeStartClock}
+            timeline={timeline}
           />
         </>
       )}
 
       <group rotation={[0, 0, 0]}>
-        <Staff introStartRef={introStartRef} />
+        <Staff introStartRef={introStartRef} timeline={timeline} />
         {isCrossfading
           && visibleExitingNotes.map(note => (
             <NoteMesh
@@ -1144,6 +1212,7 @@ function Scene({
               fadePhase="exiting"
               crossfadeStartClock={crossfadeStartClock}
               frozenTime={exitFilterTime}
+              timeline={timeline}
             />
           ))}
         {isCrossfading
@@ -1156,6 +1225,7 @@ function Scene({
                 introDelay={getCrossfadeEnterDelay(index)}
                 fadePhase="entering"
                 crossfadeStartClock={crossfadeStartClock}
+                timeline={timeline}
               />
             ))
           : visibleDisplayNotes.map((note, index) => (
@@ -1165,9 +1235,10 @@ function Scene({
                 timeWindow={timeWindow}
                 introStartRef={noteIntroStartRef}
                 introDelay={getNoteIntroDelay(note, index)}
+                timeline={timeline}
               />
             ))}
-        <Playhead introStartRef={introStartRef} />
+        <Playhead introStartRef={introStartRef} timeline={timeline} />
       </group>
 
       <CameraController
@@ -1178,6 +1249,7 @@ function Scene({
         introStartRef={introStartRef}
         isCameraEditing={isCameraEditing}
         isMobileView={isMobileView}
+        timeline={timeline}
       />
 
       <OrbitControls
@@ -1230,6 +1302,7 @@ export function Visualizer({
   notes,
   onCameraPoseChange,
   onCanvasElement,
+  renderTimeline,
   settings,
 }: {
   cameraPresets: CameraPresetMap
@@ -1239,6 +1312,7 @@ export function Visualizer({
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
   onCanvasElement?: (el: HTMLCanvasElement) => void
+  renderTimeline?: VisualizerRenderTimeline
   settings: VisualizerSettings
 }) {
   const activePose = cameraPresets[settings.cameraView]
@@ -1279,6 +1353,7 @@ export function Visualizer({
         isMobileView={isMobileView}
         notes={notes}
         onCameraPoseChange={onCameraPoseChange}
+        timeline={renderTimeline}
         settings={settings}
       />
     </Canvas>

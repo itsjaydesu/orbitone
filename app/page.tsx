@@ -2,13 +2,13 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactElement, SVGProps } from 'react'
 import type { VisualizerSettings } from '@/components/Visualizer'
-import type { ExportCameraMode, ExportFormat } from '@/hooks/useVideoExport'
 import type {
   AppLanguage,
   CameraPose,
   CameraPresetMap,
   CameraView,
 } from '@/lib/camera-presets'
+import type { ExportCameraMode, ExportFormat } from '@/lib/export'
 import type {
   MidiLibraryCategory,
   MidiLibraryItem,
@@ -687,8 +687,8 @@ export default function Home() {
     bpm,
     setBpm,
     resetBpm,
-    ensureAudioReady,
-    getAudioStream,
+    pedalEvents,
+    playbackGain,
   } = useMusic({
     language,
     volumePercent: settings.volumePercent,
@@ -697,17 +697,19 @@ export default function Home() {
   const {
     phase: exportPhase,
     progress: exportProgress,
-    exportCameraView,
+    renderState: exportRenderState,
     startExport,
     cancelExport,
     setExportCanvas,
   } = useVideoExport({
-    ensureAudioReady,
-    getAudioStream,
-    togglePlay,
-    seek,
-    duration,
+    exportSource: {
+      notes,
+      pedalEvents,
+      playbackGain,
+    },
     isPlaying,
+    togglePlay,
+    volumePercent: settings.volumePercent,
   })
 
   const isExporting = exportPhase !== 'idle'
@@ -1564,8 +1566,8 @@ export default function Home() {
 
   const exportVisualizerSettings = useMemo(() => ({
     showMidiRoll: true,
-    cameraView: exportCameraView,
-  }), [exportCameraView])
+    cameraView: exportRenderState?.cameraView ?? settings.cameraView,
+  }), [exportRenderState?.cameraView, settings.cameraView])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const hasOpenOverlay = showLibrary || showSettings
@@ -2803,7 +2805,7 @@ export default function Home() {
         />
       </div>
 
-      {isExporting && (
+      {isExporting && exportRenderState && (
         <div style={{ position: 'fixed', left: -9999, top: 0, width: 1080, height: 1920, pointerEvents: 'none' }}>
           <Visualizer
             exportMode
@@ -2811,6 +2813,10 @@ export default function Home() {
             cameraPresets={cameraDraftPresets}
             isMobileView={false}
             notes={notes}
+            renderTimeline={{
+              globalTime: exportRenderState.globalTime,
+              transportTime: exportRenderState.transportTime,
+            }}
             settings={exportVisualizerSettings}
           />
         </div>

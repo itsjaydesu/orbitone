@@ -17,6 +17,11 @@ import {
   generateBeautifulPianoPiece,
   parseMidiFile,
 } from '../lib/music'
+import {
+  DEFAULT_REVERB_ROOM_SIZE,
+  GLOBAL_VOLUME_BOOST,
+  getRegisterRelease,
+} from '../lib/piano-audio'
 
 export interface MusicSettings {
   language: AppLanguage
@@ -31,32 +36,12 @@ interface TrackState {
   bpm: number
 }
 
-const GLOBAL_VOLUME_BOOST = 1.75
 const TRACK_END_EPSILON_SECONDS = 0.05
-// The 3D scene keeps notes visible for about 7 seconds after their onset
-// (`DEFAULT_TIME_WINDOW` 10s plus a 4s pad in the visualizer). Let the
-// transport coast long enough for the tail of the score to clear naturally.
 const VISUAL_OUTRO_CLEARANCE_SECONDS = 7
-
-/** Per-register release envelope — longer for bass, tighter for treble. */
-function getRegisterRelease(midi: number, pedalSustained: boolean): number {
-  let base: number
-  if (midi <= 48)
-    base = 1.8
-  else if (midi <= 60)
-    base = 1.2
-  else if (midi <= 72)
-    base = 0.8
-  else if (midi <= 84)
-    base = 0.5
-  else base = 0.3
-  return pedalSustained ? base * 1.4 : base
-}
 
 export function useMusic(settings: MusicSettings) {
   const { language, volumePercent } = settings
   const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST
-  const defaultReverbRoomSize = 0.8
   const defaultMusic = useMemo(() => {
     const piece = generateBeautifulPianoPiece(32, 100)
 
@@ -86,8 +71,6 @@ export function useMusic(settings: MusicSettings) {
   const reverbRef = useRef<Tone.Freeverb | null>(null)
   const limiterRef = useRef<Tone.Limiter | null>(null)
   const meterRef = useRef<Tone.Meter | null>(null)
-  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null)
-  const exportBoostRef = useRef<GainNode | null>(null)
   const initPromiseRef = useRef<Promise<void> | null>(null)
   const partStartedRef = useRef(false)
   const notesRef = useRef<NoteEvent[]>([])
@@ -275,7 +258,7 @@ export function useMusic(settings: MusicSettings) {
 
         reverbRef.current = new Tone.Freeverb({
           dampening: 2200,
-          roomSize: defaultReverbRoomSize,
+          roomSize: DEFAULT_REVERB_ROOM_SIZE,
         })
         reverbRef.current.wet.value = 1
         reverbRef.current.connect(reverbToneRef.current)
@@ -331,7 +314,7 @@ export function useMusic(settings: MusicSettings) {
     }
 
     await initPromiseRef.current
-  }, [baseOutputGain, defaultReverbRoomSize, trackPlaybackGain, volumePercent])
+  }, [baseOutputGain, trackPlaybackGain, volumePercent])
 
   useEffect(() => {
     return () => {
@@ -349,14 +332,6 @@ export function useMusic(settings: MusicSettings) {
       masterGainRef.current?.dispose()
       meterRef.current?.dispose()
       limiterRef.current?.dispose()
-      if (exportBoostRef.current) {
-        exportBoostRef.current.disconnect()
-        exportBoostRef.current = null
-      }
-      if (audioDestRef.current) {
-        audioDestRef.current.disconnect()
-        audioDestRef.current = null
-      }
       initPromiseRef.current = null
     }
   }, [clearPlaybackFrame])
@@ -428,7 +403,7 @@ export function useMusic(settings: MusicSettings) {
         else {
           // Pedal up: slower ramp back to dry (asymmetric — mimics acoustic behavior)
           reverbSend.gain.rampTo(0.24, 0.3, time)
-          reverb.roomSize.rampTo(defaultReverbRoomSize, 0.3, time)
+          reverb.roomSize.rampTo(DEFAULT_REVERB_ROOM_SIZE, 0.3, time)
         }
       }, pedalEvents)
     }
@@ -441,7 +416,7 @@ export function useMusic(settings: MusicSettings) {
     else {
       partStartedRef.current = false
     }
-  }, [notes, pedalEvents, bpm, originalBpm, defaultReverbRoomSize])
+  }, [notes, pedalEvents, bpm, originalBpm])
 
   useEffect(() => {
     if (isPlaying) {
@@ -582,27 +557,6 @@ export function useMusic(settings: MusicSettings) {
     setHasEnded(false)
   }, [clearPlaybackFrame, syncTransportTime])
 
-  const getAudioStream = useCallback((): MediaStream | null => {
-    if (!limiterRef.current) {
-      return null
-    }
-
-    const rawContext = Tone.getContext().rawContext as AudioContext
-    const destNode = rawContext.createMediaStreamDestination()
-    audioDestRef.current = destNode
-
-    // +8 dB boost for export audio (10^(8/20) ≈ 2.512)
-    const boostNode = rawContext.createGain()
-    boostNode.gain.value = 2.512
-    exportBoostRef.current = boostNode
-
-    const limiterOutput = (limiterRef.current as any).output ?? limiterRef.current
-    Tone.connect(limiterOutput, boostNode)
-    boostNode.connect(destNode)
-
-    return destNode.stream
-  }, [])
-
   const resetBpm = useCallback(() => {
     setBpm(Math.round(originalBpm))
   }, [originalBpm, setBpm])
@@ -626,6 +580,7 @@ export function useMusic(settings: MusicSettings) {
     setBpm,
     resetBpm,
     ensureAudioReady,
-    getAudioStream,
+    pedalEvents,
+    playbackGain: trackPlaybackGain,
   }
 }

@@ -15,18 +15,18 @@ const PHASE_LABELS: Record<AppLanguage, Record<ExportPhase, string>> = {
   en: {
     idle: '',
     preparing: 'Preparing export\u2026',
-    recording: 'Recording\u2026',
-    finalizing: 'Finalizing\u2026',
-    transcoding: 'Converting to MP4\u2026',
+    'rendering-audio': 'Rendering audio\u2026',
+    'rendering-frames': 'Rendering frames\u2026',
+    muxing: 'Muxing video\u2026',
     done: 'Export complete',
     error: 'Export failed',
   },
   ja: {
     idle: '',
     preparing: '\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u6E96\u5099\u4E2D\u2026',
-    recording: '\u9332\u753B\u4E2D\u2026',
-    finalizing: '\u5B8C\u4E86\u51E6\u7406\u4E2D\u2026',
-    transcoding: 'MP4\u306B\u5909\u63DB\u4E2D\u2026',
+    'rendering-audio': '\u30AA\u30FC\u30C7\u30A3\u30AA\u3092\u30EC\u30F3\u30C0\u30EA\u30F3\u30B0\u4E2D\u2026',
+    'rendering-frames': '\u30D5\u30EC\u30FC\u30E0\u3092\u30EC\u30F3\u30C0\u30EA\u30F3\u30B0\u4E2D\u2026',
+    muxing: '\u52D5\u753B\u3092\u66F8\u304D\u51FA\u3057\u4E2D\u2026',
     done: '\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u5B8C\u4E86',
     error: '\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8\u5931\u6557',
   },
@@ -34,7 +34,7 @@ const PHASE_LABELS: Record<AppLanguage, Record<ExportPhase, string>> = {
 
 export function ExportOverlay({ phase, progress, language, onCancel }: ExportOverlayProps) {
   const label = PHASE_LABELS[language][phase]
-  const isIndeterminate = phase !== 'recording'
+  const isIndeterminate = phase !== 'rendering-frames'
   const progressPercent = Math.round(progress * 100)
 
   return (
@@ -67,14 +67,14 @@ export function ExportOverlay({ phase, progress, language, onCancel }: ExportOve
               )}
         </div>
 
-        {phase === 'recording' && (
+        {phase === 'rendering-frames' && (
           <span className="text-xs text-[var(--nm-text-dim)]">
             {progressPercent}
             %
           </span>
         )}
 
-        {(phase === 'preparing' || phase === 'finalizing' || phase === 'transcoding') && (
+        {(phase === 'preparing' || phase === 'rendering-audio' || phase === 'muxing') && (
           <Loader2 className="h-5 w-5 animate-spin text-[var(--nm-text-dim)]" />
         )}
       </div>
