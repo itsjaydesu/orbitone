@@ -36,6 +36,7 @@ export interface ExportCameraTransitionState {
   activeView: CameraView
   fromView: CameraView
   fromSampleTime: number
+  isTransitioning: boolean
   progress: number
   toView: CameraView
   toSampleTime: number
@@ -157,6 +158,7 @@ export function getExportCameraTransitionState(
       activeView: currentCameraView,
       fromView: currentCameraView,
       fromSampleTime: Math.max(globalTime, 0),
+      isTransitioning: false,
       progress: 1,
       toView: currentCameraView,
       toSampleTime: Math.max(globalTime, 0),
@@ -170,19 +172,28 @@ export function getExportCameraTransitionState(
   const fromView = CAMERA_VIEWS[cycleIndex % CAMERA_VIEWS.length] ?? CAMERA_VIEWS[0]
   const toView = CAMERA_VIEWS[(cycleIndex + 1) % CAMERA_VIEWS.length] ?? fromView
   const cycleStartTime = cycleIndex * EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+  const cycleEndTime = cycleStartTime + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
   const transitionDuration = Math.min(
     EXPORT_CAMERA_TRANSITION_SECONDS,
     EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
   )
-  const transitionStartTime = Math.max(
-    cycleStartTime,
-    cycleStartTime
-    + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
-    - transitionDuration,
-  )
+  const transitionStartTime = Math.max(cycleStartTime, cycleEndTime - transitionDuration)
+
+  if (safeGlobalTime < transitionStartTime) {
+    return {
+      activeView: fromView,
+      fromView,
+      fromSampleTime: safeGlobalTime,
+      isTransitioning: false,
+      progress: 0,
+      toView: fromView,
+      toSampleTime: safeGlobalTime,
+    }
+  }
+
   const rawProgress
-    = safeGlobalTime <= transitionStartTime
-      ? 0
+    = transitionDuration <= 0
+      ? 1
       : (safeGlobalTime - transitionStartTime) / transitionDuration
   const progress = smootherStep(clamp01(rawProgress))
 
@@ -190,9 +201,10 @@ export function getExportCameraTransitionState(
     activeView: progress >= 0.5 ? toView : fromView,
     fromView,
     fromSampleTime: transitionStartTime,
+    isTransitioning: true,
     progress,
     toView,
-    toSampleTime: cycleStartTime + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
+    toSampleTime: cycleEndTime,
   }
 }
 

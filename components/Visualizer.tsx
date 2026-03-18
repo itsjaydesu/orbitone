@@ -1035,23 +1035,28 @@ function CameraController({
         exportCameraMode ?? 'current',
         cameraView,
       )
-      const fromPose = getExportResolvedCameraPose(
-        cameraPresets,
-        transition.fromView,
-        transition.fromSampleTime,
-        introStartRef,
-      )
-      const toPose = getExportResolvedCameraPose(
-        cameraPresets,
-        transition.toView,
-        transition.toSampleTime,
-        introStartRef,
-      )
-      const resolvedPose = lerpCameraPose(
-        fromPose,
-        toPose,
-        transition.progress,
-      )
+      const resolvedPose = transition.isTransitioning
+        ? lerpCameraPose(
+            getExportResolvedCameraPose(
+              cameraPresets,
+              transition.fromView,
+              transition.fromSampleTime,
+              introStartRef,
+            ),
+            getExportResolvedCameraPose(
+              cameraPresets,
+              transition.toView,
+              transition.toSampleTime,
+              introStartRef,
+            ),
+            transition.progress,
+          )
+        : getExportResolvedCameraPose(
+            cameraPresets,
+            transition.activeView,
+            globalTime,
+            introStartRef,
+          )
       const nextPosition = vectorFromCameraVector(resolvedPose.position)
       const nextTarget = vectorFromCameraVector(resolvedPose.target)
 
