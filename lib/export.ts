@@ -32,6 +32,15 @@ export interface ExportFrameRenderState {
   transportTime: number
 }
 
+export interface ExportCameraTransitionState {
+  activeView: CameraView
+  fromView: CameraView
+  fromSampleTime: number
+  progress: number
+  toView: CameraView
+  toSampleTime: number
+}
+
 export interface ExportSessionInitRequest {
   format: ExportFormat
   fps: number
@@ -48,8 +57,17 @@ export const EXPORT_AUDIO_SAMPLE_RATE = 48_000
 export const EXPORT_FRAME_IMAGE_MIME_TYPE = 'image/png'
 export const EXPORT_FRAME_FILE_EXTENSION = 'png'
 export const EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS = 10
+export const EXPORT_CAMERA_TRANSITION_SECONDS = 5
 export const EXPORT_VISUAL_TAIL_SECONDS = 7
 export const SUPPORTED_EXPORT_FORMATS: readonly ExportFormat[] = ['mp4', 'webm']
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value))
+}
+
+function smootherStep(value: number) {
+  return value * value * value * (value * (value * 6 - 15) + 10)
+}
 
 export function isExportFormat(value: string): value is ExportFormat {
   return value === 'mp4' || value === 'webm'
@@ -122,15 +140,60 @@ export function getExportCameraView(
   cameraMode: ExportCameraMode,
   currentCameraView: CameraView,
 ) {
+  return getExportCameraTransitionState(
+    globalTime,
+    cameraMode,
+    currentCameraView,
+  ).activeView
+}
+
+export function getExportCameraTransitionState(
+  globalTime: number,
+  cameraMode: ExportCameraMode,
+  currentCameraView: CameraView,
+): ExportCameraTransitionState {
   if (cameraMode === 'current') {
-    return currentCameraView
+    return {
+      activeView: currentCameraView,
+      fromView: currentCameraView,
+      fromSampleTime: Math.max(globalTime, 0),
+      progress: 1,
+      toView: currentCameraView,
+      toSampleTime: Math.max(globalTime, 0),
+    }
   }
 
+  const safeGlobalTime = Math.max(globalTime, 0)
   const cycleIndex = Math.floor(
-    Math.max(globalTime, 0) / EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
-  ) % CAMERA_VIEWS.length
+    safeGlobalTime / EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
+  )
+  const fromView = CAMERA_VIEWS[cycleIndex % CAMERA_VIEWS.length] ?? CAMERA_VIEWS[0]
+  const toView = CAMERA_VIEWS[(cycleIndex + 1) % CAMERA_VIEWS.length] ?? fromView
+  const cycleStartTime = cycleIndex * EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+  const transitionDuration = Math.min(
+    EXPORT_CAMERA_TRANSITION_SECONDS,
+    EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
+  )
+  const transitionStartTime = Math.max(
+    cycleStartTime,
+    cycleStartTime
+    + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+    - transitionDuration,
+  )
+  const rawProgress
+    = safeGlobalTime <= transitionStartTime
+      ? 0
+      : (safeGlobalTime - transitionStartTime) / transitionDuration
+  const progress = smootherStep(clamp01(rawProgress))
 
-  return CAMERA_VIEWS[cycleIndex] ?? CAMERA_VIEWS[0]
+  return {
+    activeView: progress >= 0.5 ? toView : fromView,
+    fromView,
+    fromSampleTime: transitionStartTime,
+    progress,
+    toView,
+    toSampleTime: cycleStartTime + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
+  }
 }
 
 export function getExportFrameRenderState(

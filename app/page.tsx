@@ -701,6 +701,7 @@ export default function Home() {
     startExport,
     cancelExport,
     setExportCanvas,
+    setExportFrameController,
   } = useVideoExport({
     exportSource: {
       notes,
@@ -1566,8 +1567,8 @@ export default function Home() {
 
   const exportVisualizerSettings = useMemo(() => ({
     showMidiRoll: true,
-    cameraView: exportRenderState?.cameraView ?? settings.cameraView,
-  }), [exportRenderState?.cameraView, settings.cameraView])
+    cameraView: settings.cameraView,
+  }), [settings.cameraView])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const hasOpenOverlay = showLibrary || showSettings
@@ -2809,7 +2810,9 @@ export default function Home() {
         <div style={{ position: 'fixed', left: -9999, top: 0, width: 1080, height: 1920, pointerEvents: 'none' }}>
           <Visualizer
             exportMode
+            exportCameraMode={exportCameraMode}
             onCanvasElement={setExportCanvas}
+            onExportFrameController={setExportFrameController}
             cameraPresets={cameraDraftPresets}
             isMobileView={false}
             notes={notes}

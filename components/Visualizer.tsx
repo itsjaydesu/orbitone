@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentRef, MutableRefObject, RefObject } from 'react'
+import type { ExportCameraMode } from '@/lib/export'
 import type {
   CameraPose,
   CameraPresetMap,
@@ -21,6 +22,7 @@ import {
 } from 'react'
 import * as THREE from 'three'
 import * as Tone from 'tone'
+import { getExportCameraTransitionState } from '@/lib/export'
 import {
   INTRO_CAMERA_DELAY,
   INTRO_CAMERA_DURATION,
@@ -42,6 +44,11 @@ export interface VisualizerSettings {
 export interface VisualizerRenderTimeline {
   globalTime: number
   transportTime: number
+}
+
+export interface ExportFrameController {
+  canvas: HTMLCanvasElement
+  renderFrame: (timestampMs: number) => void
 }
 
 const DEFAULT_TIME_WINDOW = 10
@@ -193,6 +200,41 @@ function vectorToCameraVector(vector: THREE.Vector3): CameraVector {
   }
 }
 
+function lerpCameraPose(
+  fromPose: CameraPose,
+  toPose: CameraPose,
+  progress: number,
+): CameraPose {
+  const fromPosition = vectorFromCameraVector(fromPose.position)
+  const toPosition = vectorFromCameraVector(toPose.position)
+  const fromTarget = vectorFromCameraVector(fromPose.target)
+  const toTarget = vectorFromCameraVector(toPose.target)
+  const target = new THREE.Vector3().lerpVectors(fromTarget, toTarget, progress)
+  const fromOffset = fromPosition.clone().sub(fromTarget)
+  const toOffset = toPosition.clone().sub(toTarget)
+  const fromSpherical = new THREE.Spherical().setFromVector3(fromOffset)
+  const toSpherical = new THREE.Spherical().setFromVector3(toOffset)
+  const thetaDelta = Math.atan2(
+    Math.sin(toSpherical.theta - fromSpherical.theta),
+    Math.cos(toSpherical.theta - fromSpherical.theta),
+  )
+  const offsetSpherical = new THREE.Spherical(
+    THREE.MathUtils.lerp(fromSpherical.radius, toSpherical.radius, progress),
+    THREE.MathUtils.lerp(fromSpherical.phi, toSpherical.phi, progress),
+    fromSpherical.theta + thetaDelta * progress,
+  )
+  const position = new THREE.Vector3()
+    .setFromSpherical(offsetSpherical)
+    .add(target)
+
+  return {
+    flatLock: progress < 0.5 ? fromPose.flatLock : toPose.flatLock,
+    fov: THREE.MathUtils.lerp(fromPose.fov, toPose.fov, progress),
+    position: vectorToCameraVector(position),
+    target: vectorToCameraVector(target),
+  }
+}
+
 function getResponsiveCameraPose(pose: CameraPose, cameraView: CameraView, isMobileView: boolean): CameraPose {
   if (!isMobileView) {
     return pose
@@ -253,6 +295,89 @@ function poseToSignature(pose: CameraPose) {
     pose.fov,
     pose.flatLock ? 1 : 0,
   ].join(':')
+}
+
+function getEffectiveCameraPoseForView(
+  cameraPresets: CameraPresetMap,
+  cameraView: CameraView,
+  exportMode: boolean,
+  isMobileView: boolean,
+) {
+  const basePose = cameraPresets[cameraView]
+
+  if (exportMode) {
+    return getExportCameraPose(basePose, cameraView)
+  }
+
+  return isMobileView
+    ? getResponsiveCameraPose(basePose, cameraView, isMobileView)
+    : basePose
+}
+
+function getExportResolvedCameraPose(
+  cameraPresets: CameraPresetMap,
+  cameraView: CameraView,
+  globalTime: number,
+  introStartRef: IntroClockRef,
+): CameraPose {
+  const effectivePose = getEffectiveCameraPoseForView(
+    cameraPresets,
+    cameraView,
+    true,
+    false,
+  )
+  const basePosition = vectorFromCameraVector(effectivePose.position)
+  const baseTarget = vectorFromCameraVector(effectivePose.target)
+
+  if (cameraView === 'default') {
+    const frontPose = getEffectiveCameraPoseForView(
+      cameraPresets,
+      'front',
+      true,
+      false,
+    )
+    const progress = getIntroProgress(
+      globalTime,
+      introStartRef,
+      INTRO_CAMERA_DELAY,
+      INTRO_CAMERA_DURATION,
+    )
+    const position = new THREE.Vector3().lerpVectors(
+      vectorFromCameraVector(frontPose.position),
+      basePosition,
+      progress,
+    )
+    const target = new THREE.Vector3().lerpVectors(
+      vectorFromCameraVector(frontPose.target),
+      baseTarget,
+      progress,
+    )
+
+    return {
+      ...effectivePose,
+      position: vectorToCameraVector(position),
+      target: vectorToCameraVector(target),
+    }
+  }
+
+  if (cameraView === 'orbit') {
+    const orbitOffset = basePosition.clone().sub(baseTarget)
+    const orbitRadius = Math.max(0.001, Math.hypot(orbitOffset.x, orbitOffset.z))
+    const orbitAngle = Math.atan2(orbitOffset.x, orbitOffset.z)
+    const orbitTime = globalTime * 0.3
+    const position = new THREE.Vector3(
+      baseTarget.x + Math.sin(orbitAngle + orbitTime) * orbitRadius,
+      baseTarget.y + orbitOffset.y,
+      baseTarget.z + Math.cos(orbitAngle + orbitTime) * orbitRadius,
+    )
+
+    return {
+      ...effectivePose,
+      position: vectorToCameraVector(position),
+    }
+  }
+
+  return effectivePose
 }
 
 function createCircularLineGeometry(radius: number, segments = 240) {
@@ -825,6 +950,7 @@ function CameraController({
   cameraPresets,
   controlsRef,
   exportMode,
+  exportCameraMode,
   isCameraEditing,
   isMobileView,
   introStartRef,
@@ -834,6 +960,7 @@ function CameraController({
   cameraPresets: CameraPresetMap
   controlsRef: OrbitControlsRef
   exportMode: boolean
+  exportCameraMode?: ExportCameraMode
   isCameraEditing: boolean
   isMobileView: boolean
   introStartRef: IntroClockRef
@@ -901,6 +1028,45 @@ function CameraController({
 
     const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const camera = cameraRef.current
+
+    if (exportMode && timeline) {
+      const transition = getExportCameraTransitionState(
+        globalTime,
+        exportCameraMode ?? 'current',
+        cameraView,
+      )
+      const fromPose = getExportResolvedCameraPose(
+        cameraPresets,
+        transition.fromView,
+        transition.fromSampleTime,
+        introStartRef,
+      )
+      const toPose = getExportResolvedCameraPose(
+        cameraPresets,
+        transition.toView,
+        transition.toSampleTime,
+        introStartRef,
+      )
+      const resolvedPose = lerpCameraPose(
+        fromPose,
+        toPose,
+        transition.progress,
+      )
+      const nextPosition = vectorFromCameraVector(resolvedPose.position)
+      const nextTarget = vectorFromCameraVector(resolvedPose.target)
+
+      camera.position.copy(nextPosition)
+      lookAtTarget.current.copy(nextTarget)
+
+      if (Math.abs(resolvedPose.fov - camera.fov) > 0.001) {
+        camera.fov = resolvedPose.fov
+        camera.updateProjectionMatrix()
+      }
+
+      camera.lookAt(nextTarget)
+      return
+    }
+
     const basePosition = vectorFromCameraVector(effectivePose.position)
     const baseTarget = vectorFromCameraVector(effectivePose.target)
 
@@ -977,6 +1143,7 @@ function CameraController({
 function Scene({
   cameraPresets,
   exportMode,
+  exportCameraMode,
   isCameraEditing,
   notes,
   onCameraPoseChange,
@@ -986,6 +1153,7 @@ function Scene({
 }: {
   cameraPresets: CameraPresetMap
   exportMode: boolean
+  exportCameraMode?: ExportCameraMode
   isCameraEditing: boolean
   isMobileView: boolean
   notes: NoteEvent[]
@@ -1246,6 +1414,7 @@ function Scene({
         cameraView={cameraView}
         controlsRef={controlsRef}
         exportMode={exportMode}
+        exportCameraMode={exportCameraMode}
         introStartRef={introStartRef}
         isCameraEditing={isCameraEditing}
         isMobileView={isMobileView}
@@ -1286,32 +1455,54 @@ function Scene({
   )
 }
 
-function CanvasElementBridge({ onCanvasElement }: { onCanvasElement: (el: HTMLCanvasElement) => void }) {
-  const { gl } = useThree()
+function CanvasElementBridge({
+  onCanvasElement,
+  onExportFrameController,
+}: {
+  onCanvasElement?: (el: HTMLCanvasElement) => void
+  onExportFrameController?: (controller: ExportFrameController | null) => void
+}) {
+  const { advance, gl } = useThree()
+
   useEffect(() => {
-    onCanvasElement(gl.domElement)
-  }, [gl, onCanvasElement])
+    onCanvasElement?.(gl.domElement)
+    onExportFrameController?.({
+      canvas: gl.domElement,
+      renderFrame: (timestampMs: number) => {
+        advance(timestampMs, true)
+      },
+    })
+
+    return () => {
+      onExportFrameController?.(null)
+    }
+  }, [advance, gl, onCanvasElement, onExportFrameController])
+
   return null
 }
 
 export function Visualizer({
   cameraPresets,
   exportMode = false,
+  exportCameraMode,
   isCameraEditing = false,
   isMobileView = false,
   notes,
   onCameraPoseChange,
   onCanvasElement,
+  onExportFrameController,
   renderTimeline,
   settings,
 }: {
   cameraPresets: CameraPresetMap
   exportMode?: boolean
+  exportCameraMode?: ExportCameraMode
   isCameraEditing?: boolean
   isMobileView?: boolean
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
   onCanvasElement?: (el: HTMLCanvasElement) => void
+  onExportFrameController?: (controller: ExportFrameController | null) => void
   renderTimeline?: VisualizerRenderTimeline
   settings: VisualizerSettings
 }) {
@@ -1344,11 +1535,22 @@ export function Visualizer({
     : undefined
 
   return (
-    <Canvas camera={cameraConfig} dpr={exportMode ? 1 : undefined} gl={glProps}>
-      {onCanvasElement && <CanvasElementBridge onCanvasElement={onCanvasElement} />}
+    <Canvas
+      camera={cameraConfig}
+      dpr={exportMode ? 1 : undefined}
+      frameloop={exportMode ? 'never' : 'always'}
+      gl={glProps}
+    >
+      {(onCanvasElement || onExportFrameController) && (
+        <CanvasElementBridge
+          onCanvasElement={onCanvasElement}
+          onExportFrameController={onExportFrameController}
+        />
+      )}
       <Scene
         cameraPresets={cameraPresets}
         exportMode={exportMode}
+        exportCameraMode={exportCameraMode}
         isCameraEditing={isCameraEditing}
         isMobileView={isMobileView}
         notes={notes}

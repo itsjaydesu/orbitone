@@ -5,7 +5,9 @@ import type {
   ExportSourceData,
 } from '@/lib/export'
 import type { CameraView } from '@/lib/camera-presets'
+import type { ExportFrameController } from '@/components/Visualizer'
 import { useCallback, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { renderOfflineAudioWav } from '@/lib/export-audio'
 import {
   createExportTimeline,
@@ -30,17 +32,6 @@ function downloadBlob(blob: Blob, filename: string) {
   anchor.download = filename
   anchor.click()
   URL.revokeObjectURL(url)
-}
-
-function waitForAnimationFrame() {
-  return new Promise<void>((resolve) => {
-    requestAnimationFrame(() => resolve())
-  })
-}
-
-async function waitForCanvasPaint() {
-  await waitForAnimationFrame()
-  await waitForAnimationFrame()
 }
 
 function uploadFile(
@@ -73,6 +64,7 @@ export function useVideoExport({
   const cancelledRef = useRef(false)
   const activeSessionIdRef = useRef<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const exportFrameControllerRef = useRef<ExportFrameController | null>(null)
 
   const clearSession = useCallback(async () => {
     const activeSessionId = activeSessionIdRef.current
@@ -108,19 +100,36 @@ export function useVideoExport({
     canvasRef.current = element
   }, [])
 
-  const waitForExportCanvas = useCallback(async () => {
+  const setExportFrameController = useCallback((
+    controller: ExportFrameController | null,
+  ) => {
+    exportFrameControllerRef.current = controller
+    canvasRef.current = controller?.canvas ?? null
+  }, [])
+
+  const waitForExportRenderer = useCallback(async () => {
     await new Promise<void>((resolve) => {
       const poll = () => {
-        if (canvasRef.current || cancelledRef.current) {
+        if (exportFrameControllerRef.current || cancelledRef.current) {
           resolve()
           return
         }
 
-        requestAnimationFrame(poll)
+        window.setTimeout(poll, 0)
       }
 
       poll()
     })
+  }, [])
+
+  const renderFrameNow = useCallback((timestampMs: number) => {
+    const controller = exportFrameControllerRef.current
+
+    if (!controller) {
+      throw new Error('Export frame controller is unavailable.')
+    }
+
+    controller.renderFrame(timestampMs)
   }, [])
 
   const captureFrame = useCallback(async () => {
@@ -177,12 +186,12 @@ export function useVideoExport({
     setRenderState(initialRenderState)
 
     try {
-      await waitForExportCanvas()
+      await waitForExportRenderer()
       if (cancelledRef.current) {
         return
       }
 
-      await waitForCanvasPaint()
+      renderFrameNow(initialRenderState.globalTime * 1000)
       if (cancelledRef.current) {
         return
       }
@@ -239,8 +248,10 @@ export function useVideoExport({
           cameraMode,
           currentCameraView,
         )
-        setRenderState(nextRenderState)
-        await waitForCanvasPaint()
+        flushSync(() => {
+          setRenderState(nextRenderState)
+        })
+        renderFrameNow(nextRenderState.globalTime * 1000)
 
         const frameBlob = await captureFrame()
         const frameUpload = new FormData()
@@ -299,9 +310,10 @@ export function useVideoExport({
     exportSource,
     isPlaying,
     resetUiState,
+    renderFrameNow,
     togglePlay,
     volumePercent,
-    waitForExportCanvas,
+    waitForExportRenderer,
   ])
 
   return {
@@ -311,5 +323,6 @@ export function useVideoExport({
     startExport,
     cancelExport,
     setExportCanvas,
+    setExportFrameController,
   }
 }
