@@ -29,6 +29,7 @@ interface FinalizedExport {
 const EXPORT_SESSION_ROOT_DIRECTORY = join(tmpdir(), 'orbitone-exports')
 const METADATA_FILE_NAME = 'metadata.json'
 const AUDIO_FILE_NAME = 'audio.wav'
+const FRAME_LOG_INTERVAL = 600
 
 function getSessionDirectory(sessionId: string) {
   return join(EXPORT_SESSION_ROOT_DIRECTORY, sessionId)
@@ -70,6 +71,18 @@ function getOutputDetails(format: ExportFormat) {
     contentType: 'video/mp4',
     fileExtension: 'mp4',
   }
+}
+
+function getLogPrefix(sessionId: string) {
+  return `[export][session:${sessionId}]`
+}
+
+function getStderrTail(stderr: string | undefined, maxLength = 4000) {
+  if (!stderr) {
+    return ''
+  }
+
+  return stderr.length <= maxLength ? stderr : stderr.slice(-maxLength)
 }
 
 function getFfmpegArgs(
@@ -156,6 +169,10 @@ export async function createExportSession(
     'utf8',
   )
 
+  console.info(
+    `${getLogPrefix(sessionId)} init format=${request.format} fps=${request.fps} frameCount=${request.frameCount} duration=${request.totalDurationSeconds.toFixed(3)} size=${request.width}x${request.height} dir=${sessionDirectory}`,
+  )
+
   return {
     sessionId,
   }
@@ -168,6 +185,12 @@ export async function writeExportFrame(
 ) {
   const sessionDirectory = getSessionDirectory(sessionId)
   await writeFile(getFramePath(sessionDirectory, frameIndex), frameBuffer)
+
+  if (frameIndex === 0 || (frameIndex + 1) % FRAME_LOG_INTERVAL === 0) {
+    console.info(
+      `${getLogPrefix(sessionId)} frame frameIndex=${frameIndex} bytes=${frameBuffer.byteLength}`,
+    )
+  }
 }
 
 export async function writeExportAudio(
@@ -176,12 +199,17 @@ export async function writeExportAudio(
 ) {
   const sessionDirectory = getSessionDirectory(sessionId)
   await writeFile(getAudioPath(sessionDirectory), audioBuffer)
+
+  console.info(
+    `${getLogPrefix(sessionId)} audio bytes=${audioBuffer.byteLength}`,
+  )
 }
 
 export async function finalizeExportSession(
   sessionId: string,
 ) {
   const sessionDirectory = getSessionDirectory(sessionId)
+  const startedAt = Date.now()
   const metadata = await readMetadata(sessionDirectory)
   const frameFiles = (await readdir(getFramesDirectory(sessionDirectory)))
     .filter(fileName => fileName.endsWith('.png'))
@@ -198,12 +226,47 @@ export async function finalizeExportSession(
   const { contentType, fileExtension } = getOutputDetails(metadata.format)
   const outputPath = join(sessionDirectory, `output.${fileExtension}`)
 
-  await execFileAsync('ffmpeg', getFfmpegArgs(metadata, sessionDirectory, outputPath), {
-    timeout: 280_000,
-  })
+  console.info(
+    `${getLogPrefix(sessionId)} finalize:start format=${metadata.format} frames=${frameFiles.length}/${metadata.frameCount} output=${outputPath}`,
+  )
+
+  try {
+    const { stderr } = await execFileAsync(
+      'ffmpeg',
+      getFfmpegArgs(metadata, sessionDirectory, outputPath),
+      {
+        timeout: 280_000,
+      },
+    )
+
+    console.info(
+      `${getLogPrefix(sessionId)} finalize:ffmpeg-ok elapsedMs=${Date.now() - startedAt} stderrTail=${JSON.stringify(getStderrTail(stderr, 1200))}`,
+    )
+  }
+  catch (error) {
+    const execError = error as Error & {
+      code?: number | string
+      killed?: boolean
+      signal?: NodeJS.Signals | string
+      stderr?: string
+      stdout?: string
+    }
+
+    console.error(
+      `${getLogPrefix(sessionId)} finalize:ffmpeg-failed elapsedMs=${Date.now() - startedAt} code=${String(execError.code ?? '')} signal=${String(execError.signal ?? '')} killed=${String(execError.killed ?? false)} message=${execError.message}`,
+    )
+    console.error(
+      `${getLogPrefix(sessionId)} finalize:ffmpeg-stderr ${getStderrTail(execError.stderr)}`,
+    )
+    throw error
+  }
 
   const buffer = await readFile(outputPath)
   await unlink(outputPath)
+
+  console.info(
+    `${getLogPrefix(sessionId)} finalize:done elapsedMs=${Date.now() - startedAt} bytes=${buffer.byteLength}`,
+  )
 
   return {
     buffer,

@@ -92,9 +92,11 @@ async function handleAudioUpload(formData: FormData) {
 
 async function handleFinalize(formData: FormData) {
   const sessionId = parseRequiredString(formData, 'sessionId')
+  console.info(`[export][session:${sessionId}] route finalize request received`)
   const result = await finalizeExportSession(sessionId)
 
   await removeExportSession(sessionId)
+  console.info(`[export][session:${sessionId}] route finalize response ready bytes=${result.buffer.byteLength}`)
 
   return new NextResponse(result.buffer, {
     headers: {
@@ -105,8 +107,9 @@ async function handleFinalize(formData: FormData) {
 }
 
 export async function POST(request: Request) {
+  let action: string | null = null
   try {
-    const action = new URL(request.url).searchParams.get('action')
+    action = new URL(request.url).searchParams.get('action')
     const formData = await request.formData()
 
     if (action === 'init') {
@@ -129,6 +132,10 @@ export async function POST(request: Request) {
   }
   catch (error) {
     const message = error instanceof Error ? error.message : 'Export request failed.'
+    console.error(
+      `[export][route] action=${action ?? 'unknown'} failed: ${message}`,
+      error,
+    )
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -92,6 +92,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showMidiRoll: false,
   cameraView: 'default',
 }
+const DEFAULT_EXPORT_FORMAT: ExportFormat = 'mp4'
+const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
 
 const MENU_REVEAL_DELAY_MS = 3000
 const MENU_IDLE_HIDE_MS = 3000
@@ -671,8 +673,10 @@ export default function Home() {
     getRandomLibraryTrack(),
   )
 
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('webm')
-  const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>('current')
+  const [exportFormat, setExportFormat] = useState<ExportFormat>(DEFAULT_EXPORT_FORMAT)
+  const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
+    DEFAULT_EXPORT_CAMERA_MODE,
+  )
 
   const {
     isPlaying,
@@ -1510,6 +1514,8 @@ export default function Home() {
 
   const resetSettings = () => {
     setSettings({ ...DEFAULT_SETTINGS })
+    setExportFormat(DEFAULT_EXPORT_FORMAT)
+    setExportCameraMode(DEFAULT_EXPORT_CAMERA_MODE)
     resetBpm()
   }
 
@@ -1567,8 +1573,8 @@ export default function Home() {
 
   const exportVisualizerSettings = useMemo(() => ({
     showMidiRoll: true,
-    cameraView: settings.cameraView,
-  }), [settings.cameraView])
+    cameraView: exportRenderState?.cameraView ?? settings.cameraView,
+  }), [exportRenderState?.cameraView, settings.cameraView])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const hasOpenOverlay = showLibrary || showSettings
