@@ -86,6 +86,7 @@ const MIDI_ROLL_FLAT_SPEED = 1.8
 const MIDI_ROLL_FLAT_Y = 13 
 const MIDI_ROLL_SPACE_Y = -2
 const MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO = 0.1
+const MIDI_ROLL_PLAYED_FADE_DURATION_SCALE = 0.5
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
   front: 1.24,
@@ -191,7 +192,7 @@ function getPlayedMidiRollFadeOpacity(currentTime: number, note: NoteEvent) {
 }
 
 function getPlayedMidiRollFadeDuration(note: NoteEvent) {
-  return Math.max(note.duration, 0.24)
+  return Math.max(note.duration * MIDI_ROLL_PLAYED_FADE_DURATION_SCALE, 0.24)
 }
 
 function getResolvedGlobalTime(
