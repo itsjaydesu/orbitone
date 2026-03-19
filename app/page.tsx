@@ -123,7 +123,7 @@ declare global {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  showBottomTrackMeta: false,
+  showBottomTrackMeta: true,
   volumePercent: 100,
   showMidiRoll: false,
   cameraView: 'default',
@@ -320,7 +320,7 @@ const CREATOR_LINKS: Record<AppLanguage, CreatorLink[]> = {
 const UI_COPY: Record<AppLanguage, UiCopy> = {
   en: {
     aboutTitle: 'About',
-    bottomTrackMeta: 'Bottom Track Credits',
+    bottomTrackMeta: 'Show Title',
     cameraView: 'Camera View',
     closeAbout: 'Close about panel',
     closeLibrary: 'Close MIDI library',
@@ -366,7 +366,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
   },
   ja: {
     aboutTitle: 'オービトーンについて',
-    bottomTrackMeta: '下部の曲情報',
+    bottomTrackMeta: 'タイトル表示',
     cameraView: 'カメラアングル',
     closeAbout: '概要を閉じる',
     closeLibrary: 'MIDIライブラリを閉じる',
@@ -726,6 +726,7 @@ export default function Home() {
   const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
     DEFAULT_EXPORT_CAMERA_MODE,
   )
+  const [isVideoExportExpanded, setIsVideoExportExpanded] = useState(false)
 
   const {
     isPlaying,
@@ -1055,6 +1056,12 @@ export default function Home() {
 
     libraryListRef.current?.scrollTo({ behavior: 'auto', top: 0 })
   }, [activeLibraryCategoryId, showLibrary])
+
+  useEffect(() => {
+    if (!showSettings) {
+      setIsVideoExportExpanded(false)
+    }
+  }, [showSettings])
 
   useEffect(() => {
     const hasOpenLayer
@@ -2298,58 +2305,60 @@ export default function Home() {
                     </button>
                   )}
 
-                  <button
-                    onClick={(e) => {
-                      updateSetting(
-                        'showBottomTrackMeta',
-                        !settings.showBottomTrackMeta,
-                      )
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                      settings.showBottomTrackMeta
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.bottomTrackMeta}</span>
-                    <span
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={(e) => {
+                        updateSetting('showMidiRoll', !settings.showMidiRoll)
+                        e.currentTarget.blur()
+                      }}
                       className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.showBottomTrackMeta
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.showBottomTrackMeta ? copy.show : copy.hide}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      updateSetting('showMidiRoll', !settings.showMidiRoll)
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                      settings.showMidiRoll
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.midiRoll}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                        'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
                         settings.showMidiRoll
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
+                          ? 'nm-toggle-active'
+                          : 'nm-raised text-[var(--nm-text)]',
                       )}
                     >
-                      {settings.showMidiRoll ? copy.show : copy.hide}
-                    </span>
-                  </button>
+                      <span>{copy.midiRoll}</span>
+                      <span
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                          settings.showMidiRoll
+                            ? 'text-[var(--nm-bg)]'
+                            : 'text-[var(--nm-text-dim)]',
+                        )}
+                      >
+                        {settings.showMidiRoll ? copy.show : copy.hide}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        updateSetting(
+                          'showBottomTrackMeta',
+                          !settings.showBottomTrackMeta,
+                        )
+                        e.currentTarget.blur()
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
+                        settings.showBottomTrackMeta
+                          ? 'nm-toggle-active'
+                          : 'nm-raised text-[var(--nm-text)]',
+                      )}
+                    >
+                      <span>{copy.bottomTrackMeta}</span>
+                      <span
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                          settings.showBottomTrackMeta
+                            ? 'text-[var(--nm-bg)]'
+                            : 'text-[var(--nm-text-dim)]',
+                        )}
+                      >
+                        {settings.showBottomTrackMeta ? copy.show : copy.hide}
+                      </span>
+                    </button>
+                  </div>
 
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
@@ -2416,80 +2425,97 @@ export default function Home() {
                   </div>
 
                   <div className="mt-2 flex flex-col gap-2">
-                    <span className="text-sm text-[var(--nm-text-dim)]">
-                      {copy.videoExport}
-                    </span>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--nm-text-faint)]">
-                          {copy.exportFormat}
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(['webm', 'mp4'] as const).map(fmt => (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        setIsVideoExportExpanded(current => !current)
+                        e.currentTarget.blur()
+                      }}
+                      className="nm-raised flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--nm-text)]"
+                      aria-expanded={isVideoExportExpanded}
+                    >
+                      <span>{copy.videoExport}</span>
+                      <ChevronRight
+                        className={cn(
+                          'h-4 w-4 transition-transform duration-200',
+                          isVideoExportExpanded && 'rotate-90',
+                        )}
+                      />
+                    </button>
+
+                    {isVideoExportExpanded && (
+                      <div className="nm-well flex flex-col gap-2 rounded-xl p-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-[var(--nm-text-faint)]">
+                            {copy.exportFormat}
+                          </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(['webm', 'mp4'] as const).map(fmt => (
+                              <button
+                                key={fmt}
+                                onClick={(e) => {
+                                  setExportFormat(fmt)
+                                  e.currentTarget.blur()
+                                }}
+                                className={cn(
+                                  'rounded-xl px-2 py-1.5 text-xs font-medium uppercase',
+                                  exportFormat === fmt
+                                    ? 'nm-toggle-active'
+                                    : 'nm-raised text-[var(--nm-text-dim)]',
+                                )}
+                              >
+                                {fmt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-[var(--nm-text-faint)]">
+                            {copy.exportCameraMode}
+                          </span>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
-                              key={fmt}
                               onClick={(e) => {
-                                setExportFormat(fmt)
+                                setExportCameraMode('current')
                                 e.currentTarget.blur()
                               }}
                               className={cn(
-                                'rounded-xl px-2 py-1.5 text-xs font-medium uppercase',
-                                exportFormat === fmt
+                                'rounded-xl px-2 py-1.5 text-xs font-medium',
+                                exportCameraMode === 'current'
                                   ? 'nm-toggle-active'
                                   : 'nm-raised text-[var(--nm-text-dim)]',
                               )}
                             >
-                              {fmt}
+                              {copy.exportCameraCurrent}
                             </button>
-                          ))}
+                            <button
+                              onClick={(e) => {
+                                setExportCameraMode('cycle')
+                                e.currentTarget.blur()
+                              }}
+                              className={cn(
+                                'rounded-xl px-2 py-1.5 text-xs font-medium',
+                                exportCameraMode === 'cycle'
+                                  ? 'nm-toggle-active'
+                                  : 'nm-raised text-[var(--nm-text-dim)]',
+                              )}
+                            >
+                              {copy.exportCameraCycle}
+                            </button>
+                          </div>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            handleStartExport()
+                            e.currentTarget.blur()
+                          }}
+                          disabled={notes.length === 0 || isExporting}
+                          className="nm-accent-raised w-full rounded-xl py-2 text-sm font-medium disabled:opacity-40"
+                        >
+                          {copy.exportButton}
+                        </button>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--nm-text-faint)]">
-                          {copy.exportCameraMode}
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={(e) => {
-                              setExportCameraMode('current')
-                              e.currentTarget.blur()
-                            }}
-                            className={cn(
-                              'rounded-xl px-2 py-1.5 text-xs font-medium',
-                              exportCameraMode === 'current'
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            {copy.exportCameraCurrent}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              setExportCameraMode('cycle')
-                              e.currentTarget.blur()
-                            }}
-                            className={cn(
-                              'rounded-xl px-2 py-1.5 text-xs font-medium',
-                              exportCameraMode === 'cycle'
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            {copy.exportCameraCycle}
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          handleStartExport()
-                          e.currentTarget.blur()
-                        }}
-                        disabled={notes.length === 0 || isExporting}
-                        className="nm-accent-raised w-full rounded-xl py-2 text-sm font-medium disabled:opacity-40"
-                      >
-                        {copy.exportButton}
-                      </button>
-                    </div>
+                    )}
                   </div>
 
                   <div className="mt-2 flex flex-col gap-2">

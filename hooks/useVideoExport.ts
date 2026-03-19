@@ -53,7 +53,7 @@ interface ExportTrackMeta {
 }
 
 const EXPORT_TRACK_META_BOTTOM_PX = 88
-const EXPORT_TRACK_META_GAP_PX = 10
+const EXPORT_TRACK_META_GAP_PX = 15
 const EXPORT_TRACK_META_MAX_WIDTH_PX = 900
 const EXPORT_TRACK_META_SIDE_PADDING_PX = 96
 const EXPORT_TRACK_META_FADE_IN_SECONDS = 4.5
@@ -62,9 +62,9 @@ const EXPORT_TRACK_META_SUBTITLE_COLOR = 'rgba(255, 255, 255, 0.25)'
 const EXPORT_TRACK_META_SHADOW_COLOR = 'rgba(0, 0, 0, 0.8)'
 const EXPORT_TRACK_META_STROKE_COLOR = 'rgba(0, 0, 0, 0.72)'
 const EXPORT_TRACK_META_TITLE_FONT
-  = '600 41px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  = '600 62px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 const EXPORT_TRACK_META_SUBTITLE_FONT
-  = '600 25px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  = '600 38px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value))
@@ -124,7 +124,7 @@ function drawExportTrackMeta(
     lines.push({
       color: EXPORT_TRACK_META_TITLE_COLOR,
       font: EXPORT_TRACK_META_TITLE_FONT,
-      lineHeight: 48,
+      lineHeight: 72,
       text: trackMeta.title,
     })
   }
@@ -133,7 +133,7 @@ function drawExportTrackMeta(
     lines.push({
       color: EXPORT_TRACK_META_SUBTITLE_COLOR,
       font: EXPORT_TRACK_META_SUBTITLE_FONT,
-      lineHeight: 29,
+      lineHeight: 44,
       text: trackMeta.subtitle.toUpperCase(),
     })
   }
@@ -164,7 +164,7 @@ function drawExportTrackMeta(
     context.fillStyle = line.color
     const text = trimTextToWidth(context, line.text, maxWidth)
     context.lineJoin = 'round'
-    context.lineWidth = index === 0 ? 6 : 4
+    context.lineWidth = index === 0 ? 9 : 6
     context.strokeStyle = EXPORT_TRACK_META_STROKE_COLOR
     context.strokeText(text, width / 2, currentY, maxWidth)
     context.fillText(text, width / 2, currentY, maxWidth)

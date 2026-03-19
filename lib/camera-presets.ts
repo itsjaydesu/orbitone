@@ -38,7 +38,7 @@ export const CAMERA_VIEW_LABELS: Record<CameraView, string> = {
   default: 'Default',
   front: 'Front',
   side: 'Side',
-  vortex: 'Vortex',
+  vortex: 'Low',
   orbit: 'Orbit',
   zenith: 'Zenith',
 }
@@ -47,7 +47,7 @@ export const CAMERA_VIEW_LABELS_JA: Record<CameraView, string> = {
   default: 'デフォルト',
   front: '正面',
   side: '横',
-  vortex: 'ボルテックス',
+  vortex: 'ロー',
   orbit: 'オービット',
   zenith: '天頂',
 }
