@@ -18,6 +18,8 @@ export interface ExportTimeline {
   height: number
   frameCount: number
   audioDurationSeconds: number
+  contentEndSeconds: number
+  finalFadeStartSeconds: number
   firstNoteTimeSeconds: number
   introSettleSeconds: number
   playbackStartSeconds: number
@@ -44,6 +46,7 @@ export interface ExportCameraTransitionState {
 }
 
 export interface ExportSessionInitRequest {
+  fileName: string
   format: ExportFormat
   fps: number
   frameCount: number
@@ -60,9 +63,12 @@ export const EXPORT_FRAME_IMAGE_MIME_TYPE = 'image/png'
 export const EXPORT_FRAME_FILE_EXTENSION = 'png'
 export const EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS = 10
 export const EXPORT_CAMERA_TRANSITION_SECONDS = 5
+export const EXPORT_FINAL_FADE_OUT_SECONDS = 3
 export const EXPORT_VISUAL_TAIL_SECONDS = 7
 export const EXPORT_PLAYBACK_ADVANCE_SECONDS = 0.5
 export const SUPPORTED_EXPORT_FORMATS: readonly ExportFormat[] = ['mp4', 'webm']
+const EXPORT_FILENAME_FALLBACK_STEM = 'orbitone-export'
+const EXPORT_FLOAT_EPSILON = 1e-6
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value))
@@ -98,8 +104,40 @@ export function getExportPlaybackEndSeconds(notes: NoteEvent[]) {
   )
 }
 
+function getTransitionSafeFadeStartSeconds(
+  contentEndSeconds: number,
+  cameraMode: ExportCameraMode,
+) {
+  if (cameraMode !== 'cycle' || EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS <= 0) {
+    return contentEndSeconds
+  }
+
+  const stableWindowSeconds = Math.max(
+    EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS - EXPORT_CAMERA_TRANSITION_SECONDS,
+    0,
+  )
+  const latestFadeStartOffset = Math.max(
+    stableWindowSeconds - EXPORT_FINAL_FADE_OUT_SECONDS,
+    0,
+  )
+  const cycleOffset
+    = ((contentEndSeconds % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
+      + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
+      % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+
+  if (cycleOffset <= latestFadeStartOffset + EXPORT_FLOAT_EPSILON) {
+    return contentEndSeconds
+  }
+
+  return Math.ceil(
+    (contentEndSeconds - EXPORT_FLOAT_EPSILON)
+    / EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS,
+  ) * EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+}
+
 export function createExportTimeline(
   notes: NoteEvent[],
+  cameraMode: ExportCameraMode = 'current',
   fps: number = EXPORT_FPS,
   width: number = EXPORT_WIDTH,
   height: number = EXPORT_HEIGHT,
@@ -112,7 +150,13 @@ export function createExportTimeline(
     0,
   )
   const playbackEndSeconds = getExportPlaybackEndSeconds(notes)
-  const totalDurationSeconds = playbackStartSeconds + playbackEndSeconds
+  const contentEndSeconds = playbackStartSeconds + playbackEndSeconds
+  const finalFadeStartSeconds = getTransitionSafeFadeStartSeconds(
+    contentEndSeconds,
+    cameraMode,
+  )
+  const totalDurationSeconds
+    = finalFadeStartSeconds + EXPORT_FINAL_FADE_OUT_SECONDS
   const frameCount = Math.max(1, Math.ceil(totalDurationSeconds * fps))
 
   return {
@@ -121,6 +165,8 @@ export function createExportTimeline(
     height,
     frameCount,
     audioDurationSeconds,
+    contentEndSeconds,
+    finalFadeStartSeconds,
     firstNoteTimeSeconds,
     introSettleSeconds,
     playbackStartSeconds,
@@ -232,6 +278,47 @@ export function getExportFrameRenderState(
     progress,
     transportTime: getExportTransportTime(globalTime, timeline),
   }
+}
+
+export function getExportFadeToBlackOpacity(
+  globalTime: number,
+  timeline: ExportTimeline,
+) {
+  if (globalTime <= timeline.finalFadeStartSeconds) {
+    return 0
+  }
+
+  const displayedFrameEndTime = globalTime + 1 / Math.max(timeline.fps, 1)
+
+  return clamp01(
+    (displayedFrameEndTime - timeline.finalFadeStartSeconds)
+    / EXPORT_FINAL_FADE_OUT_SECONDS,
+  )
+}
+
+function slugifyExportFileStem(fileName: string) {
+  const stem = fileName
+    .replace(/\.[^/.]+$/u, '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .replace(/['’]/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+    .replace(/-+/gu, '-')
+
+  return stem || EXPORT_FILENAME_FALLBACK_STEM
+}
+
+export function getExportDownloadFileName(
+  sourceFileName: string | null | undefined,
+  format: ExportFormat,
+) {
+  const fileStem = sourceFileName
+    ? slugifyExportFileStem(sourceFileName)
+    : EXPORT_FILENAME_FALLBACK_STEM
+
+  return `${fileStem}-orbitone.${format}`
 }
 
 export function validateExportRequest(

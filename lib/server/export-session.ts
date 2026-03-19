@@ -1,10 +1,11 @@
+import type { Buffer } from 'node:buffer'
 import type { ExportFormat, ExportSessionInitRequest } from '@/lib/export'
-import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import {
   mkdir,
-  readFile,
   readdir,
+  readFile,
   rm,
   stat,
   unlink,
@@ -26,10 +27,22 @@ interface FinalizedExport {
   fileName: string
 }
 
+interface LoudnessAnalysis {
+  inputI: number
+  inputLra: number
+  inputTp: number
+  inputThresh: number
+  targetOffset: number
+}
+
 const EXPORT_SESSION_ROOT_DIRECTORY = join(tmpdir(), 'orbitone-exports')
 const METADATA_FILE_NAME = 'metadata.json'
 const AUDIO_FILE_NAME = 'audio.wav'
+const NORMALIZED_AUDIO_FILE_NAME = 'audio-normalized.wav'
 const FRAME_LOG_INTERVAL = 600
+const STREAMING_TARGET_LUFS = -14
+const STREAMING_TARGET_LRA = 11
+const STREAMING_TARGET_TRUE_PEAK_DBTP = -1.5
 
 function getSessionDirectory(sessionId: string) {
   return join(EXPORT_SESSION_ROOT_DIRECTORY, sessionId)
@@ -45,6 +58,10 @@ function getMetadataPath(sessionDirectory: string) {
 
 function getAudioPath(sessionDirectory: string) {
   return join(sessionDirectory, AUDIO_FILE_NAME)
+}
+
+function getNormalizedAudioPath(sessionDirectory: string) {
+  return join(sessionDirectory, NORMALIZED_AUDIO_FILE_NAME)
 }
 
 function getFramePath(sessionDirectory: string, frameIndex: number) {
@@ -73,6 +90,20 @@ function getOutputDetails(format: ExportFormat) {
   }
 }
 
+function getRequestedDownloadFileName(
+  fileName: string,
+  fileExtension: string,
+) {
+  const trimmed = fileName.trim()
+  const stem = trimmed.replace(/\.[^/.]+$/u, '').trim()
+
+  if (stem.length === 0) {
+    return `orbitone-export.${fileExtension}`
+  }
+
+  return `${stem}.${fileExtension}`
+}
+
 function getLogPrefix(sessionId: string) {
   return `[export][session:${sessionId}]`
 }
@@ -85,9 +116,121 @@ function getStderrTail(stderr: string | undefined, maxLength = 4000) {
   return stderr.length <= maxLength ? stderr : stderr.slice(-maxLength)
 }
 
+function parseLoudnessAnalysis(stderr: string | undefined) {
+  const trimmed = stderr?.trim() ?? ''
+  const jsonStart = trimmed.lastIndexOf('{')
+  const jsonEnd = trimmed.lastIndexOf('}')
+
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+    throw new TypeError('FFmpeg loudness analysis did not return parseable JSON.')
+  }
+
+  const parsed = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1)) as Record<string, string>
+  const readNumber = (key: string) => {
+    const value = Number(parsed[key])
+
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`FFmpeg loudness analysis did not return a valid ${key} value.`)
+    }
+
+    return value
+  }
+
+  return {
+    inputI: readNumber('input_i'),
+    inputLra: readNumber('input_lra'),
+    inputTp: readNumber('input_tp'),
+    inputThresh: readNumber('input_thresh'),
+    targetOffset: readNumber('target_offset'),
+  } satisfies LoudnessAnalysis
+}
+
+function getLoudnessAnalysisFilter() {
+  return `loudnorm=I=${STREAMING_TARGET_LUFS}:LRA=${STREAMING_TARGET_LRA}:TP=${STREAMING_TARGET_TRUE_PEAK_DBTP}:print_format=json`
+}
+
+function getLoudnessNormalizationFilter(analysis: LoudnessAnalysis) {
+  return [
+    'loudnorm=',
+    `I=${STREAMING_TARGET_LUFS}:`,
+    `LRA=${STREAMING_TARGET_LRA}:`,
+    `TP=${STREAMING_TARGET_TRUE_PEAK_DBTP}:`,
+    `measured_I=${analysis.inputI.toFixed(2)}:`,
+    `measured_LRA=${analysis.inputLra.toFixed(2)}:`,
+    `measured_TP=${analysis.inputTp.toFixed(2)}:`,
+    `measured_thresh=${analysis.inputThresh.toFixed(2)}:`,
+    `offset=${analysis.targetOffset.toFixed(2)}:`,
+    'linear=true:',
+    'print_format=summary',
+  ].join('')
+}
+
+async function analyzeExportAudioLoudness(
+  sessionId: string,
+  sessionDirectory: string,
+) {
+  const startedAt = Date.now()
+  const { stderr } = await execFileAsync(
+    'ffmpeg',
+    [
+      '-i',
+      getAudioPath(sessionDirectory),
+      '-af',
+      getLoudnessAnalysisFilter(),
+      '-f',
+      'null',
+      '-',
+    ],
+    {
+      timeout: 280_000,
+    },
+  )
+  const analysis = parseLoudnessAnalysis(stderr)
+
+  console.info(
+    `${getLogPrefix(sessionId)} loudness:analysis elapsedMs=${Date.now() - startedAt} inputI=${analysis.inputI.toFixed(2)} inputTp=${analysis.inputTp.toFixed(2)} inputLra=${analysis.inputLra.toFixed(2)} offset=${analysis.targetOffset.toFixed(2)}`,
+  )
+
+  return analysis
+}
+
+async function normalizeExportAudio(
+  sessionId: string,
+  sessionDirectory: string,
+) {
+  const startedAt = Date.now()
+  const analysis = await analyzeExportAudioLoudness(sessionId, sessionDirectory)
+  const normalizedAudioPath = getNormalizedAudioPath(sessionDirectory)
+  const { stderr } = await execFileAsync(
+    'ffmpeg',
+    [
+      '-i',
+      getAudioPath(sessionDirectory),
+      '-af',
+      getLoudnessNormalizationFilter(analysis),
+      '-ar',
+      '48000',
+      '-c:a',
+      'pcm_s16le',
+      '-y',
+      normalizedAudioPath,
+    ],
+    {
+      timeout: 280_000,
+    },
+  )
+
+  console.info(
+    `${getLogPrefix(sessionId)} loudness:normalized elapsedMs=${Date.now() - startedAt} stderrTail=${JSON.stringify(getStderrTail(stderr, 1200))}`,
+  )
+
+  return normalizedAudioPath
+}
+
 function getFfmpegArgs(
   metadata: ExportSessionMetadata,
   sessionDirectory: string,
+  normalizedAudioPath: string,
   outputPath: string,
 ) {
   const frameSequencePath = join(getFramesDirectory(sessionDirectory), 'frame-%06d.png')
@@ -99,7 +242,7 @@ function getFfmpegArgs(
     '-i',
     frameSequencePath,
     '-i',
-    getAudioPath(sessionDirectory),
+    normalizedAudioPath,
     '-map',
     '0:v:0',
     '-map',
@@ -225,6 +368,7 @@ export async function finalizeExportSession(
 
   const { contentType, fileExtension } = getOutputDetails(metadata.format)
   const outputPath = join(sessionDirectory, `output.${fileExtension}`)
+  const normalizedAudioPath = await normalizeExportAudio(sessionId, sessionDirectory)
 
   console.info(
     `${getLogPrefix(sessionId)} finalize:start format=${metadata.format} frames=${frameFiles.length}/${metadata.frameCount} output=${outputPath}`,
@@ -233,7 +377,7 @@ export async function finalizeExportSession(
   try {
     const { stderr } = await execFileAsync(
       'ffmpeg',
-      getFfmpegArgs(metadata, sessionDirectory, outputPath),
+      getFfmpegArgs(metadata, sessionDirectory, normalizedAudioPath, outputPath),
       {
         timeout: 280_000,
       },
@@ -271,7 +415,7 @@ export async function finalizeExportSession(
   return {
     buffer,
     contentType,
-    fileName: `orbitone-export-${Date.now()}.${fileExtension}`,
+    fileName: getRequestedDownloadFileName(metadata.fileName, fileExtension),
   } satisfies FinalizedExport
 }
 

@@ -706,6 +706,9 @@ export default function Home() {
   const [currentTrackTitle, setCurrentTrackTitle] = useState<string | null>(
     null,
   )
+  const [currentTrackFileName, setCurrentTrackFileName] = useState<string | null>(
+    null,
+  )
   const [currentLibraryTrackId, setCurrentLibraryTrackId] = useState<
     string | null
   >(null)
@@ -870,6 +873,7 @@ export default function Home() {
       pedalEvents,
       playbackGain,
     },
+    exportSourceFileName: currentTrackFileName,
     exportTrackMeta: {
       enabled: settings.showBottomTrackMeta,
       subtitle: displayTrackMeta.subtitle,
@@ -1158,6 +1162,7 @@ export default function Home() {
       setCurrentTrackTitle(
         options?.title ?? formatLoadedTitle(file.name, language),
       )
+      setCurrentTrackFileName(file.name)
       setCurrentLibraryTrackId(options?.libraryTrackId ?? null)
 
       return true

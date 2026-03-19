@@ -47,7 +47,7 @@ async function collectExportCandidates(rootDirectory) {
       continue
     }
 
-    if (!/^orbitone-export-.*\.(mp4|webm)$/i.test(entry.name)) {
+    if (!/(^orbitone-export-.*|.*-orbitone)\.(mp4|webm)$/i.test(entry.name)) {
       continue
     }
 

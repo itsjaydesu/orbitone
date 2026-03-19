@@ -41,6 +41,7 @@ function parseInitRequest(formData: FormData): ExportSessionInitRequest {
   }
 
   return {
+    fileName: parseRequiredString(formData, 'fileName'),
     format,
     fps: parseRequiredNumber(formData, 'fps'),
     frameCount: parseRequiredNumber(formData, 'frameCount'),

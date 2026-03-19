@@ -12,6 +12,8 @@ import { renderOfflineAudioWav } from '@/lib/export-audio'
 import {
   createExportTimeline,
   EXPORT_FRAME_IMAGE_MIME_TYPE,
+  getExportDownloadFileName,
+  getExportFadeToBlackOpacity,
   getExportFrameRenderState,
   validateExportRequest,
 } from '@/lib/export'
@@ -174,6 +176,7 @@ function drawExportTrackMeta(
 
 interface UseVideoExportOptions {
   exportSource: ExportSourceData
+  exportSourceFileName: string | null
   exportTrackMeta: ExportTrackMeta
   isPlaying: boolean
   togglePlay: () => Promise<void>
@@ -182,6 +185,7 @@ interface UseVideoExportOptions {
 
 export function useVideoExport({
   exportSource,
+  exportSourceFileName,
   exportTrackMeta,
   isPlaying,
   togglePlay,
@@ -213,7 +217,7 @@ export function useVideoExport({
     }
     catch {
     }
-  }, [exportTrackMeta])
+  }, [])
 
   const resetUiState = useCallback(() => {
     setProgress(0)
@@ -263,9 +267,13 @@ export function useVideoExport({
     controller.renderFrame(timestampMs)
   }, [])
 
-  const captureFrame = useCallback(async (
-    trackMetaOpacity: number = 1,
-  ) => {
+  const captureFrame = useCallback(async ({
+    screenFadeOpacity = 0,
+    trackMetaOpacity = 1,
+  }: {
+    screenFadeOpacity?: number
+    trackMetaOpacity?: number
+  } = {}) => {
     const canvas = canvasRef.current
 
     if (!canvas) {
@@ -275,9 +283,11 @@ export function useVideoExport({
     const shouldDrawTrackMeta
       = exportTrackMeta.enabled
         && Boolean(exportTrackMeta.title || exportTrackMeta.subtitle)
+    const safeScreenFadeOpacity = clamp01(screenFadeOpacity)
+    const shouldDrawScreenFade = safeScreenFadeOpacity > 0
     let captureTarget: HTMLCanvasElement = canvas
 
-    if (shouldDrawTrackMeta) {
+    if (shouldDrawTrackMeta || shouldDrawScreenFade) {
       const compositeCanvas
         = compositeCanvasRef.current ?? document.createElement('canvas')
       compositeCanvasRef.current = compositeCanvas
@@ -298,6 +308,15 @@ export function useVideoExport({
         exportTrackMeta,
         trackMetaOpacity,
       )
+
+      if (shouldDrawScreenFade) {
+        context.save()
+        context.globalAlpha = safeScreenFadeOpacity
+        context.fillStyle = '#000'
+        context.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height)
+        context.restore()
+      }
+
       captureTarget = compositeCanvas
     }
 
@@ -325,7 +344,7 @@ export function useVideoExport({
       throw new Error(validationError)
     }
 
-    const timeline = createExportTimeline(exportSource.notes)
+    const timeline = createExportTimeline(exportSource.notes, cameraMode)
     const nextRenderState = getExportFrameRenderState(
       timeline,
       frameIndex,
@@ -340,9 +359,13 @@ export function useVideoExport({
     await waitForExportRenderer()
     renderFrameNow(nextRenderState.globalTime * 1000)
 
-    const frameBlob = await captureFrame(
-      getExportTrackMetaOpacity(nextRenderState.globalTime),
-    )
+    const frameBlob = await captureFrame({
+      screenFadeOpacity: getExportFadeToBlackOpacity(
+        nextRenderState.globalTime,
+        timeline,
+      ),
+      trackMetaOpacity: getExportTrackMetaOpacity(nextRenderState.globalTime),
+    })
     setRenderState(null)
 
     return frameBlob
@@ -376,7 +399,8 @@ export function useVideoExport({
       return
     }
 
-    const timeline = createExportTimeline(exportSource.notes)
+    const timeline = createExportTimeline(exportSource.notes, cameraMode)
+    const exportFileName = getExportDownloadFileName(exportSourceFileName, format)
     const initialRenderState = getExportFrameRenderState(
       timeline,
       0,
@@ -408,6 +432,7 @@ export function useVideoExport({
 
       const initData = new FormData()
       initData.append('format', format)
+      initData.append('fileName', exportFileName)
       initData.append('fps', String(timeline.fps))
       initData.append('frameCount', String(timeline.frameCount))
       initData.append('height', String(timeline.height))
@@ -453,9 +478,13 @@ export function useVideoExport({
         })
         renderFrameNow(nextRenderState.globalTime * 1000)
 
-        const frameBlob = await captureFrame(
-          getExportTrackMetaOpacity(nextRenderState.globalTime),
-        )
+        const frameBlob = await captureFrame({
+          screenFadeOpacity: getExportFadeToBlackOpacity(
+            nextRenderState.globalTime,
+            timeline,
+          ),
+          trackMetaOpacity: getExportTrackMetaOpacity(nextRenderState.globalTime),
+        })
         const frameUpload = new FormData()
         frameUpload.append('sessionId', sessionId)
         frameUpload.append('frameIndex', String(frameIndex))
@@ -485,7 +514,7 @@ export function useVideoExport({
 
       const videoBlob = await finalizeResponse.blob()
       activeSessionIdRef.current = null
-      downloadBlob(videoBlob, `orbitone-export-${Date.now()}.${format}`)
+      downloadBlob(videoBlob, exportFileName)
       setPhase('done')
       setProgress(1)
 
@@ -510,6 +539,7 @@ export function useVideoExport({
     captureFrame,
     clearSession,
     exportSource,
+    exportSourceFileName,
     exportTrackMeta,
     isPlaying,
     resetUiState,
