@@ -97,6 +97,14 @@ const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   orbit: 1.18,
   zenith: 1.1,
 }
+const EXPORT_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
+  default: 1.55,
+  front: 1.32,
+  side: 1.55,
+  vortex: 1.55,
+  orbit: 1.55,
+  zenith: 1.55,
+}
 const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
   default: 4,
   front: 4,
@@ -377,11 +385,12 @@ function getResponsiveCameraPose(pose: CameraPose, cameraView: CameraView, isMob
   }
 }
 
-function getExportCameraPose(pose: CameraPose, _cameraView: CameraView): CameraPose {
+function getExportCameraPose(pose: CameraPose, cameraView: CameraView): CameraPose {
   const target = vectorFromCameraVector(pose.target)
   const nextPosition = vectorFromCameraVector(pose.position)
-  // Pull camera back to compensate for 9:16 portrait crop
-  const distanceMultiplier = 1.55
+  // The portrait export crop needs a wider pull-back than the live canvas,
+  // but the flat front view reads that compensation more literally.
+  const distanceMultiplier = EXPORT_CAMERA_DISTANCE_MULTIPLIERS[cameraView]
   nextPosition.sub(target).multiplyScalar(distanceMultiplier).add(target)
 
   return {
