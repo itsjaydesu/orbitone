@@ -87,6 +87,29 @@ interface DisplayTrackMeta {
   subtitle: string | null
 }
 
+interface OrbitoneAutomationState {
+  canExport: boolean
+  currentTrackTitle: string | null
+  exportCameraMode: ExportCameraMode
+  exportFormat: ExportFormat
+  exportPhase: string
+  exportProgress: number
+  isAudioLoading: boolean
+}
+
+declare global {
+  interface Window {
+    __orbitoneAutomation?: {
+      getState: () => OrbitoneAutomationState
+      setExportOptions: (options: {
+        cameraMode?: ExportCameraMode
+        format?: ExportFormat
+      }) => void
+      startExport: () => void
+    }
+  }
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   volumePercent: 100,
   showMidiRoll: false,
@@ -636,6 +659,13 @@ export default function Home() {
   const isMobile = useIsMobile()
   // Keep primary controls accessible on touch devices instead of hiding on idle.
   const shouldPersistChrome = isMobile
+  const [isAutomationMode] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return new URLSearchParams(window.location.search).has('automation')
+  })
   const [language, setLanguage] = useState<AppLanguage>(() => {
     if (typeof window !== 'undefined' && navigator.language.startsWith('ja')) {
       return 'ja'
@@ -1464,7 +1494,8 @@ export default function Home() {
 
   useEffect(() => {
     if (
-      !initialLibraryTrack
+      isAutomationMode
+      || !initialLibraryTrack
       || currentTrackTitle !== null
       || initialTrackRequestedRef.current
     ) {
@@ -1503,7 +1534,13 @@ export default function Home() {
     return () => {
       isCancelled = true
     }
-  }, [currentTrackTitle, fetchLibraryMidiFile, initialLibraryTrack, loadMidiFile])
+  }, [
+    currentTrackTitle,
+    fetchLibraryMidiFile,
+    initialLibraryTrack,
+    isAutomationMode,
+    loadMidiFile,
+  ])
 
   const updateSetting = <K extends keyof AppSettings>(
     key: K,
@@ -1570,6 +1607,46 @@ export default function Home() {
     setShowSettings(false)
     startExport(exportFormat, exportCameraMode, settings.cameraView)
   }, [exportFormat, exportCameraMode, settings.cameraView, startExport])
+
+  useEffect(() => {
+    window.__orbitoneAutomation = {
+      getState: () => ({
+        canExport: notes.length > 0 && !isExporting,
+        currentTrackTitle,
+        exportCameraMode,
+        exportFormat,
+        exportPhase,
+        exportProgress,
+        isAudioLoading,
+      }),
+      setExportOptions: ({ cameraMode, format }) => {
+        if (format) {
+          setExportFormat(format)
+        }
+
+        if (cameraMode) {
+          setExportCameraMode(cameraMode)
+        }
+      },
+      startExport: () => {
+        handleStartExport()
+      },
+    }
+
+    return () => {
+      delete window.__orbitoneAutomation
+    }
+  }, [
+    currentTrackTitle,
+    exportCameraMode,
+    exportFormat,
+    exportPhase,
+    exportProgress,
+    handleStartExport,
+    isAudioLoading,
+    isExporting,
+    notes.length,
+  ])
 
   const exportVisualizerSettings = useMemo(() => ({
     showMidiRoll: true,

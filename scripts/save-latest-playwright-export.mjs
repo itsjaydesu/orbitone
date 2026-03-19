@@ -1,9 +1,10 @@
-import { copyFile, readdir, stat } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 
 function parseArgs(argv) {
   let inputRoot = join(tmpdir(), 'playwright-mcp-output')
+  let outputDirectory = resolve(process.cwd(), 'video-output')
   let outputName = null
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -11,6 +12,12 @@ function parseArgs(argv) {
 
     if (arg === '--input-root') {
       inputRoot = resolve(argv[index + 1] ?? inputRoot)
+      index += 1
+      continue
+    }
+
+    if (arg === '--output-dir') {
+      outputDirectory = resolve(argv[index + 1] ?? outputDirectory)
       index += 1
       continue
     }
@@ -23,6 +30,7 @@ function parseArgs(argv) {
 
   return {
     inputRoot,
+    outputDirectory,
     outputName,
   }
 }
@@ -54,7 +62,7 @@ async function collectExportCandidates(rootDirectory) {
 }
 
 async function main() {
-  const { inputRoot, outputName } = parseArgs(process.argv.slice(2))
+  const { inputRoot, outputDirectory, outputName } = parseArgs(process.argv.slice(2))
   const candidates = await collectExportCandidates(inputRoot)
 
   if (candidates.length === 0) {
@@ -65,12 +73,15 @@ async function main() {
     .sort((left, right) => right.mtimeMs - left.mtimeMs)[0]
   const defaultOutputName = basename(latestExport.path)
   const targetFileName = outputName ?? defaultOutputName
-  const outputPath = resolve(process.cwd(), targetFileName)
+  const outputPath = isAbsolute(targetFileName)
+    ? targetFileName
+    : resolve(outputDirectory, targetFileName)
 
   if (extname(outputPath) === '') {
     throw new Error('The output filename must include a file extension.')
   }
 
+  await mkdir(dirname(outputPath), { recursive: true })
   await copyFile(latestExport.path, outputPath)
   process.stdout.write(`${outputPath}\n`)
 }
