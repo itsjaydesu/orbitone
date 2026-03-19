@@ -91,17 +91,28 @@ interface DisplayTrackMeta {
 interface OrbitoneAutomationState {
   canExport: boolean
   currentTrackTitle: string | null
+  displayTrackSubtitle: string | null
+  displayTrackTitle: string | null
   exportCameraMode: ExportCameraMode
   exportFormat: ExportFormat
   exportPhase: string
   exportProgress: number
   isAudioLoading: boolean
+  showBottomTrackMeta: boolean
 }
 
 declare global {
   interface Window {
     __orbitoneAutomation?: {
+      captureExportFrame: (options?: {
+        cameraMode?: ExportCameraMode
+        cameraView?: CameraView
+        frameIndex?: number
+      }) => Promise<string>
       getState: () => OrbitoneAutomationState
+      setSettings: (options: {
+        showBottomTrackMeta?: boolean
+      }) => void
       setExportOptions: (options: {
         cameraMode?: ExportCameraMode
         format?: ExportFormat
@@ -733,27 +744,6 @@ export default function Home() {
     volumePercent: settings.volumePercent,
   })
 
-  const {
-    phase: exportPhase,
-    progress: exportProgress,
-    renderState: exportRenderState,
-    startExport,
-    cancelExport,
-    setExportCanvas,
-    setExportFrameController,
-  } = useVideoExport({
-    exportSource: {
-      notes,
-      pedalEvents,
-      playbackGain,
-    },
-    isPlaying,
-    togglePlay,
-    volumePercent: settings.volumePercent,
-  })
-
-  const isExporting = exportPhase !== 'idle'
-
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
   const brandSwapTimerRef = useRef<number | undefined>(undefined)
@@ -865,6 +855,31 @@ export default function Home() {
   const [isTrackMetaVisible, setIsTrackMetaVisible] = useState(() =>
     Boolean(localizedTrackTitle || localizedTrackSubtitle),
   )
+  const {
+    phase: exportPhase,
+    progress: exportProgress,
+    renderState: exportRenderState,
+    startExport,
+    cancelExport,
+    capturePreviewFrame,
+    setExportCanvas,
+    setExportFrameController,
+  } = useVideoExport({
+    exportSource: {
+      notes,
+      pedalEvents,
+      playbackGain,
+    },
+    exportTrackMeta: {
+      enabled: settings.showBottomTrackMeta,
+      subtitle: displayTrackMeta.subtitle,
+      title: displayTrackMeta.title,
+    },
+    isPlaying,
+    togglePlay,
+    volumePercent: settings.volumePercent,
+  })
+  const isExporting = exportPhase !== 'idle'
   const visibleLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
       return []
@@ -1618,11 +1633,14 @@ export default function Home() {
       getState: () => ({
         canExport: notes.length > 0 && !isExporting,
         currentTrackTitle,
+        displayTrackSubtitle: displayTrackMeta.subtitle,
+        displayTrackTitle: displayTrackMeta.title,
         exportCameraMode,
         exportFormat,
         exportPhase,
         exportProgress,
         isAudioLoading,
+        showBottomTrackMeta: settings.showBottomTrackMeta,
       }),
       setExportOptions: ({ cameraMode, format }) => {
         if (format) {
@@ -1632,6 +1650,37 @@ export default function Home() {
         if (cameraMode) {
           setExportCameraMode(cameraMode)
         }
+      },
+      setSettings: ({ showBottomTrackMeta }) => {
+        if (showBottomTrackMeta !== undefined) {
+          setSettings(current => ({
+            ...current,
+            showBottomTrackMeta,
+          }))
+        }
+      },
+      captureExportFrame: async (options) => {
+        const blob = await capturePreviewFrame(
+          options?.cameraMode ?? exportCameraMode,
+          options?.cameraView ?? settings.cameraView,
+          options?.frameIndex ?? 0,
+        )
+
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onerror = () => {
+            reject(new Error('Failed to encode export frame preview.'))
+          }
+          reader.onloadend = () => {
+            if (typeof reader.result !== 'string') {
+              reject(new Error('Export frame preview was not encoded as a data URL.'))
+              return
+            }
+
+            resolve(reader.result)
+          }
+          reader.readAsDataURL(blob)
+        })
       },
       startExport: () => {
         handleStartExport()
@@ -1643,14 +1692,19 @@ export default function Home() {
     }
   }, [
     currentTrackTitle,
+    displayTrackMeta.subtitle,
+    displayTrackMeta.title,
     exportCameraMode,
     exportFormat,
     exportPhase,
     exportProgress,
+    capturePreviewFrame,
     handleStartExport,
     isAudioLoading,
     isExporting,
     notes.length,
+    settings.cameraView,
+    settings.showBottomTrackMeta,
   ])
 
   const exportVisualizerSettings = useMemo(() => ({
@@ -2966,7 +3020,7 @@ export default function Home() {
         />
       </div>
 
-      {isExporting && exportRenderState && (
+      {exportRenderState && (
         <div style={{ position: 'fixed', left: -9999, top: 0, width: 1080, height: 1920, pointerEvents: 'none' }}>
           <Visualizer
             exportMode

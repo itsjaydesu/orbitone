@@ -213,7 +213,7 @@ export async function renderOfflineAudioWav(
   compressor.connect(offlineContext.destination)
 
   for (const event of source.pedalEvents) {
-    const eventTime = timeline.introSettleSeconds + event.time
+    const eventTime = timeline.playbackStartSeconds + event.time
     if (eventTime < 0 || eventTime > timeline.totalDurationSeconds) {
       continue
     }
@@ -234,7 +234,7 @@ export async function renderOfflineAudioWav(
       throw new Error(`No piano sample is available for MIDI ${note.midi}.`)
     }
 
-    const startTime = timeline.introSettleSeconds + note.time
+    const startTime = timeline.playbackStartSeconds + note.time
     if (startTime > timeline.totalDurationSeconds) {
       continue
     }

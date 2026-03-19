@@ -20,6 +20,7 @@ export interface ExportTimeline {
   audioDurationSeconds: number
   firstNoteTimeSeconds: number
   introSettleSeconds: number
+  playbackStartSeconds: number
   playbackEndSeconds: number
   totalDurationSeconds: number
 }
@@ -60,6 +61,7 @@ export const EXPORT_FRAME_FILE_EXTENSION = 'png'
 export const EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS = 10
 export const EXPORT_CAMERA_TRANSITION_SECONDS = 5
 export const EXPORT_VISUAL_TAIL_SECONDS = 7
+export const EXPORT_PLAYBACK_ADVANCE_SECONDS = 0.5
 export const SUPPORTED_EXPORT_FORMATS: readonly ExportFormat[] = ['mp4', 'webm']
 
 function clamp01(value: number) {
@@ -105,8 +107,12 @@ export function createExportTimeline(
   const audioDurationSeconds = getExportAudioDurationSeconds(notes)
   const firstNoteTimeSeconds = notes.length > 0 ? Math.max(0, notes[0].time) : 0
   const introSettleSeconds = getVisualizerIntroSettleSeconds()
+  const playbackStartSeconds = Math.max(
+    introSettleSeconds - EXPORT_PLAYBACK_ADVANCE_SECONDS,
+    0,
+  )
   const playbackEndSeconds = getExportPlaybackEndSeconds(notes)
-  const totalDurationSeconds = introSettleSeconds + playbackEndSeconds
+  const totalDurationSeconds = playbackStartSeconds + playbackEndSeconds
   const frameCount = Math.max(1, Math.ceil(totalDurationSeconds * fps))
 
   return {
@@ -117,6 +123,7 @@ export function createExportTimeline(
     audioDurationSeconds,
     firstNoteTimeSeconds,
     introSettleSeconds,
+    playbackStartSeconds,
     playbackEndSeconds,
     totalDurationSeconds,
   }
@@ -126,12 +133,12 @@ export function getExportTransportTime(
   globalTime: number,
   timeline: ExportTimeline,
 ) {
-  if (globalTime <= timeline.introSettleSeconds) {
+  if (globalTime <= timeline.playbackStartSeconds) {
     return 0
   }
 
   return Math.min(
-    Math.max(globalTime - timeline.introSettleSeconds, 0),
+    Math.max(globalTime - timeline.playbackStartSeconds, 0),
     timeline.playbackEndSeconds,
   )
 }
