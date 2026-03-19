@@ -79,6 +79,7 @@ import {
 import { cn } from '@/lib/utils'
 
 type AppSettings = VisualizerSettings & {
+  showBottomTrackMeta: boolean
   volumePercent: number
 }
 
@@ -111,6 +112,7 @@ declare global {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  showBottomTrackMeta: false,
   volumePercent: 100,
   showMidiRoll: false,
   cameraView: 'default',
@@ -170,6 +172,7 @@ interface CreatorLink {
 
 interface UiCopy {
   aboutTitle: string
+  bottomTrackMeta: string
   cameraView: string
   closeAbout: string
   closeLibrary: string
@@ -306,6 +309,7 @@ const CREATOR_LINKS: Record<AppLanguage, CreatorLink[]> = {
 const UI_COPY: Record<AppLanguage, UiCopy> = {
   en: {
     aboutTitle: 'About',
+    bottomTrackMeta: 'Bottom Track Credits',
     cameraView: 'Camera View',
     closeAbout: 'Close about panel',
     closeLibrary: 'Close MIDI library',
@@ -351,6 +355,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
   },
   ja: {
     aboutTitle: 'オービトーンについて',
+    bottomTrackMeta: '下部の曲情報',
     cameraView: 'カメラアングル',
     closeAbout: '概要を閉じる',
     closeLibrary: 'MIDIライブラリを閉じる',
@@ -1654,6 +1659,13 @@ export default function Home() {
   }), [exportRenderState?.cameraView, settings.cameraView])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
+  const bottomTrackMetaVisible = Boolean(
+    settings.showBottomTrackMeta
+    && !shouldPersistChrome
+    && isMenuReady
+    && !chromeVisible
+    && (displayTrackMeta.title || displayTrackMeta.subtitle),
+  )
   const hasOpenOverlay = showLibrary || showSettings
   const topChromeClass = cn(
     'absolute top-0 left-0 grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4 sm:gap-4 sm:p-6 min-[840px]:grid-cols-[auto_minmax(0,1fr)_auto] min-[840px]:gap-6',
@@ -1666,6 +1678,13 @@ export default function Home() {
     isMenuReady && 'transition-opacity duration-700 ease-out',
     chromeVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
   )
+  const bottomTrackMetaStyle = isMobile
+    ? {
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)',
+      }
+    : {
+        bottom: '2.5rem',
+      }
   const topChromeStyle = isMobile
     ? {
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2rem)',
@@ -2207,6 +2226,34 @@ export default function Home() {
                       </kbd>
                     </button>
                   )}
+
+                  <button
+                    onClick={(e) => {
+                      updateSetting(
+                        'showBottomTrackMeta',
+                        !settings.showBottomTrackMeta,
+                      )
+                      e.currentTarget.blur()
+                    }}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                      settings.showBottomTrackMeta
+                        ? 'nm-toggle-active'
+                        : 'nm-raised text-[var(--nm-text)]',
+                    )}
+                  >
+                    <span>{copy.bottomTrackMeta}</span>
+                    <span
+                      className={cn(
+                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                        settings.showBottomTrackMeta
+                          ? 'text-[var(--nm-bg)]'
+                          : 'text-[var(--nm-text-dim)]',
+                      )}
+                    >
+                      {settings.showBottomTrackMeta ? copy.show : copy.hide}
+                    </span>
+                  </button>
 
                   <button
                     onClick={(e) => {
@@ -2877,6 +2924,36 @@ export default function Home() {
                   )}
         </button>
       </div>
+
+      {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
+        <div
+          className={cn(
+            'pointer-events-none absolute left-1/2 z-10 w-full max-w-[min(42rem,calc(100%-2rem))] -translate-x-1/2 px-4 text-center',
+            isMenuReady && 'transition-opacity duration-700 ease-out',
+            bottomTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+          )}
+          aria-hidden={!bottomTrackMetaVisible}
+          style={bottomTrackMetaStyle}
+        >
+          <div
+            className={cn(
+              'transition-opacity duration-150 ease-out motion-reduce:transition-none',
+              isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+            )}
+          >
+            {displayTrackMeta.title && (
+              <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                {displayTrackMeta.title}
+              </div>
+            )}
+            {displayTrackMeta.subtitle && (
+              <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
+                {displayTrackMeta.subtitle}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="visualizer-intro h-full w-full">
         <Visualizer
