@@ -86,7 +86,6 @@ const MIDI_ROLL_FLAT_SPEED = 1.8
 const MIDI_ROLL_FLAT_Y = 13 
 const MIDI_ROLL_SPACE_Y = -2
 const MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO = 0.1
-const MIDI_ROLL_PLAYED_NOTE_FADE_DURATION = 1.6
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
   front: 1.24,
@@ -106,6 +105,10 @@ const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32)
 const boxGeo = new THREE.BoxGeometry(1, 1, 1)
+const MIDI_ROLL_ACTIVE_COLOR = new THREE.Color(0xFFFFFF)
+const MIDI_ROLL_IDLE_COLOR = new THREE.Color(0x888888)
+const MIDI_ROLL_ACTIVE_EMISSIVE = new THREE.Color(0xFFFFFF)
+const MIDI_ROLL_IDLE_EMISSIVE = new THREE.Color(0x444444)
 
 type IntroClockRef = MutableRefObject<number | null>
 type OrbitControlsRef = RefObject<ComponentRef<typeof OrbitControls> | null>
@@ -177,14 +180,18 @@ function getSequentialFadeInOpacity(progress: number) {
 }
 
 function getPlayedMidiRollFadeOpacity(currentTime: number, note: NoteEvent) {
-  const noteEnd = note.time + note.duration
-  if (currentTime <= noteEnd) {
+  if (currentTime <= note.time) {
     return 1
   }
 
+  const fadeDuration = getPlayedMidiRollFadeDuration(note)
   return 1 - smootherStep(
-    clamp01((currentTime - noteEnd) / MIDI_ROLL_PLAYED_NOTE_FADE_DURATION),
+    clamp01((currentTime - note.time) / fadeDuration),
   )
+}
+
+function getPlayedMidiRollFadeDuration(note: NoteEvent) {
+  return Math.max(note.duration, 0.24)
 }
 
 function getResolvedGlobalTime(
@@ -788,8 +795,8 @@ function MidiRollNote({
       )
     }
 
-    const isPlaying = timeDiff <= 0 && timeDiff >= -note.duration
     const distance = Math.abs(z)
+    const hasPlayed = currentTime >= note.time
     const playedFadeOpacity = getPlayedMidiRollFadeOpacity(currentTime, note)
     let resolvedLayerOpacity = layerOpacity
     if (layerFadePhase === 'exiting' && layerFadeDuration) {
@@ -812,14 +819,12 @@ function MidiRollNote({
 
     matRef.current.opacity = opacity
 
-    if (isPlaying) {
-      matRef.current.color.setHex(0xFFFFFF)
-      matRef.current.emissive.setHex(0xFFFFFF)
-    }
-    else {
-      matRef.current.color.setHex(0x888888)
-      matRef.current.emissive.setHex(0x444444)
-    }
+    matRef.current.color.copy(
+      hasPlayed ? MIDI_ROLL_ACTIVE_COLOR : MIDI_ROLL_IDLE_COLOR,
+    )
+    matRef.current.emissive.copy(
+      hasPlayed ? MIDI_ROLL_ACTIVE_EMISSIVE : MIDI_ROLL_IDLE_EMISSIVE,
+    )
 
     matRef.current.emissiveIntensity = getPlayedGlowIntensity({
       duration: note.duration,
@@ -884,7 +889,8 @@ function MidiRoll({
     () =>
       notes.filter(
         note =>
-          note.time >= filterTime - 2 && note.time <= filterTime + lookAhead,
+          note.time + getPlayedMidiRollFadeDuration(note) >= filterTime - 2
+          && note.time <= filterTime + lookAhead,
       ),
     [notes, filterTime, lookAhead],
   )
