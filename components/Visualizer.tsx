@@ -87,6 +87,8 @@ const MIDI_ROLL_FLAT_Y = 13
 const MIDI_ROLL_SPACE_Y = -2
 const MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO = 0.1
 const MIDI_ROLL_PLAYED_FADE_DURATION_SCALE = 0.5
+const MIDI_ROLL_FLAT_VIEW_SCALE = 0.72
+const MIDI_ROLL_SIDE_VIEW_TILT = Math.PI * 0.16
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
   front: 1.24,
@@ -125,6 +127,7 @@ interface CrossfadeState {
 }
 
 interface MidiRollLayer {
+  cameraView: CameraView
   fadeDuration?: number
   fadePhase?: 'entering' | 'exiting'
   fadeStartClock?: number
@@ -136,8 +139,10 @@ interface MidiRollLayer {
 interface MidiRollPlaneTransitionState {
   active: boolean
   fromFlatView: boolean
+  fromView: CameraView
   startClock: number
   toFlatView: boolean
+  toView: CameraView
 }
 
 const CROSSFADE_IDLE: CrossfadeState = {
@@ -152,8 +157,10 @@ const CROSSFADE_IDLE: CrossfadeState = {
 const MIDI_ROLL_PLANE_TRANSITION_IDLE: MidiRollPlaneTransitionState = {
   active: false,
   fromFlatView: false,
+  fromView: 'default',
   startClock: 0,
   toFlatView: false,
+  toView: 'default',
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value))
@@ -267,6 +274,38 @@ function vectorToCameraVector(vector: THREE.Vector3): CameraVector {
     y: Number(vector.y.toFixed(3)),
     z: Number(vector.z.toFixed(3)),
   }
+}
+
+function getMidiRollRotation(
+  cameraView: CameraView,
+  isFlatView: boolean,
+  cameraPose: CameraPose,
+): [number, number, number] {
+  if (isFlatView || cameraView !== 'side') {
+    return [0, 0, 0]
+  }
+
+  const horizontalCameraOffset = vectorFromCameraVector(cameraPose.position)
+    .sub(vectorFromCameraVector(cameraPose.target))
+  horizontalCameraOffset.y = 0
+
+  if (horizontalCameraOffset.lengthSq() < 0.0001) {
+    return [0, 0, 0]
+  }
+
+  horizontalCameraOffset.normalize()
+
+  const tiltAxis = new THREE.Vector3(
+    horizontalCameraOffset.z,
+    0,
+    -horizontalCameraOffset.x,
+  ).normalize()
+  const rotation = new THREE.Euler().setFromQuaternion(
+    new THREE.Quaternion().setFromAxisAngle(tiltAxis, MIDI_ROLL_SIDE_VIEW_TILT),
+    'XYZ',
+  )
+
+  return [rotation.x, rotation.y, rotation.z]
 }
 
 function lerpCameraPose(
@@ -853,6 +892,8 @@ function MidiRollNote({
 }
 
 function MidiRoll({
+  cameraPose,
+  cameraView,
   flatYOffset = 0,
   isFlatView,
   notes,
@@ -868,6 +909,8 @@ function MidiRoll({
   layerFadeStartClock = 0,
   timeline,
 }: {
+  cameraPose: CameraPose
+  cameraView: CameraView
   flatYOffset?: number
   isFlatView: boolean
   notes: NoteEvent[]
@@ -885,6 +928,10 @@ function MidiRoll({
 }) {
   const speed = isFlatView ? MIDI_ROLL_FLAT_SPEED : 10
   const lookAhead = timeWindow * 1.5
+  const rotation = useMemo(
+    () => getMidiRollRotation(cameraView, isFlatView, cameraPose),
+    [cameraPose, cameraView, isFlatView],
+  )
 
   const rollNotes = useMemo(
     () =>
@@ -903,6 +950,8 @@ function MidiRoll({
           ? [0, MIDI_ROLL_FLAT_Y + flatYOffset, -0.5]
           : [0, MIDI_ROLL_SPACE_Y, 0]
       }
+      rotation={rotation}
+      scale={isFlatView ? [MIDI_ROLL_FLAT_VIEW_SCALE, MIDI_ROLL_FLAT_VIEW_SCALE, 1] : undefined}
     >
       {rollNotes.map((note, index) => (
         <MidiRollNote
@@ -1290,7 +1339,9 @@ function Scene({
     = useState<MidiRollPlaneTransitionState>({
       ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
       fromFlatView: activePose.flatLock,
+      fromView: cameraView,
       toFlatView: activePose.flatLock,
+      toView: cameraView,
     })
   const [filterTime, setFilterTime] = useState(0)
   const introStartRef = useRef<number | null>(null)
@@ -1300,11 +1351,14 @@ function Scene({
   const midiRollPlaneTransitionRef = useRef<MidiRollPlaneTransitionState>({
     ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
     fromFlatView: activePose.flatLock,
+    fromView: cameraView,
     toFlatView: activePose.flatLock,
+    toView: cameraView,
   })
   const lastClockRef = useRef(0)
   const displaySignatureRef = useRef(getNotesSignature(notes))
   const prevMidiRollPlaneRef = useRef(activePose.flatLock)
+  const prevMidiRollCameraViewRef = useRef(cameraView)
   const timeWindow = DEFAULT_TIME_WINDOW
   const activeNoteSignature = getNotesSignature(notes)
   const displayNoteSignature = useMemo(
@@ -1337,6 +1391,7 @@ function Scene({
       if (fromFlatView === toFlatView) {
         return [
           {
+            cameraView: exportTransition.activeView,
             key: 'active',
             isFlatView: toFlatView,
             opacity: 1,
@@ -1360,11 +1415,13 @@ function Scene({
 
       return [
         {
+          cameraView: exportTransition.fromView,
           key: `from-${exportTransition.fromView}`,
           isFlatView: fromFlatView,
           opacity: fadeOutOpacity,
         },
         {
+          cameraView: exportTransition.toView,
           key: `to-${exportTransition.toView}`,
           isFlatView: toFlatView,
           opacity: fadeInOpacity,
@@ -1375,6 +1432,7 @@ function Scene({
     if (midiRollPlaneTransition.active) {
       return [
         {
+          cameraView: midiRollPlaneTransition.fromView,
           fadeDuration: MIDI_ROLL_PLANE_FADE_OUT_DURATION,
           fadePhase: 'exiting',
           fadeStartClock: midiRollPlaneTransition.startClock,
@@ -1383,6 +1441,7 @@ function Scene({
           opacity: 1,
         },
         {
+          cameraView: midiRollPlaneTransition.toView,
           fadeDuration: MIDI_ROLL_PLANE_FADE_IN_DURATION,
           fadePhase: 'entering',
           fadeStartClock:
@@ -1396,12 +1455,13 @@ function Scene({
 
     return [
       {
+        cameraView,
         key: 'active',
         isFlatView: activePose.flatLock,
         opacity: 1,
       },
     ]
-  }, [activePose.flatLock, cameraPresets, exportTransition, midiRollPlaneTransition])
+  }, [activePose.flatLock, cameraPresets, cameraView, exportTransition, midiRollPlaneTransition])
 
   useEffect(() => {
     if (!hasExplicitTimeline) {
@@ -1415,10 +1475,13 @@ function Scene({
   useEffect(() => {
     if (exportMode || isCameraEditing) {
       prevMidiRollPlaneRef.current = activePose.flatLock
+      prevMidiRollCameraViewRef.current = cameraView
       const settledTransition = {
         ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
         fromFlatView: activePose.flatLock,
+        fromView: cameraView,
         toFlatView: activePose.flatLock,
+        toView: cameraView,
       }
       midiRollPlaneTransitionRef.current = settledTransition
       queueMicrotask(() => {
@@ -1428,8 +1491,10 @@ function Scene({
     }
 
     const previousFlatView = prevMidiRollPlaneRef.current
+    const previousCameraView = prevMidiRollCameraViewRef.current
     const nextFlatView = activePose.flatLock
     prevMidiRollPlaneRef.current = nextFlatView
+    prevMidiRollCameraViewRef.current = cameraView
 
     if (previousFlatView === nextFlatView) {
       return
@@ -1438,14 +1503,16 @@ function Scene({
     const nextTransition = {
       active: true,
       fromFlatView: previousFlatView,
+      fromView: previousCameraView,
       startClock: lastClockRef.current,
       toFlatView: nextFlatView,
+      toView: cameraView,
     }
     midiRollPlaneTransitionRef.current = nextTransition
     queueMicrotask(() => {
       setMidiRollPlaneTransition(nextTransition)
     })
-  }, [activePose.flatLock, exportMode, isCameraEditing])
+  }, [activePose.flatLock, cameraView, exportMode, isCameraEditing])
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -1527,7 +1594,9 @@ function Scene({
       const settledTransition = {
         ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
         fromFlatView: planeTransition.toFlatView,
+        fromView: planeTransition.toView,
         toFlatView: planeTransition.toFlatView,
+        toView: planeTransition.toView,
       }
       midiRollPlaneTransitionRef.current = settledTransition
       setMidiRollPlaneTransition(settledTransition)
@@ -1613,6 +1682,13 @@ function Scene({
             <group key={layer.key}>
               {isCrossfading && (
                 <MidiRoll
+                  cameraPose={getEffectiveCameraPoseForView(
+                    cameraPresets,
+                    layer.cameraView,
+                    isMobileView,
+                    exportMode,
+                  )}
+                  cameraView={layer.cameraView}
                   flatYOffset={defaultCameraFlatYOffset}
                   isFlatView={layer.isFlatView}
                   notes={crossfadeOldNotes}
@@ -1630,6 +1706,13 @@ function Scene({
                 />
               )}
               <MidiRoll
+                cameraPose={getEffectiveCameraPoseForView(
+                  cameraPresets,
+                  layer.cameraView,
+                  isMobileView,
+                  exportMode,
+                )}
+                cameraView={layer.cameraView}
                 flatYOffset={defaultCameraFlatYOffset}
                 isFlatView={layer.isFlatView}
                 notes={isCrossfading ? crossfadeNewNotes : displayNotes}
