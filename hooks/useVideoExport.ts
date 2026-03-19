@@ -54,14 +54,23 @@ const EXPORT_TRACK_META_BOTTOM_PX = 88
 const EXPORT_TRACK_META_GAP_PX = 10
 const EXPORT_TRACK_META_MAX_WIDTH_PX = 900
 const EXPORT_TRACK_META_SIDE_PADDING_PX = 96
+const EXPORT_TRACK_META_FADE_IN_SECONDS = 4.5
 const EXPORT_TRACK_META_TITLE_COLOR = 'rgba(255, 255, 255, 0.87)'
 const EXPORT_TRACK_META_SUBTITLE_COLOR = 'rgba(255, 255, 255, 0.25)'
 const EXPORT_TRACK_META_SHADOW_COLOR = 'rgba(0, 0, 0, 0.8)'
 const EXPORT_TRACK_META_STROKE_COLOR = 'rgba(0, 0, 0, 0.72)'
 const EXPORT_TRACK_META_TITLE_FONT
-  = '600 36px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  = '600 41px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 const EXPORT_TRACK_META_SUBTITLE_FONT
-  = '600 22px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  = '600 25px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value))
+}
+
+function getExportTrackMetaOpacity(globalTime: number) {
+  return clamp01(globalTime / EXPORT_TRACK_META_FADE_IN_SECONDS)
+}
 
 function trimTextToWidth(
   context: CanvasRenderingContext2D,
@@ -91,8 +100,14 @@ function drawExportTrackMeta(
   width: number,
   height: number,
   trackMeta: ExportTrackMeta,
+  opacity: number,
 ) {
   if (!trackMeta.enabled || (!trackMeta.title && !trackMeta.subtitle)) {
+    return
+  }
+
+  const safeOpacity = clamp01(opacity)
+  if (safeOpacity <= 0) {
     return
   }
 
@@ -107,7 +122,7 @@ function drawExportTrackMeta(
     lines.push({
       color: EXPORT_TRACK_META_TITLE_COLOR,
       font: EXPORT_TRACK_META_TITLE_FONT,
-      lineHeight: 42,
+      lineHeight: 48,
       text: trackMeta.title,
     })
   }
@@ -116,7 +131,7 @@ function drawExportTrackMeta(
     lines.push({
       color: EXPORT_TRACK_META_SUBTITLE_COLOR,
       font: EXPORT_TRACK_META_SUBTITLE_FONT,
-      lineHeight: 26,
+      lineHeight: 29,
       text: trackMeta.subtitle.toUpperCase(),
     })
   }
@@ -137,6 +152,7 @@ function drawExportTrackMeta(
   context.save()
   context.textAlign = 'center'
   context.textBaseline = 'top'
+  context.globalAlpha = safeOpacity
   context.shadowBlur = 28
   context.shadowColor = EXPORT_TRACK_META_SHADOW_COLOR
   context.shadowOffsetY = 8
@@ -247,7 +263,9 @@ export function useVideoExport({
     controller.renderFrame(timestampMs)
   }, [])
 
-  const captureFrame = useCallback(async () => {
+  const captureFrame = useCallback(async (
+    trackMetaOpacity: number = 1,
+  ) => {
     const canvas = canvasRef.current
 
     if (!canvas) {
@@ -278,6 +296,7 @@ export function useVideoExport({
         compositeCanvas.width,
         compositeCanvas.height,
         exportTrackMeta,
+        trackMetaOpacity,
       )
       captureTarget = compositeCanvas
     }
@@ -321,7 +340,9 @@ export function useVideoExport({
     await waitForExportRenderer()
     renderFrameNow(nextRenderState.globalTime * 1000)
 
-    const frameBlob = await captureFrame()
+    const frameBlob = await captureFrame(
+      getExportTrackMetaOpacity(nextRenderState.globalTime),
+    )
     setRenderState(null)
 
     return frameBlob
@@ -432,7 +453,9 @@ export function useVideoExport({
         })
         renderFrameNow(nextRenderState.globalTime * 1000)
 
-        const frameBlob = await captureFrame()
+        const frameBlob = await captureFrame(
+          getExportTrackMetaOpacity(nextRenderState.globalTime),
+        )
         const frameUpload = new FormData()
         frameUpload.append('sessionId', sessionId)
         frameUpload.append('frameIndex', String(frameIndex))

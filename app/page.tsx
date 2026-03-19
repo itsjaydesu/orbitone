@@ -1278,6 +1278,8 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      let shouldRevealChrome = false
+
       if (
         e.target instanceof HTMLInputElement
         && ['text', 'number', 'password', 'email'].includes(e.target.type)
@@ -1300,10 +1302,12 @@ export default function Home() {
           break
         case 'f':
           e.preventDefault()
+          shouldRevealChrome = true
           toggleFullscreen()
           break
         case 's':
           e.preventDefault()
+          shouldRevealChrome = true
           setShowSettings(v => !v)
           setShowInfo(false)
 
@@ -1311,6 +1315,7 @@ export default function Home() {
           break
         case 'c':
           e.preventDefault()
+          shouldRevealChrome = true
           setSettings((s) => {
             const idx = CAMERA_VIEWS.indexOf(s.cameraView)
             return {
@@ -1321,6 +1326,7 @@ export default function Home() {
           break
         case 'i':
           e.preventDefault()
+          shouldRevealChrome = true
           setShowInfo(v => !v)
 
           setShowSettings(false)
@@ -1328,25 +1334,31 @@ export default function Home() {
           break
         case 'l':
           e.preventDefault()
+          shouldRevealChrome = true
           toggleLibrary()
           break
         case 'u':
           e.preventDefault()
+          shouldRevealChrome = true
           fileInputRef.current?.click()
           break
         case 'm':
           e.preventDefault()
+          shouldRevealChrome = true
           setSettings(s => ({ ...s, showMidiRoll: !s.showMidiRoll }))
           break
         case 'arrowleft':
           e.preventDefault()
+          shouldRevealChrome = true
           loadAdjacentTrack(-1)
           break
         case 'arrowright':
           e.preventDefault()
+          shouldRevealChrome = true
           loadAdjacentTrack(1)
           break
         case 'escape':
+          shouldRevealChrome = true
           setShowSettings(false)
           setShowInfo(false)
 
@@ -1355,7 +1367,7 @@ export default function Home() {
           break
       }
 
-      if (e.defaultPrevented) {
+      if (e.defaultPrevented && shouldRevealChrome) {
         setIsMenuVisible(true)
         scheduleIdleHide()
       }

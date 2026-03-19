@@ -26,7 +26,7 @@ export const MIDI_LIBRARY_CATEGORIES: MidiLibraryCategory[] = [
         durationLabel: '1:41',
         fileName: 'miras-theme.mid',
         id: 'originals/miras-theme',
-        subtitle: 'itsjaydesu',
+        subtitle: 'itsjaydesu.com',
         title: 'Mira\'s Theme',
         url: '/midi/originals/miras-theme.mid',
       },
