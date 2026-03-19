@@ -1,19 +1,18 @@
 'use client'
 
 import type { ComponentRef, MutableRefObject, RefObject } from 'react'
-import type { ExportCameraMode } from '@/lib/export'
 import type {
   CameraPose,
   CameraPresetMap,
   CameraVector,
   CameraView,
 } from '@/lib/camera-presets'
+import type { ExportCameraMode } from '@/lib/export'
 import type { NoteEvent } from '@/lib/music'
 import { Billboard, OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import {
-
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -77,6 +76,12 @@ const CROSSFADE_TOTAL_DURATION = Math.max(
   + CROSSFADE_NOTE_STAGGER_CAP * CROSSFADE_NOTE_STAGGER
   + CROSSFADE_ENTER_DURATION,
 )
+const MIDI_ROLL_PLANE_FADE_OUT_DURATION = 1.1
+const MIDI_ROLL_PLANE_FADE_IN_DURATION = 1.25
+const MIDI_ROLL_PLANE_TRANSITION_DURATION = (
+  MIDI_ROLL_PLANE_FADE_OUT_DURATION
+  + MIDI_ROLL_PLANE_FADE_IN_DURATION
+)
 const MIDI_ROLL_FLAT_SPEED = 1.8
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
@@ -111,6 +116,22 @@ interface CrossfadeState {
   pending: NoteEvent[] | null
 }
 
+interface MidiRollLayer {
+  fadeDuration?: number
+  fadePhase?: 'entering' | 'exiting'
+  fadeStartClock?: number
+  key: string
+  isFlatView: boolean
+  opacity: number
+}
+
+interface MidiRollPlaneTransitionState {
+  active: boolean
+  fromFlatView: boolean
+  startClock: number
+  toFlatView: boolean
+}
+
 const CROSSFADE_IDLE: CrossfadeState = {
   active: false,
   oldNotes: [],
@@ -120,10 +141,35 @@ const CROSSFADE_IDLE: CrossfadeState = {
   pending: null,
 }
 
+const MIDI_ROLL_PLANE_TRANSITION_IDLE: MidiRollPlaneTransitionState = {
+  active: false,
+  fromFlatView: false,
+  startClock: 0,
+  toFlatView: false,
+}
+
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value))
 
 function smootherStep(value: number) {
   return value * value * value * (value * (value * 6 - 15) + 10)
+}
+
+function easeInCubic(value: number) {
+  return value * value * value
+}
+
+function easeOutCubic(value: number) {
+  return 1 - (1 - value) * (1 - value) * (1 - value)
+}
+
+function getSequentialFadeOutOpacity(progress: number) {
+  const normalized = clamp01(progress)
+  return 1 - easeInCubic(normalized)
+}
+
+function getSequentialFadeInOpacity(progress: number) {
+  const normalized = clamp01(progress)
+  return easeOutCubic(normalized)
 }
 
 function getResolvedGlobalTime(
@@ -644,6 +690,10 @@ function MidiRollNote({
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
+  layerOpacity = 1,
+  layerFadeDuration,
+  layerFadePhase,
+  layerFadeStartClock = 0,
   timeline,
 }: {
   isFlatView: boolean
@@ -655,6 +705,10 @@ function MidiRollNote({
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
+  layerOpacity?: number
+  layerFadeDuration?: number
+  layerFadePhase?: 'entering' | 'exiting'
+  layerFadeStartClock?: number
   timeline?: VisualizerRenderTimeline
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -721,7 +775,21 @@ function MidiRollNote({
 
     const isPlaying = timeDiff <= 0 && timeDiff >= -note.duration
     const distance = Math.abs(z)
-    const opacity = Math.max(0, 1 - distance / 60) * displayProgress
+    let resolvedLayerOpacity = layerOpacity
+    if (layerFadePhase === 'exiting' && layerFadeDuration) {
+      resolvedLayerOpacity *= 1
+        - easeInCubic(
+          clamp01((elapsed - layerFadeStartClock) / layerFadeDuration),
+        )
+    }
+    else if (layerFadePhase === 'entering' && layerFadeDuration) {
+      resolvedLayerOpacity *= easeOutCubic(
+        clamp01((elapsed - layerFadeStartClock) / layerFadeDuration),
+      )
+    }
+
+    const opacity
+      = Math.max(0, 1 - distance / 60) * displayProgress * resolvedLayerOpacity
 
     matRef.current.opacity = opacity
 
@@ -768,6 +836,10 @@ function MidiRoll({
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
+  layerOpacity = 1,
+  layerFadeDuration,
+  layerFadePhase,
+  layerFadeStartClock = 0,
   timeline,
 }: {
   isFlatView: boolean
@@ -778,6 +850,10 @@ function MidiRoll({
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
+  layerOpacity?: number
+  layerFadeDuration?: number
+  layerFadePhase?: 'entering' | 'exiting'
+  layerFadeStartClock?: number
   timeline?: VisualizerRenderTimeline
 }) {
   const speed = isFlatView ? MIDI_ROLL_FLAT_SPEED : 10
@@ -812,6 +888,10 @@ function MidiRoll({
           fadePhase={fadePhase}
           crossfadeStartClock={crossfadeStartClock}
           frozenTime={frozenTime}
+          layerOpacity={layerOpacity}
+          layerFadeDuration={layerFadeDuration}
+          layerFadePhase={layerFadePhase}
+          layerFadeStartClock={layerFadeStartClock}
           timeline={timeline}
         />
       ))}
@@ -1166,28 +1246,124 @@ function Scene({
   settings: VisualizerSettings
   timeline?: VisualizerRenderTimeline
 }) {
+  const { showMidiRoll, cameraView } = settings
+  const activePose = cameraPresets[cameraView]
   const [displayNotes, setDisplayNotes] = useState<NoteEvent[]>(notes)
   const [crossfadeState, setCrossfadeState] = useState<CrossfadeState>({
     ...CROSSFADE_IDLE,
   })
+  const [midiRollPlaneTransition, setMidiRollPlaneTransition]
+    = useState<MidiRollPlaneTransitionState>({
+      ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
+      fromFlatView: activePose.flatLock,
+      toFlatView: activePose.flatLock,
+    })
   const [filterTime, setFilterTime] = useState(0)
   const introStartRef = useRef<number | null>(null)
   const noteIntroStartRef = useRef<number | null>(null)
   const controlsRef = useRef<ComponentRef<typeof OrbitControls> | null>(null)
   const crossfadeRef = useRef<CrossfadeState>({ ...CROSSFADE_IDLE })
+  const midiRollPlaneTransitionRef = useRef<MidiRollPlaneTransitionState>({
+    ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
+    fromFlatView: activePose.flatLock,
+    toFlatView: activePose.flatLock,
+  })
   const lastClockRef = useRef(0)
   const displaySignatureRef = useRef(getNotesSignature(notes))
-  const { showMidiRoll, cameraView } = settings
+  const prevMidiRollPlaneRef = useRef(activePose.flatLock)
   const timeWindow = DEFAULT_TIME_WINDOW
   const activeNoteSignature = getNotesSignature(notes)
   const displayNoteSignature = useMemo(
     () => getNotesSignature(displayNotes),
     [displayNotes],
   )
-  const activePose = cameraPresets[cameraView]
   const isFlatEditing = isCameraEditing && activePose.flatLock
   const hasExplicitTimeline = Boolean(timeline)
   const resolvedFilterTime = timeline?.transportTime ?? filterTime
+  const exportTransition
+    = exportMode && timeline
+      ? getExportCameraTransitionState(
+          timeline.globalTime,
+          exportCameraMode ?? 'current',
+          cameraView,
+        )
+      : null
+  const midiRollLayers: MidiRollLayer[] = useMemo(() => {
+    if (exportTransition?.isTransitioning) {
+      const fromFlatView = cameraPresets[exportTransition.fromView].flatLock
+      const toFlatView = cameraPresets[exportTransition.toView].flatLock
+      const fadeOutShare
+        = MIDI_ROLL_PLANE_FADE_OUT_DURATION / MIDI_ROLL_PLANE_TRANSITION_DURATION
+      const fadeInShare = 1 - fadeOutShare
+
+      if (fromFlatView === toFlatView) {
+        return [
+          {
+            key: 'active',
+            isFlatView: toFlatView,
+            opacity: 1,
+          },
+        ]
+      }
+
+      const fadeOutOpacity
+        = exportTransition.progress <= fadeOutShare
+          ? getSequentialFadeOutOpacity(
+              exportTransition.progress / Math.max(fadeOutShare, 0.001),
+            )
+          : 0
+      const fadeInOpacity
+        = exportTransition.progress <= fadeOutShare
+          ? 0
+          : getSequentialFadeInOpacity(
+              (exportTransition.progress - fadeOutShare)
+              / Math.max(fadeInShare, 0.001),
+            )
+
+      return [
+        {
+          key: `from-${exportTransition.fromView}`,
+          isFlatView: fromFlatView,
+          opacity: fadeOutOpacity,
+        },
+        {
+          key: `to-${exportTransition.toView}`,
+          isFlatView: toFlatView,
+          opacity: fadeInOpacity,
+        },
+      ]
+    }
+
+    if (midiRollPlaneTransition.active) {
+      return [
+        {
+          fadeDuration: MIDI_ROLL_PLANE_FADE_OUT_DURATION,
+          fadePhase: 'exiting',
+          fadeStartClock: midiRollPlaneTransition.startClock,
+          key: `from-${midiRollPlaneTransition.fromFlatView ? 'flat' : 'space'}`,
+          isFlatView: midiRollPlaneTransition.fromFlatView,
+          opacity: 1,
+        },
+        {
+          fadeDuration: MIDI_ROLL_PLANE_FADE_IN_DURATION,
+          fadePhase: 'entering',
+          fadeStartClock:
+            midiRollPlaneTransition.startClock + MIDI_ROLL_PLANE_FADE_OUT_DURATION,
+          key: `to-${midiRollPlaneTransition.toFlatView ? 'flat' : 'space'}`,
+          isFlatView: midiRollPlaneTransition.toFlatView,
+          opacity: 1,
+        },
+      ]
+    }
+
+    return [
+      {
+        key: 'active',
+        isFlatView: activePose.flatLock,
+        opacity: 1,
+      },
+    ]
+  }, [activePose.flatLock, cameraPresets, exportTransition, midiRollPlaneTransition])
 
   useEffect(() => {
     if (!hasExplicitTimeline) {
@@ -1197,6 +1373,41 @@ function Scene({
     introStartRef.current = 0
     noteIntroStartRef.current = 0
   }, [hasExplicitTimeline])
+
+  useEffect(() => {
+    if (exportMode || isCameraEditing) {
+      prevMidiRollPlaneRef.current = activePose.flatLock
+      const settledTransition = {
+        ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
+        fromFlatView: activePose.flatLock,
+        toFlatView: activePose.flatLock,
+      }
+      midiRollPlaneTransitionRef.current = settledTransition
+      queueMicrotask(() => {
+        setMidiRollPlaneTransition(settledTransition)
+      })
+      return
+    }
+
+    const previousFlatView = prevMidiRollPlaneRef.current
+    const nextFlatView = activePose.flatLock
+    prevMidiRollPlaneRef.current = nextFlatView
+
+    if (previousFlatView === nextFlatView) {
+      return
+    }
+
+    const nextTransition = {
+      active: true,
+      fromFlatView: previousFlatView,
+      startClock: lastClockRef.current,
+      toFlatView: nextFlatView,
+    }
+    midiRollPlaneTransitionRef.current = nextTransition
+    queueMicrotask(() => {
+      setMidiRollPlaneTransition(nextTransition)
+    })
+  }, [activePose.flatLock, exportMode, isCameraEditing])
 
   const handleControlsChange = () => {
     if (!isCameraEditing || !onCameraPoseChange || !controlsRef.current) {
@@ -1270,6 +1481,20 @@ function Scene({
     }
 
     const cf = crossfadeRef.current
+    const planeTransition = midiRollPlaneTransitionRef.current
+    if (
+      planeTransition.active
+      && globalTime - planeTransition.startClock >= MIDI_ROLL_PLANE_TRANSITION_DURATION
+    ) {
+      const settledTransition = {
+        ...MIDI_ROLL_PLANE_TRANSITION_IDLE,
+        fromFlatView: planeTransition.toFlatView,
+        toFlatView: planeTransition.toFlatView,
+      }
+      midiRollPlaneTransitionRef.current = settledTransition
+      setMidiRollPlaneTransition(settledTransition)
+    }
+
     if (
       cf.active
       && globalTime - cf.startClock >= CROSSFADE_TOTAL_DURATION
@@ -1346,29 +1571,41 @@ function Scene({
 
       {showMidiRoll && (
         <>
-          {isCrossfading && (
-            <MidiRoll
-              isFlatView={activePose.flatLock}
-              notes={crossfadeOldNotes}
-              filterTime={exitFilterTime}
-              timeWindow={timeWindow}
-              introStartRef={noteIntroStartRef}
-              fadePhase="exiting"
-              crossfadeStartClock={crossfadeStartClock}
-              frozenTime={exitFilterTime}
-              timeline={timeline}
-            />
-          )}
-          <MidiRoll
-            isFlatView={activePose.flatLock}
-            notes={isCrossfading ? crossfadeNewNotes : displayNotes}
-            filterTime={resolvedFilterTime}
-            timeWindow={timeWindow}
-            introStartRef={noteIntroStartRef}
-            fadePhase={isCrossfading ? 'entering' : 'steady'}
-            crossfadeStartClock={crossfadeStartClock}
-            timeline={timeline}
-          />
+          {midiRollLayers.map(layer => (
+            <group key={layer.key}>
+              {isCrossfading && (
+                <MidiRoll
+                  isFlatView={layer.isFlatView}
+                  notes={crossfadeOldNotes}
+                  filterTime={exitFilterTime}
+                  timeWindow={timeWindow}
+                  introStartRef={noteIntroStartRef}
+                  fadePhase="exiting"
+                  crossfadeStartClock={crossfadeStartClock}
+                  frozenTime={exitFilterTime}
+                  layerOpacity={layer.opacity}
+                  layerFadeDuration={layer.fadeDuration}
+                  layerFadePhase={layer.fadePhase}
+                  layerFadeStartClock={layer.fadeStartClock}
+                  timeline={timeline}
+                />
+              )}
+              <MidiRoll
+                isFlatView={layer.isFlatView}
+                notes={isCrossfading ? crossfadeNewNotes : displayNotes}
+                filterTime={resolvedFilterTime}
+                timeWindow={timeWindow}
+                introStartRef={noteIntroStartRef}
+                fadePhase={isCrossfading ? 'entering' : 'steady'}
+                crossfadeStartClock={crossfadeStartClock}
+                layerOpacity={layer.opacity}
+                layerFadeDuration={layer.fadeDuration}
+                layerFadePhase={layer.fadePhase}
+                layerFadeStartClock={layer.fadeStartClock}
+                timeline={timeline}
+              />
+            </group>
+          ))}
         </>
       )}
 
