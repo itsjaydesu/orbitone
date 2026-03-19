@@ -83,6 +83,10 @@ const MIDI_ROLL_PLANE_TRANSITION_DURATION = (
   + MIDI_ROLL_PLANE_FADE_IN_DURATION
 )
 const MIDI_ROLL_FLAT_SPEED = 1.8
+const MIDI_ROLL_FLAT_Y = 13 
+const MIDI_ROLL_SPACE_Y = -2
+const MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO = 0.1
+const MIDI_ROLL_PLAYED_NOTE_FADE_DURATION = 1.6
 const MOBILE_CAMERA_DISTANCE_MULTIPLIERS: Record<CameraView, number> = {
   default: 1.32,
   front: 1.24,
@@ -170,6 +174,17 @@ function getSequentialFadeOutOpacity(progress: number) {
 function getSequentialFadeInOpacity(progress: number) {
   const normalized = clamp01(progress)
   return easeOutCubic(normalized)
+}
+
+function getPlayedMidiRollFadeOpacity(currentTime: number, note: NoteEvent) {
+  const noteEnd = note.time + note.duration
+  if (currentTime <= noteEnd) {
+    return 1
+  }
+
+  return 1 - smootherStep(
+    clamp01((currentTime - noteEnd) / MIDI_ROLL_PLAYED_NOTE_FADE_DURATION),
+  )
 }
 
 function getResolvedGlobalTime(
@@ -775,6 +790,7 @@ function MidiRollNote({
 
     const isPlaying = timeDiff <= 0 && timeDiff >= -note.duration
     const distance = Math.abs(z)
+    const playedFadeOpacity = getPlayedMidiRollFadeOpacity(currentTime, note)
     let resolvedLayerOpacity = layerOpacity
     if (layerFadePhase === 'exiting' && layerFadeDuration) {
       resolvedLayerOpacity *= 1
@@ -789,7 +805,10 @@ function MidiRollNote({
     }
 
     const opacity
-      = Math.max(0, 1 - distance / 60) * displayProgress * resolvedLayerOpacity
+      = Math.max(0, 1 - distance / 60)
+        * playedFadeOpacity
+        * displayProgress
+        * resolvedLayerOpacity
 
     matRef.current.opacity = opacity
 
@@ -828,6 +847,7 @@ function MidiRollNote({
 }
 
 function MidiRoll({
+  flatYOffset = 0,
   isFlatView,
   notes,
   filterTime,
@@ -842,6 +862,7 @@ function MidiRoll({
   layerFadeStartClock = 0,
   timeline,
 }: {
+  flatYOffset?: number
   isFlatView: boolean
   notes: NoteEvent[]
   filterTime: number
@@ -869,7 +890,13 @@ function MidiRoll({
   )
 
   return (
-    <group position={isFlatView ? [0, 8, -0.1] : [0, -2, 0]}>
+    <group
+      position={
+        isFlatView
+          ? [0, MIDI_ROLL_FLAT_Y + flatYOffset, -0.5]
+          : [0, MIDI_ROLL_SPACE_Y, 0]
+      }
+    >
       {rollNotes.map((note, index) => (
         <MidiRollNote
           key={`roll-${note.id}`}
@@ -1277,6 +1304,10 @@ function Scene({
     () => getNotesSignature(displayNotes),
     [displayNotes],
   )
+  const defaultCameraFlatYOffset
+    = cameraView === 'default'
+      ? MIDI_ROLL_FLAT_Y * MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO
+      : 0
   const isFlatEditing = isCameraEditing && activePose.flatLock
   const hasExplicitTimeline = Boolean(timeline)
   const resolvedFilterTime = timeline?.transportTime ?? filterTime
@@ -1575,6 +1606,7 @@ function Scene({
             <group key={layer.key}>
               {isCrossfading && (
                 <MidiRoll
+                  flatYOffset={defaultCameraFlatYOffset}
                   isFlatView={layer.isFlatView}
                   notes={crossfadeOldNotes}
                   filterTime={exitFilterTime}
@@ -1591,6 +1623,7 @@ function Scene({
                 />
               )}
               <MidiRoll
+                flatYOffset={defaultCameraFlatYOffset}
                 isFlatView={layer.isFlatView}
                 notes={isCrossfading ? crossfadeNewNotes : displayNotes}
                 filterTime={resolvedFilterTime}
