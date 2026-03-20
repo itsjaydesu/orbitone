@@ -40,6 +40,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import {
 
@@ -52,12 +53,10 @@ import {
   useState,
 } from 'react'
 import { CameraLab } from '@/components/CameraLab'
-import { ExportOverlay } from '@/components/ExportOverlay'
 import { NoteCursor } from '@/components/NoteCursor'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMusic } from '@/hooks/useMusic'
-import { useVideoExport } from '@/hooks/useVideoExport'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
@@ -78,6 +77,7 @@ import {
   getLocalizedTrackTitle,
 } from '@/lib/library-translations'
 import { cn } from '@/lib/utils'
+import { isVideoExportClientEnabled } from '@/lib/video-export-env'
 
 type AppSettings = VisualizerSettings & {
   autoCycleCamera: boolean
@@ -88,40 +88,6 @@ type AppSettings = VisualizerSettings & {
 interface DisplayTrackMeta {
   title: string | null
   subtitle: string | null
-}
-
-interface OrbitoneAutomationState {
-  canExport: boolean
-  currentTrackTitle: string | null
-  displayTrackSubtitle: string | null
-  displayTrackTitle: string | null
-  exportCameraMode: ExportCameraMode
-  exportFormat: ExportFormat
-  exportPhase: string
-  exportProgress: number
-  isAudioLoading: boolean
-  showBottomTrackMeta: boolean
-}
-
-declare global {
-  interface Window {
-    __orbitoneAutomation?: {
-      captureExportFrame: (options?: {
-        cameraMode?: ExportCameraMode
-        cameraView?: CameraView
-        frameIndex?: number
-      }) => Promise<string>
-      getState: () => OrbitoneAutomationState
-      setSettings: (options: {
-        showBottomTrackMeta?: boolean
-      }) => void
-      setExportOptions: (options: {
-        cameraMode?: ExportCameraMode
-        format?: ExportFormat
-      }) => void
-      startExport: () => void
-    }
-  }
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -138,6 +104,10 @@ const PLAYBACK_CHROME_TIMEOUT_MS = 2000
 const TEXT_FADE_SWAP_DELAY_MS = 140
 const TEXT_FADE_REVEAL_DELAY_MS = 34
 const MIDI_EXTENSIONS = ['.mid', '.midi']
+const VideoExportDevTools = dynamic(
+  () => import('@/components/VideoExportDevTools').then(module => module.VideoExportDevTools),
+  { ssr: false },
+)
 const DEFAULT_LIBRARY_CATEGORY_ID = MIDI_LIBRARY_CATEGORIES[0]?.id ?? ''
 const LIBRARY_CATEGORY_INDEX = new Map(
   MIDI_LIBRARY_CATEGORIES.map(category => [category.id, category]),
@@ -697,7 +667,6 @@ export default function Home() {
   const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
     DEFAULT_EXPORT_CAMERA_MODE,
   )
-  const [isVideoExportExpanded, setIsVideoExportExpanded] = useState(false)
 
   const {
     isPlaying,
@@ -848,32 +817,6 @@ export default function Home() {
   const [isTrackMetaVisible, setIsTrackMetaVisible] = useState(() =>
     Boolean(localizedTrackTitle || localizedTrackSubtitle),
   )
-  const {
-    phase: exportPhase,
-    progress: exportProgress,
-    renderState: exportRenderState,
-    startExport,
-    cancelExport,
-    capturePreviewFrame,
-    setExportCanvas,
-    setExportFrameController,
-  } = useVideoExport({
-    exportSource: {
-      notes,
-      pedalEvents,
-      playbackGain,
-    },
-    exportSourceFileName: currentTrackFileName,
-    exportTrackMeta: {
-      enabled: settings.showBottomTrackMeta,
-      subtitle: displayTrackMeta.subtitle,
-      title: displayTrackMeta.title,
-    },
-    isPlaying,
-    togglePlay,
-    volumePercent: settings.volumePercent,
-  })
-  const isExporting = exportPhase !== 'idle'
   const visibleLibraryItems = useMemo(() => {
     if (!activeLibraryCategory) {
       return []
@@ -1045,12 +988,6 @@ export default function Home() {
 
     libraryListRef.current?.scrollTo({ behavior: 'auto', top: 0 })
   }, [activeLibraryCategoryId, showLibrary])
-
-  useEffect(() => {
-    if (!showSettings) {
-      setIsVideoExportExpanded(false)
-    }
-  }, [showSettings])
 
   useEffect(() => {
     const hasOpenLayer
@@ -1670,92 +1607,7 @@ export default function Home() {
 
   const handleStartExport = useCallback(() => {
     setShowSettings(false)
-    startExport(exportFormat, exportCameraMode, settings.cameraView)
-  }, [exportFormat, exportCameraMode, settings.cameraView, startExport])
-
-  useEffect(() => {
-    window.__orbitoneAutomation = {
-      getState: () => ({
-        canExport: notes.length > 0 && !isExporting,
-        currentTrackTitle,
-        displayTrackSubtitle: displayTrackMeta.subtitle,
-        displayTrackTitle: displayTrackMeta.title,
-        exportCameraMode,
-        exportFormat,
-        exportPhase,
-        exportProgress,
-        isAudioLoading,
-        showBottomTrackMeta: settings.showBottomTrackMeta,
-      }),
-      setExportOptions: ({ cameraMode, format }) => {
-        if (format) {
-          setExportFormat(format)
-        }
-
-        if (cameraMode) {
-          setExportCameraMode(cameraMode)
-        }
-      },
-      setSettings: ({ showBottomTrackMeta }) => {
-        if (showBottomTrackMeta !== undefined) {
-          setSettings(current => ({
-            ...current,
-            showBottomTrackMeta,
-          }))
-        }
-      },
-      captureExportFrame: async (options) => {
-        const blob = await capturePreviewFrame(
-          options?.cameraMode ?? exportCameraMode,
-          options?.cameraView ?? settings.cameraView,
-          options?.frameIndex ?? 0,
-        )
-
-        return await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onerror = () => {
-            reject(new Error('Failed to encode export frame preview.'))
-          }
-          reader.onloadend = () => {
-            if (typeof reader.result !== 'string') {
-              reject(new Error('Export frame preview was not encoded as a data URL.'))
-              return
-            }
-
-            resolve(reader.result)
-          }
-          reader.readAsDataURL(blob)
-        })
-      },
-      startExport: () => {
-        handleStartExport()
-      },
-    }
-
-    return () => {
-      delete window.__orbitoneAutomation
-    }
-  }, [
-    currentTrackTitle,
-    displayTrackMeta.subtitle,
-    displayTrackMeta.title,
-    exportCameraMode,
-    exportFormat,
-    exportPhase,
-    exportProgress,
-    capturePreviewFrame,
-    handleStartExport,
-    isAudioLoading,
-    isExporting,
-    notes.length,
-    settings.cameraView,
-    settings.showBottomTrackMeta,
-  ])
-
-  const exportVisualizerSettings = useMemo(() => ({
-    showMidiRoll: true,
-    cameraView: exportRenderState?.cameraView ?? settings.cameraView,
-  }), [exportRenderState?.cameraView, settings.cameraView])
+  }, [])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const needsExplicitAudioUnlock
@@ -2475,99 +2327,49 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="mt-2 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      setIsVideoExportExpanded(current => !current)
-                      e.currentTarget.blur()
+                {isVideoExportClientEnabled && (
+                  <VideoExportDevTools
+                    cameraPresets={cameraDraftPresets}
+                    copy={{
+                      exportButton: copy.exportButton,
+                      exportCameraCurrent: copy.exportCameraCurrent,
+                      exportCameraCycle: copy.exportCameraCycle,
+                      exportCameraMode: copy.exportCameraMode,
+                      exportFormat: copy.exportFormat,
+                      videoExport: copy.videoExport,
                     }}
-                    className="nm-raised flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--nm-text)]"
-                    aria-expanded={isVideoExportExpanded}
-                  >
-                    <span>{copy.videoExport}</span>
-                    <ChevronRight
-                      className={cn(
-                        'h-[1.2rem] w-[1.2rem] transition-transform duration-200 sm:h-4 sm:w-4',
-                        isVideoExportExpanded && 'rotate-90',
-                      )}
-                    />
-                  </button>
-
-                  {isVideoExportExpanded && (
-                    <div className="nm-well flex flex-col gap-2 rounded-xl p-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--nm-text-faint)]">
-                          {copy.exportFormat}
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(['webm', 'mp4'] as const).map(fmt => (
-                            <button
-                              key={fmt}
-                              onClick={(e) => {
-                                setExportFormat(fmt)
-                                e.currentTarget.blur()
-                              }}
-                              className={cn(
-                                'rounded-xl px-2 py-1.5 text-xs font-medium uppercase',
-                                exportFormat === fmt
-                                  ? 'nm-toggle-active'
-                                  : 'nm-raised text-[var(--nm-text-dim)]',
-                              )}
-                            >
-                              {fmt}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--nm-text-faint)]">
-                          {copy.exportCameraMode}
-                        </span>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={(e) => {
-                              setExportCameraMode('current')
-                              e.currentTarget.blur()
-                            }}
-                            className={cn(
-                              'rounded-xl px-2 py-1.5 text-xs font-medium',
-                              exportCameraMode === 'current'
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            {copy.exportCameraCurrent}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              setExportCameraMode('cycle')
-                              e.currentTarget.blur()
-                            }}
-                            className={cn(
-                              'rounded-xl px-2 py-1.5 text-xs font-medium',
-                              exportCameraMode === 'cycle'
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            {copy.exportCameraCycle}
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          handleStartExport()
-                          e.currentTarget.blur()
-                        }}
-                        disabled={notes.length === 0 || isExporting}
-                        className="nm-accent-raised w-full rounded-xl py-2 text-sm font-medium disabled:opacity-40"
-                      >
-                        {copy.exportButton}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    currentCameraView={settings.cameraView}
+                    currentTrackTitle={currentTrackTitle}
+                    displayTrackSubtitle={displayTrackMeta.subtitle}
+                    displayTrackTitle={displayTrackMeta.title}
+                    exportCameraMode={exportCameraMode}
+                    exportFormat={exportFormat}
+                    exportSource={{
+                      notes,
+                      pedalEvents,
+                      playbackGain,
+                    }}
+                    exportSourceFileName={currentTrackFileName}
+                    exportTrackMeta={{
+                      enabled: settings.showBottomTrackMeta,
+                      subtitle: displayTrackMeta.subtitle,
+                      title: displayTrackMeta.title,
+                    }}
+                    isAudioLoading={isAudioLoading}
+                    isPlaying={isPlaying}
+                    language={language}
+                    onBeforeStartExport={handleStartExport}
+                    onExportCameraModeChange={setExportCameraMode}
+                    onExportFormatChange={setExportFormat}
+                    onShowBottomTrackMetaChange={showBottomTrackMeta => setSettings(current => ({
+                      ...current,
+                      showBottomTrackMeta,
+                    }))}
+                    showBottomTrackMeta={settings.showBottomTrackMeta}
+                    togglePlay={togglePlay}
+                    volumePercent={settings.volumePercent}
+                  />
+                )}
 
                 <div className="mt-2 flex flex-col gap-2">
                   <span className="text-sm text-[var(--nm-text-dim)]">
@@ -3090,34 +2892,6 @@ export default function Home() {
           settings={settings}
         />
       </div>
-
-      {exportRenderState && (
-        <div style={{ position: 'fixed', left: -9999, top: 0, width: 1080, height: 1920, pointerEvents: 'none' }}>
-          <Visualizer
-            exportMode
-            exportCameraMode={exportCameraMode}
-            onCanvasElement={setExportCanvas}
-            onExportFrameController={setExportFrameController}
-            cameraPresets={cameraDraftPresets}
-            isMobileView={false}
-            notes={notes}
-            renderTimeline={{
-              globalTime: exportRenderState.globalTime,
-              transportTime: exportRenderState.transportTime,
-            }}
-            settings={exportVisualizerSettings}
-          />
-        </div>
-      )}
-
-      {exportPhase !== 'idle' && (
-        <ExportOverlay
-          phase={exportPhase}
-          progress={exportProgress}
-          language={language}
-          onCancel={cancelExport}
-        />
-      )}
 
       <NoteCursor />
 

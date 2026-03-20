@@ -33,6 +33,19 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Local-only video export
+
+Video export is intentionally disabled in production deployments, including Vercel. The export UI is hidden unless the client flag is enabled, and the server route returns `404` unless the server flag is enabled.
+
+To use video export on a local machine, create `.env.local`:
+
+```bash
+NEXT_PUBLIC_ENABLE_VIDEO_EXPORT=true
+ENABLE_VIDEO_EXPORT=true
+```
+
+Leave both variables unset in production.
+
 ## Keyboard shortcuts
 
 | Key     | Action                   |
@@ -67,13 +80,16 @@ app/
 components/
   Visualizer.tsx      3D scene — staff, notes, bloom, camera
   CameraLab.tsx       Camera preset editor
+  VideoExportDevTools.tsx  Dev-only export UI, hidden renderer, automation hooks
 hooks/
   useMusic.ts         Audio engine — load MIDI, play/stop, seek
   use-mobile.ts       Mobile viewport detection
+  useVideoExport.ts   Browser-side export flow
 lib/
   camera-presets.ts   Camera position definitions and persistence
   library.ts          Built-in MIDI library entries
   music.ts            MIDI parsing and note scheduling
+  video-export-env.ts Local/dev export feature flags
   utils.ts            Tailwind class merge utility
 public/
   midi/               Built-in MIDI files
@@ -81,19 +97,41 @@ public/
 
 ## Scripts
 
-| Command         | Description            |
-| --------------- | ---------------------- |
-| `npm run dev`   | Start dev server       |
-| `npm run build` | Production build       |
-| `npm start`     | Serve production build |
-| `npm run lint`  | Run ESLint             |
-| `npm run clean` | Clear `.next` cache    |
-| `npm run export:save` | Copy the latest browser-downloaded export into `video-output/` |
-| `npm run export:library` | Export the built-in MIDI library one file at a time |
+| Command                  | Description                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| `npm run dev`            | Start dev server                                               |
+| `npm run build`          | Production build                                               |
+| `npm start`              | Serve production build                                         |
+| `npm run lint`           | Run ESLint                                                     |
+| `npm run clean`          | Clear `.next` cache                                            |
+| `npm run export:save`    | Copy the latest browser-downloaded export into `video-output/` |
+| `npm run export:library` | Export the built-in MIDI library one file at a time            |
 
 ## Video export process
 
 All generated videos now live under `video-output/` in the project root. That directory is gitignored so long-running export runs do not dirty the repository.
+
+### Availability
+
+- Video export is local/dev only.
+- Production deployments intentionally do not expose the export UI.
+- `POST` and `DELETE` requests to `/api/render/export` return `404` unless `ENABLE_VIDEO_EXPORT=true`.
+- Batch export scripts must target an Orbitone instance with both export flags enabled.
+
+### Local setup
+
+Create `.env.local` before running the app locally:
+
+```bash
+NEXT_PUBLIC_ENABLE_VIDEO_EXPORT=true
+ENABLE_VIDEO_EXPORT=true
+```
+
+Then start the app normally:
+
+```bash
+pnpm dev
+```
 
 ### Export defaults
 

@@ -1,4 +1,4 @@
-import type { ExportFormat, ExportSessionInitRequest } from '@/lib/export'
+import type { ExportSessionInitRequest } from '@/lib/export'
 import { Buffer } from 'node:buffer'
 import { NextResponse } from 'next/server'
 import { isExportFormat } from '@/lib/export'
@@ -9,6 +9,7 @@ import {
   writeExportAudio,
   writeExportFrame,
 } from '@/lib/server/export-session'
+import { isVideoExportServerEnabled } from '@/lib/video-export-env'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -17,7 +18,7 @@ function parseRequiredString(formData: FormData, fieldName: string) {
   const value = formData.get(fieldName)
 
   if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`Missing ${fieldName}.`)
+    throw new TypeError(`Missing ${fieldName}.`)
   }
 
   return value
@@ -27,7 +28,7 @@ function parseRequiredNumber(formData: FormData, fieldName: string) {
   const value = Number(parseRequiredString(formData, fieldName))
 
   if (!Number.isFinite(value)) {
-    throw new Error(`Invalid ${fieldName}.`)
+    throw new TypeError(`Invalid ${fieldName}.`)
   }
 
   return value
@@ -37,7 +38,7 @@ function parseInitRequest(formData: FormData): ExportSessionInitRequest {
   const format = parseRequiredString(formData, 'format')
 
   if (!isExportFormat(format)) {
-    throw new Error(`Unsupported export format: ${format}.`)
+    throw new TypeError(`Unsupported export format: ${format}.`)
   }
 
   return {
@@ -66,7 +67,7 @@ async function handleFrameUpload(formData: FormData) {
   const frame = formData.get('frame')
 
   if (!(frame instanceof File)) {
-    throw new Error('Missing frame upload.')
+    throw new TypeError('Missing frame upload.')
   }
 
   await writeExportFrame(
@@ -83,7 +84,7 @@ async function handleAudioUpload(formData: FormData) {
   const audio = formData.get('audio')
 
   if (!(audio instanceof File)) {
-    throw new Error('Missing audio upload.')
+    throw new TypeError('Missing audio upload.')
   }
 
   await writeExportAudio(sessionId, Buffer.from(await audio.arrayBuffer()))
@@ -108,6 +109,10 @@ async function handleFinalize(formData: FormData) {
 }
 
 export async function POST(request: Request) {
+  if (!isVideoExportServerEnabled()) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  }
+
   let action: string | null = null
   try {
     action = new URL(request.url).searchParams.get('action')
@@ -142,6 +147,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!isVideoExportServerEnabled()) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 })
+  }
+
   try {
     const sessionId = new URL(request.url).searchParams.get('sessionId')
 
