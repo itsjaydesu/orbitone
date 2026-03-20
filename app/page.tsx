@@ -68,6 +68,7 @@ import {
   getCameraViewLabels,
   mergeCameraPresetMap,
 } from '@/lib/camera-presets'
+import { EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS } from '@/lib/export'
 import {
   MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
@@ -79,6 +80,7 @@ import {
 import { cn } from '@/lib/utils'
 
 type AppSettings = VisualizerSettings & {
+  autoCycleCamera: boolean
   showBottomTrackMeta: boolean
   volumePercent: number
 }
@@ -123,6 +125,7 @@ declare global {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  autoCycleCamera: false,
   showBottomTrackMeta: true,
   volumePercent: 100,
   showMidiRoll: false,
@@ -178,6 +181,7 @@ interface ShortcutItem {
 interface UiCopy {
   aboutTitle: string
   bottomTrackMeta: string
+  cameraAutoCycle: string
   cameraView: string
   closeAbout: string
   closeLibrary: string
@@ -286,6 +290,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
   en: {
     aboutTitle: 'About',
     bottomTrackMeta: 'Show Title',
+    cameraAutoCycle: 'Auto Cycle 10s',
     cameraView: 'Camera View',
     closeAbout: 'Close about panel',
     closeLibrary: 'Close MIDI library',
@@ -334,6 +339,7 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
   ja: {
     aboutTitle: 'オービトーンについて',
     bottomTrackMeta: 'タイトル表示',
+    cameraAutoCycle: '10秒オートサイクル',
     cameraView: 'カメラアングル',
     closeAbout: '概要を閉じる',
     closeLibrary: 'MIDIライブラリを閉じる',
@@ -744,6 +750,20 @@ export default function Home() {
     () => getCameraViewLabels(language),
     [language],
   )
+  const cycleCameraView = useCallback(() => {
+    setSettings((current) => {
+      const currentIndex = CAMERA_VIEWS.indexOf(current.cameraView)
+      const nextIndex
+        = currentIndex >= 0
+          ? (currentIndex + 1) % CAMERA_VIEWS.length
+          : 0
+
+      return {
+        ...current,
+        cameraView: CAMERA_VIEWS[nextIndex] ?? CAMERA_VIEWS[0],
+      }
+    })
+  }, [])
   const libraryPrimaryGroups = useMemo(
     () => getLibraryPrimaryGroups(language),
     [language],
@@ -1312,13 +1332,7 @@ export default function Home() {
         case 'c':
           e.preventDefault()
           shouldRevealChrome = true
-          setSettings((s) => {
-            const idx = CAMERA_VIEWS.indexOf(s.cameraView)
-            return {
-              ...s,
-              cameraView: CAMERA_VIEWS[(idx + 1) % CAMERA_VIEWS.length],
-            }
-          })
+          cycleCameraView()
           break
         case 'i':
           e.preventDefault()
@@ -1371,7 +1385,15 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closeLibrary, handlePlaybackToggle, loadAdjacentTrack, scheduleIdleHide, toggleFullscreen, toggleLibrary])
+  }, [
+    closeLibrary,
+    cycleCameraView,
+    handlePlaybackToggle,
+    loadAdjacentTrack,
+    scheduleIdleHide,
+    toggleFullscreen,
+    toggleLibrary,
+  ])
 
   useEffect(() => {
     if (!shouldPersistChrome) {
@@ -1592,6 +1614,26 @@ export default function Home() {
   ) => {
     setSettings(current => ({ ...current, [key]: value }))
   }
+
+  useEffect(() => {
+    if (!settings.autoCycleCamera || showCameraLab) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(
+      cycleCameraView,
+      EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS * 1000,
+    )
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    cycleCameraView,
+    settings.autoCycleCamera,
+    settings.cameraView,
+    showCameraLab,
+  ])
 
   const resetSettings = () => {
     setSettings({ ...DEFAULT_SETTINGS })
@@ -2258,13 +2300,7 @@ export default function Home() {
               <button
                 onClick={(e) => {
                   e.currentTarget.blur()
-                  setSettings((s) => {
-                    const idx = CAMERA_VIEWS.indexOf(s.cameraView)
-                    return {
-                      ...s,
-                      cameraView: CAMERA_VIEWS[(idx + 1) % CAMERA_VIEWS.length],
-                    }
-                  })
+                  cycleCameraView()
                 }}
                 className="nm-raised rounded-xl p-2.5 text-[var(--nm-text)]"
                 aria-label={cameraViewLabels[settings.cameraView]}
@@ -2277,12 +2313,10 @@ export default function Home() {
           {showSettings && (
             <div
               ref={settingsRef}
-              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-4 rounded-xl p-5 text-[var(--nm-text)]"
+              role="dialog"
+              aria-label={copy.settings}
+              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-3 rounded-xl p-4 text-[var(--nm-text)]"
             >
-              <h2 className="border-b border-[var(--nm-border)] pb-2 text-lg font-semibold">
-                {copy.settings}
-              </h2>
-
               <div className="flex flex-col gap-3">
                 {!isMobile && (
                   <button
@@ -2437,6 +2471,30 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+                  <button
+                    onClick={(e) => {
+                      updateSetting('autoCycleCamera', !settings.autoCycleCamera)
+                      e.currentTarget.blur()
+                    }}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
+                      settings.autoCycleCamera
+                        ? 'nm-toggle-active'
+                        : 'nm-raised text-[var(--nm-text)]',
+                    )}
+                  >
+                    <span>{copy.cameraAutoCycle}</span>
+                    <span
+                      className={cn(
+                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                        settings.autoCycleCamera
+                          ? 'text-[var(--nm-bg)]'
+                          : 'text-[var(--nm-text-dim)]',
+                      )}
+                    >
+                      {settings.autoCycleCamera ? copy.show : copy.hide}
+                    </span>
+                  </button>
                 </div>
 
                 <div className="mt-2 flex flex-col gap-2">
