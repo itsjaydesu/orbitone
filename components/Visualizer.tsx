@@ -113,6 +113,14 @@ const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
   orbit: 3,
   zenith: 2,
 }
+const MOBILE_CAMERA_TARGET_Y_SHIFTS: Record<CameraView, number> = {
+  default: 3.0,
+  front: -3,
+  side: -3,
+  vortex: 3.0,
+  orbit: -3,
+  zenith: 3.0,
+}
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32)
 const boxGeo = new THREE.BoxGeometry(1, 1, 1)
@@ -369,7 +377,7 @@ function getResponsiveCameraPose(pose: CameraPose, cameraView: CameraView, isMob
 
   // Shift scene upward on mobile so the visualisation sits higher,
   // leaving room for the play controls at the bottom.
-  const mobileTargetYShift = 3.0
+  const mobileTargetYShift = MOBILE_CAMERA_TARGET_Y_SHIFTS[cameraView] ?? 3.0
   const shiftedTarget: CameraVector = {
     x: pose.target.x,
     y: pose.target.y - mobileTargetYShift,
