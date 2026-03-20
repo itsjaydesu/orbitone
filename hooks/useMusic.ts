@@ -19,9 +19,21 @@ import {
 } from '../lib/music'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
-  GLOBAL_VOLUME_BOOST,
   getRegisterRelease,
+  GLOBAL_VOLUME_BOOST,
 } from '../lib/piano-audio'
+
+type AudioSessionType = 'ambient' | 'auto' | 'play-and-record' | 'playback' | 'transient' | 'transient-solo'
+
+interface NavigatorAudioSession {
+  type: AudioSessionType
+}
+
+declare global {
+  interface Navigator {
+    audioSession?: NavigatorAudioSession
+  }
+}
 
 export interface MusicSettings {
   language: AppLanguage
@@ -38,6 +50,76 @@ interface TrackState {
 
 const TRACK_END_EPSILON_SECONDS = 0.05
 const VISUAL_OUTRO_CLEARANCE_SECONDS = 7
+const IOS_AUDIO_PRIME_DURATION_SECONDS = 0.04
+const IOS_AUDIO_PRIME_TIMEOUT_MS = 150
+
+function isLikelyIPhoneSafari() {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+
+  const userAgent = navigator.userAgent
+  const isIPhone = /iPhone/i.test(userAgent)
+  const isWebKit = /AppleWebKit/i.test(userAgent)
+  const isExcludedBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(userAgent)
+
+  return isIPhone && isWebKit && !isExcludedBrowser
+}
+
+async function setPlaybackAudioSessionType() {
+  if (typeof navigator === 'undefined' || !navigator.audioSession) {
+    return
+  }
+
+  try {
+    navigator.audioSession.type = 'playback'
+  }
+  catch {
+    // Safari exposes this API experimentally, so failed writes are non-fatal.
+  }
+}
+
+async function primeSilentAudioBuffer(context: AudioContext) {
+  const frameLength = Math.max(
+    1,
+    Math.ceil(context.sampleRate * IOS_AUDIO_PRIME_DURATION_SECONDS),
+  )
+  const buffer = context.createBuffer(1, frameLength, context.sampleRate)
+  const source = context.createBufferSource()
+  const gain = context.createGain()
+  let timeoutId: number | null = null
+
+  gain.gain.value = 1
+  source.buffer = buffer
+  source.connect(gain)
+  gain.connect(context.destination)
+
+  await new Promise<void>((resolve) => {
+    let settled = false
+
+    const finish = () => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      source.onended = null
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+
+      source.disconnect()
+      gain.disconnect()
+      resolve()
+    }
+
+    source.onended = finish
+    source.start()
+    source.stop(context.currentTime + IOS_AUDIO_PRIME_DURATION_SECONDS)
+    timeoutId = window.setTimeout(finish, IOS_AUDIO_PRIME_TIMEOUT_MS)
+  })
+}
 
 export function useMusic(settings: MusicSettings) {
   const { language, volumePercent } = settings
@@ -80,6 +162,12 @@ export function useMusic(settings: MusicSettings) {
   const audioDurationRef = useRef(0)
   const playbackEndTimeRef = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const [requiresExplicitAudioUnlock, setRequiresExplicitAudioUnlock] = useState(false)
+  const unlockPromiseRef = useRef<Promise<boolean> | null>(null)
+  const requiresExplicitUnlockRef = useRef(false)
+  const isAudioUnlockedRef = useRef(false)
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false)
+  const [isAudioUnlocking, setIsAudioUnlocking] = useState(false)
 
   const [trackState, setTrackState] = useState<TrackState>(() => ({
     bpm: defaultMusic.bpm,
@@ -145,6 +233,18 @@ export function useMusic(settings: MusicSettings) {
   useEffect(() => {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
+
+  useEffect(() => {
+    setRequiresExplicitAudioUnlock(isLikelyIPhoneSafari())
+  }, [])
+
+  useEffect(() => {
+    requiresExplicitUnlockRef.current = requiresExplicitAudioUnlock
+  }, [requiresExplicitAudioUnlock])
+
+  useEffect(() => {
+    isAudioUnlockedRef.current = isAudioUnlocked
+  }, [isAudioUnlocked])
 
   useEffect(() => {
     bpmRef.current = bpm
@@ -316,6 +416,43 @@ export function useMusic(settings: MusicSettings) {
     await initPromiseRef.current
   }, [baseOutputGain, trackPlaybackGain, volumePercent])
 
+  const unlockAudio = useCallback(async () => {
+    if (!requiresExplicitUnlockRef.current || isAudioUnlockedRef.current) {
+      return true
+    }
+
+    if (!unlockPromiseRef.current) {
+      setIsAudioUnlocking(true)
+      unlockPromiseRef.current = (async () => {
+        try {
+          await setPlaybackAudioSessionType()
+          await Tone.start()
+          const rawContext = Tone.getContext().rawContext as AudioContext
+
+          if (rawContext.state !== 'running') {
+            await rawContext.resume()
+          }
+
+          await primeSilentAudioBuffer(rawContext)
+          await ensureAudioReady()
+
+          isAudioUnlockedRef.current = true
+          setIsAudioUnlocked(true)
+          return true
+        }
+        catch {
+          return false
+        }
+        finally {
+          setIsAudioUnlocking(false)
+          unlockPromiseRef.current = null
+        }
+      })()
+    }
+
+    return await unlockPromiseRef.current
+  }, [ensureAudioReady])
+
   useEffect(() => {
     return () => {
       clearPlaybackFrame()
@@ -464,6 +601,15 @@ export function useMusic(settings: MusicSettings) {
       return
     }
 
+    if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
+      const didUnlock = await unlockAudio()
+
+      if (!didUnlock) {
+        return
+      }
+    }
+
+    await setPlaybackAudioSessionType()
     await ensureAudioReady()
 
     const shouldRestartFromBeginning
@@ -483,6 +629,10 @@ export function useMusic(settings: MusicSettings) {
     }
 
     Tone.Transport.start()
+    if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
+      isAudioUnlockedRef.current = true
+      setIsAudioUnlocked(true)
+    }
     setHasEnded(false)
     setIsPlaying(true)
   }, [
@@ -490,6 +640,7 @@ export function useMusic(settings: MusicSettings) {
     clearPlaybackFrame,
     ensureAudioReady,
     hasEnded,
+    unlockAudio,
     setPlaybackTime,
     syncTransportTime,
   ])
@@ -530,7 +681,7 @@ export function useMusic(settings: MusicSettings) {
 
       return false
     }
-    catch (error) {
+    catch {
       alert(
         language === 'ja'
           ? 'MIDIファイルを解析できませんでした。'
@@ -580,6 +731,10 @@ export function useMusic(settings: MusicSettings) {
     setBpm,
     resetBpm,
     ensureAudioReady,
+    unlockAudio,
+    requiresExplicitAudioUnlock,
+    isAudioUnlocked,
+    isAudioUnlocking,
     pedalEvents,
     playbackGain: trackPlaybackGain,
   }

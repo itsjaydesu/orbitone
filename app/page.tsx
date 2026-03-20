@@ -189,6 +189,8 @@ interface UiCopy {
   closeLibrary: string
   closeSettings: string
   creatorTitle: string
+  enableSound: string
+  enablingSound: string
   fullScreen: string
   fullScreenExit: string
   fullScreenHint: string
@@ -326,6 +328,8 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     closeLibrary: 'Close MIDI library',
     closeSettings: 'Settings',
     creatorTitle: 'itsjaydesu',
+    enableSound: 'Enable sound',
+    enablingSound: 'Enabling sound',
     fullScreen: 'Fullscreen',
     fullScreenExit: 'Exit fullscreen',
     fullScreenHint: 'Press F to enter & exit fullscreen',
@@ -372,6 +376,8 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     closeLibrary: 'MIDIライブラリを閉じる',
     closeSettings: '設定',
     creatorTitle: 'itsjaydesu',
+    enableSound: 'サウンドを有効化',
+    enablingSound: 'サウンドを有効化中',
     fullScreen: 'フルスクリーン',
     fullScreenExit: 'フルスクリーンを終了',
     fullScreenHint: 'Fキーでフルスクリーンの切り替え',
@@ -733,6 +739,9 @@ export default function Home() {
     isAudioLoading,
     currentTime,
     hasEnded,
+    requiresExplicitAudioUnlock,
+    isAudioUnlocked,
+    isAudioUnlocking,
     togglePlay,
     notes,
     loadMidi,
@@ -1737,6 +1746,27 @@ export default function Home() {
   }), [exportRenderState?.cameraView, settings.cameraView])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
+  const needsExplicitAudioUnlock
+    = requiresExplicitAudioUnlock && !isAudioUnlocked
+  const playbackButtonBusy = isAudioLoading || isAudioUnlocking
+  const playbackButtonLabel = playbackButtonBusy
+    ? isAudioUnlocking
+      ? copy.enablingSound
+      : copy.loadingPiano
+    : needsExplicitAudioUnlock
+      ? copy.enableSound
+      : hasEnded
+        ? copy.restartPlayback
+        : isPlaying
+          ? copy.stopPlayback
+          : copy.startPlayback
+  const playbackButtonIcon = playbackButtonBusy
+    ? <Loader2 className="h-6 w-6 animate-spin" />
+    : isPlaying
+        ? <Square className="h-5 w-5 fill-current" />
+        : hasEnded
+          ? <RotateCcw className="h-5 w-5" />
+          : <Play className="ml-1 h-6 w-6 fill-current" />
   const bottomTrackMetaVisible = Boolean(
     settings.showBottomTrackMeta
     && !shouldPersistChrome
@@ -2992,33 +3022,11 @@ export default function Home() {
             void togglePlay()
             e.currentTarget.blur()
           }}
-          disabled={isAudioLoading}
-          aria-label={
-            isAudioLoading
-              ? copy.loadingPiano
-              : hasEnded
-                ? copy.restartPlayback
-                : isPlaying
-                  ? copy.stopPlayback
-                  : copy.startPlayback
-          }
+          disabled={playbackButtonBusy}
+          aria-label={playbackButtonLabel}
           className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
         >
-          {isAudioLoading
-            ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              )
-            : isPlaying
-              ? (
-                  <Square className="h-5 w-5 fill-current" />
-                )
-              : hasEnded
-                ? (
-                    <RotateCcw className="h-5 w-5" />
-                  )
-                : (
-                    <Play className="ml-1 h-6 w-6 fill-current" />
-                  )}
+          {playbackButtonIcon}
         </button>
       </div>
 
