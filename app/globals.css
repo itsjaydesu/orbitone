@@ -17,6 +17,20 @@
   --nm-note-cursor-image: url('/cursor.svg');
 }
 
+html,
+body {
+  min-height: 100%;
+  background: var(--nm-bg);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  color: var(--nm-text);
+}
+
 @media (pointer: fine) {
   html.nm-system-cursor-hidden,
   html.nm-system-cursor-hidden body,
