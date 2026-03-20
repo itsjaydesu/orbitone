@@ -134,9 +134,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 const DEFAULT_EXPORT_FORMAT: ExportFormat = 'mp4'
 const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
 
-const MENU_REVEAL_DELAY_MS = 3000
-const MENU_IDLE_HIDE_MS = 3000
-const MOBILE_PLAYBACK_CHROME_TIMEOUT_MS = 2000
+const PLAYBACK_CHROME_TIMEOUT_MS = 2000
 const TEXT_FADE_SWAP_DELAY_MS = 140
 const TEXT_FADE_REVEAL_DELAY_MS = 34
 const MIDI_EXTENSIONS = ['.mid', '.midi']
@@ -723,8 +721,8 @@ export default function Home() {
     language,
     volumePercent: settings.volumePercent,
   })
-  const mobilePlaybackChromeManaged = isMobile && isPlaying && !hasEnded
-  const shouldPersistChrome = isMobile && !mobilePlaybackChromeManaged
+  const playbackChromeManaged = isPlaying && !hasEnded
+  const shouldPersistChrome = !playbackChromeManaged
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -1275,14 +1273,10 @@ export default function Home() {
       return
     }
 
-    const delayMs = isMobile
-      ? MOBILE_PLAYBACK_CHROME_TIMEOUT_MS
-      : MENU_IDLE_HIDE_MS
-
     idleTimerRef.current = window.setTimeout(() => {
       setIsMenuVisible(false)
-    }, delayMs)
-  }, [clearIdleTimer, isMobile, shouldPersistChrome])
+    }, PLAYBACK_CHROME_TIMEOUT_MS)
+  }, [clearIdleTimer, shouldPersistChrome])
 
   const handlePlaybackToggle = useCallback(() => {
     if (hasEnded) {
@@ -1414,29 +1408,14 @@ export default function Home() {
       return
     }
 
-    if (isMobile) {
-      clearIdleTimer()
-      if (!isMenuReady) {
-        setIsMenuReady(true)
-      }
-      setIsMenuVisible(false)
-      return
-    }
-
-    setIsMenuReady(false)
-    setIsMenuVisible(false)
-
-    const revealTimer = window.setTimeout(() => {
-      setIsMenuReady(true)
-      setIsMenuVisible(true)
-      scheduleIdleHide()
-    }, MENU_REVEAL_DELAY_MS)
+    setIsMenuReady(true)
+    setIsMenuVisible(true)
+    scheduleIdleHide()
 
     return () => {
-      window.clearTimeout(revealTimer)
       clearIdleTimer()
     }
-  }, [clearIdleTimer, isMenuReady, isMobile, scheduleIdleHide, shouldPersistChrome])
+  }, [clearIdleTimer, scheduleIdleHide, shouldPersistChrome])
 
   useEffect(() => {
     if (shouldPersistChrome || !isMenuReady) {
@@ -1802,7 +1781,6 @@ export default function Home() {
         : <Play className="ml-1 h-7 w-7 fill-current sm:h-6 sm:w-6" />
   const bottomTrackMetaVisible = Boolean(
     settings.showBottomTrackMeta
-    && !isMobile
     && !shouldPersistChrome
     && isMenuReady
     && !chromeVisible
@@ -1822,7 +1800,7 @@ export default function Home() {
   )
   const bottomTrackMetaStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
       }
     : {
         bottom: '2.5rem',
