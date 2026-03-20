@@ -49,7 +49,6 @@ interface TrackState {
 }
 
 const TRACK_END_EPSILON_SECONDS = 0.05
-const VISUAL_OUTRO_CLEARANCE_SECONDS = 7
 const IOS_AUDIO_PRIME_DURATION_SECONDS = 0.04
 const IOS_AUDIO_PRIME_TIMEOUT_MS = 150
 
@@ -160,7 +159,6 @@ export function useMusic(settings: MusicSettings) {
   const bpmRef = useRef(100)
   const currentTimeRef = useRef(0)
   const audioDurationRef = useRef(0)
-  const playbackEndTimeRef = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
   const [requiresExplicitAudioUnlock, setRequiresExplicitAudioUnlock] = useState(false)
   const unlockPromiseRef = useRef<Promise<boolean> | null>(null)
@@ -213,19 +211,6 @@ export function useMusic(settings: MusicSettings) {
     return Math.max(...notes.map(note => note.time + note.duration))
   }, [notes])
 
-  const playbackEndTime = useMemo(() => {
-    if (notes.length === 0) {
-      return 0
-    }
-
-    const latestNoteStartTime = Math.max(...notes.map(note => note.time))
-
-    return Math.max(
-      duration,
-      latestNoteStartTime + VISUAL_OUTRO_CLEARANCE_SECONDS,
-    )
-  }, [duration, notes])
-
   useEffect(() => {
     notesRef.current = notes
   }, [notes])
@@ -252,10 +237,9 @@ export function useMusic(settings: MusicSettings) {
 
   useEffect(() => {
     audioDurationRef.current = duration
-    playbackEndTimeRef.current = playbackEndTime
-    const nextTime = Math.min(currentTimeRef.current, playbackEndTime)
+    const nextTime = Math.min(currentTimeRef.current, duration)
     currentTimeRef.current = nextTime
-  }, [duration, playbackEndTime])
+  }, [duration])
 
   const clearPlaybackFrame = useCallback(() => {
     if (animationFrameRef.current !== undefined) {
@@ -273,11 +257,11 @@ export function useMusic(settings: MusicSettings) {
   }, [])
 
   const clampPlaybackTime = useCallback((time: number) => {
-    if (!Number.isFinite(time) || playbackEndTimeRef.current <= 0) {
+    if (!Number.isFinite(time) || audioDurationRef.current <= 0) {
       return 0
     }
 
-    return Math.min(Math.max(time, 0), playbackEndTimeRef.current)
+    return Math.min(Math.max(time, 0), audioDurationRef.current)
   }, [])
 
   const setPlaybackTime = useCallback((time: number) => {
@@ -298,7 +282,7 @@ export function useMusic(settings: MusicSettings) {
   const finishPlayback = useCallback(() => {
     clearPlaybackFrame()
 
-    const finalTime = clampPlaybackTime(playbackEndTimeRef.current)
+    const finalTime = clampPlaybackTime(audioDurationRef.current)
 
     Tone.Transport.pause()
     Tone.Transport.seconds = finalTime
@@ -502,7 +486,7 @@ export function useMusic(settings: MusicSettings) {
     if (!wasPlaying) {
       currentTimeRef.current = Math.min(
         Math.max(newTransportTime, 0),
-        playbackEndTimeRef.current,
+        audioDurationRef.current,
       )
     }
 
@@ -565,8 +549,8 @@ export function useMusic(settings: MusicSettings) {
         const nextTime = clampPlaybackTime(Tone.Transport.seconds)
 
         if (
-          playbackEndTimeRef.current > 0
-          && nextTime >= playbackEndTimeRef.current - TRACK_END_EPSILON_SECONDS
+          audioDurationRef.current > 0
+          && nextTime >= audioDurationRef.current - TRACK_END_EPSILON_SECONDS
         ) {
           finishPlayback()
           return
@@ -614,9 +598,9 @@ export function useMusic(settings: MusicSettings) {
 
     const shouldRestartFromBeginning
       = hasEnded
-        || (playbackEndTimeRef.current > 0
+        || (audioDurationRef.current > 0
           && currentTimeRef.current
-          >= playbackEndTimeRef.current - TRACK_END_EPSILON_SECONDS)
+          >= audioDurationRef.current - TRACK_END_EPSILON_SECONDS)
 
     if (shouldRestartFromBeginning) {
       syncTransportTime(0)

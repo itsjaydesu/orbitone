@@ -1297,6 +1297,14 @@ export default function Home() {
     }, MENU_IDLE_HIDE_MS)
   }, [clearIdleTimer, shouldPersistChrome])
 
+  const handlePlaybackToggle = useCallback(() => {
+    if (hasEnded) {
+      seek(0)
+    }
+
+    void togglePlay()
+  }, [hasEnded, seek, togglePlay])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       let shouldRevealChrome = false
@@ -1319,7 +1327,7 @@ export default function Home() {
       switch (e.key.toLowerCase()) {
         case ' ':
           e.preventDefault()
-          togglePlay()
+          handlePlaybackToggle()
           break
         case 'f':
           e.preventDefault()
@@ -1396,7 +1404,7 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closeLibrary, loadAdjacentTrack, scheduleIdleHide, toggleFullscreen, toggleLibrary, togglePlay])
+  }, [closeLibrary, handlePlaybackToggle, loadAdjacentTrack, scheduleIdleHide, toggleFullscreen, toggleLibrary])
 
   useEffect(() => {
     if (!shouldPersistChrome) {
@@ -3019,7 +3027,7 @@ export default function Home() {
       >
         <button
           onClick={(e) => {
-            void togglePlay()
+            handlePlaybackToggle()
             e.currentTarget.blur()
           }}
           disabled={playbackButtonBusy}
