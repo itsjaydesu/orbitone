@@ -1,6 +1,6 @@
 'use client'
 import type { LucideIcon } from 'lucide-react'
-import type { ReactElement, SVGProps } from 'react'
+import type { SVGProps } from 'react'
 import type { VisualizerSettings } from '@/components/Visualizer'
 import type {
   AppLanguage,
@@ -133,6 +133,7 @@ const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
 
 const MENU_REVEAL_DELAY_MS = 3000
 const MENU_IDLE_HIDE_MS = 3000
+const MOBILE_PLAYBACK_CHROME_TIMEOUT_MS = 2000
 const TEXT_FADE_SWAP_DELAY_MS = 140
 const TEXT_FADE_REVEAL_DELAY_MS = 34
 const MIDI_EXTENSIONS = ['.mid', '.midi']
@@ -172,13 +173,6 @@ const TRAIN_LIBRARY_CATEGORY_IDS = [
 interface ShortcutItem {
   keyLabel: string
   description: string
-}
-
-interface CreatorLink {
-  href: string
-  icon: (props: SVGProps<SVGSVGElement>) => ReactElement
-  label: string
-  subtitle: string
 }
 
 interface UiCopy {
@@ -285,37 +279,6 @@ const KEYBOARD_SHORTCUTS: Record<AppLanguage, ShortcutItem[]> = {
     { keyLabel: 'F', description: 'フルスクリーンを切り替え' },
     { keyLabel: 'I', description: '概要パネルを開く' },
     { keyLabel: 'Esc', description: '開いているパネルを閉じる' },
-  ],
-}
-
-const CREATOR_LINKS: Record<AppLanguage, CreatorLink[]> = {
-  en: [
-    {
-      href: 'https://github.com/itsjaydesu',
-      icon: GitHubMark,
-      label: 'GitHub',
-      subtitle: 'Code and repositories',
-    },
-    {
-      href: 'https://x.com/itsjaydesu',
-      icon: XMark,
-      label: 'X',
-      subtitle: 'Updates and stray thoughts',
-    },
-  ],
-  ja: [
-    {
-      href: 'https://github.com/itsjaydesu',
-      icon: GitHubMark,
-      label: 'GitHub',
-      subtitle: 'コードとリポジトリ',
-    },
-    {
-      href: 'https://x.com/itsjaydesu',
-      icon: XMark,
-      label: 'X',
-      subtitle: '更新と雑談',
-    },
   ],
 }
 
@@ -679,8 +642,6 @@ function isMidiFile(file: File) {
 
 export default function Home() {
   const isMobile = useIsMobile()
-  // Keep primary controls accessible on touch devices instead of hiding on idle.
-  const shouldPersistChrome = isMobile
   const [isAutomationMode] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -756,6 +717,8 @@ export default function Home() {
     language,
     volumePercent: settings.volumePercent,
   })
+  const mobilePlaybackChromeManaged = isMobile && isPlaying && !hasEnded
+  const shouldPersistChrome = isMobile && !mobilePlaybackChromeManaged
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -795,7 +758,6 @@ export default function Home() {
     [libraryPrimaryGroups],
   )
   const keyboardShortcuts = KEYBOARD_SHORTCUTS[language]
-  const creatorLinks = CREATOR_LINKS[language]
 
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
@@ -1255,7 +1217,7 @@ export default function Home() {
         closeLibrary()
       }
     }
-    catch (error) {
+    catch {
       alert(copy.libraryLoadError)
     }
     finally {
@@ -1292,10 +1254,15 @@ export default function Home() {
     if (shouldPersistChrome) {
       return
     }
+
+    const delayMs = isMobile
+      ? MOBILE_PLAYBACK_CHROME_TIMEOUT_MS
+      : MENU_IDLE_HIDE_MS
+
     idleTimerRef.current = window.setTimeout(() => {
       setIsMenuVisible(false)
-    }, MENU_IDLE_HIDE_MS)
-  }, [clearIdleTimer, shouldPersistChrome])
+    }, delayMs)
+  }, [clearIdleTimer, isMobile, shouldPersistChrome])
 
   const handlePlaybackToggle = useCallback(() => {
     if (hasEnded) {
@@ -1425,6 +1392,15 @@ export default function Home() {
       return
     }
 
+    if (isMobile) {
+      clearIdleTimer()
+      if (!isMenuReady) {
+        setIsMenuReady(true)
+      }
+      setIsMenuVisible(false)
+      return
+    }
+
     setIsMenuReady(false)
     setIsMenuVisible(false)
 
@@ -1438,7 +1414,7 @@ export default function Home() {
       window.clearTimeout(revealTimer)
       clearIdleTimer()
     }
-  }, [clearIdleTimer, scheduleIdleHide, shouldPersistChrome])
+  }, [clearIdleTimer, isMenuReady, isMobile, scheduleIdleHide, shouldPersistChrome])
 
   useEffect(() => {
     if (shouldPersistChrome || !isMenuReady) {
@@ -1478,17 +1454,24 @@ export default function Home() {
       }
     }
 
-    window.addEventListener('pointermove', handlePointerActivity, {
-      passive: true,
-    })
     window.addEventListener('pointerdown', handlePointerActivity)
 
+    if (!isMobile) {
+      window.addEventListener('pointermove', handlePointerActivity, {
+        passive: true,
+      })
+    }
+
     return () => {
-      window.removeEventListener('pointermove', handlePointerActivity)
       window.removeEventListener('pointerdown', handlePointerActivity)
+
+      if (!isMobile) {
+        window.removeEventListener('pointermove', handlePointerActivity)
+      }
     }
   }, [
     isMenuReady,
+    isMobile,
     scheduleIdleHide,
     shouldPersistChrome,
     showCameraLab,
@@ -1777,6 +1760,7 @@ export default function Home() {
         : <Play className="ml-1 h-7 w-7 fill-current sm:h-6 sm:w-6" />
   const bottomTrackMetaVisible = Boolean(
     settings.showBottomTrackMeta
+    && !isMobile
     && !shouldPersistChrome
     && isMenuReady
     && !chromeVisible
