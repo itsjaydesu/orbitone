@@ -686,6 +686,7 @@ export default function Home() {
     resetBpm,
     pedalEvents,
     playbackGain,
+    trackSource,
   } = useMusic({
     language,
     volumePercent: settings.volumePercent,
@@ -1610,6 +1611,8 @@ export default function Home() {
   }, [])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
+  const shouldHoldInitialVisualizerNotes
+    = Boolean(initialLibraryTrack) && trackSource !== 'loaded'
   const needsExplicitAudioUnlock
     = requiresExplicitAudioUnlock && !isAudioUnlocked
   const playbackButtonBusy = isAudioLoading || isAudioUnlocking
@@ -2887,7 +2890,7 @@ export default function Home() {
           cameraPresets={cameraDraftPresets}
           isMobileView={isMobile}
           isCameraEditing={showCameraLab}
-          notes={initialLibraryTrack && !currentTrackTitle ? [] : notes}
+          notes={shouldHoldInitialVisualizerNotes ? [] : notes}
           onCameraPoseChange={handleVisualizerCameraPoseChange}
           settings={settings}
         />

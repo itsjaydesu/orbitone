@@ -46,6 +46,7 @@ interface TrackState {
   originalPlaybackGain: number
   originalBpm: number
   bpm: number
+  source: 'default' | 'loaded'
 }
 
 const TRACK_END_EPSILON_SECONDS = 0.05
@@ -173,6 +174,7 @@ export function useMusic(settings: MusicSettings) {
     originalNotes: defaultMusic.notes,
     originalPedalEvents: defaultMusic.pedalEvents,
     originalPlaybackGain: defaultMusic.playbackGain,
+    source: 'default',
   }))
   const {
     bpm,
@@ -180,6 +182,7 @@ export function useMusic(settings: MusicSettings) {
     originalNotes,
     originalPedalEvents,
     originalPlaybackGain,
+    source: trackSource,
   } = trackState
   const trackPlaybackGain = originalPlaybackGain
 
@@ -657,6 +660,7 @@ export function useMusic(settings: MusicSettings) {
             originalNotes: parsedNotes,
             originalPedalEvents: parsedPedalEvents,
             originalPlaybackGain: parsedPlaybackGain,
+            source: 'loaded',
           })
         })
 
@@ -721,5 +725,6 @@ export function useMusic(settings: MusicSettings) {
     isAudioUnlocking,
     pedalEvents,
     playbackGain: trackPlaybackGain,
+    trackSource,
   }
 }
