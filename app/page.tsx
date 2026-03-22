@@ -103,6 +103,7 @@ const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
 const PLAYBACK_CHROME_TIMEOUT_MS = 2000
 const TEXT_FADE_SWAP_DELAY_MS = 140
 const TEXT_FADE_REVEAL_DELAY_MS = 34
+const BOTTOM_TRACK_META_OFFSET_PX = 80
 const MIDI_EXTENSIONS = ['.mid', '.midi']
 const VideoExportDevTools = dynamic(
   () => import('@/components/VideoExportDevTools').then(module => module.VideoExportDevTools),
@@ -1651,10 +1652,10 @@ export default function Home() {
   )
   const bottomTrackMetaStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + 1.5rem + ${BOTTOM_TRACK_META_OFFSET_PX}px)`,
       }
     : {
-        bottom: '2.5rem',
+        bottom: `calc(2.5rem + ${BOTTOM_TRACK_META_OFFSET_PX}px)`,
       }
   const topChromeStyle = isMobile
     ? {
@@ -1737,12 +1738,12 @@ export default function Home() {
                   )}
                 >
                   {displayTrackMeta.title && (
-                    <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                    <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
                       {displayTrackMeta.title}
                     </div>
                   )}
                   {displayTrackMeta.subtitle && (
-                    <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
+                    <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
                       {displayTrackMeta.subtitle}
                     </div>
                   )}
@@ -2867,12 +2868,12 @@ export default function Home() {
             )}
           >
             {displayTrackMeta.title && (
-              <div className="truncate text-sm font-medium tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+              <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
                 {displayTrackMeta.title}
               </div>
             )}
             {displayTrackMeta.subtitle && (
-              <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
+              <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
                 {displayTrackMeta.subtitle}
               </div>
             )}

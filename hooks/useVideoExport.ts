@@ -57,7 +57,7 @@ interface ExportTrackMeta {
   title: string | null
 }
 
-const EXPORT_TRACK_META_BOTTOM_PX = 88
+const EXPORT_TRACK_META_BOTTOM_PX = 168
 const EXPORT_TRACK_META_GAP_PX = 15
 const EXPORT_TRACK_META_MAX_WIDTH_PX = 900
 const EXPORT_TRACK_META_SIDE_PADDING_PX = 96
@@ -79,27 +79,74 @@ function getExportTrackMetaOpacity(globalTime: number) {
   return clamp01(globalTime / EXPORT_TRACK_META_FADE_IN_SECONDS)
 }
 
-function trimTextToWidth(
+function wrapTextToWidth(
   context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
 ) {
-  if (context.measureText(text).width <= maxWidth) {
-    return text
+  if (!text.trim()) {
+    return []
   }
 
-  const ellipsis = '...'
-  let trimmed = text
+  const wrappedLines: string[] = []
+  let currentLine = ''
 
-  while (trimmed.length > 0) {
-    trimmed = trimmed.slice(0, -1)
-    const candidate = `${trimmed}${ellipsis}`
-    if (context.measureText(candidate).width <= maxWidth) {
-      return candidate
+  const commitLine = () => {
+    if (currentLine) {
+      wrappedLines.push(currentLine)
+      currentLine = ''
     }
   }
 
-  return ellipsis
+  const pushWord = (word: string) => {
+    if (!word) {
+      return
+    }
+
+    const candidate = currentLine ? `${currentLine} ${word}` : word
+    if (context.measureText(candidate).width <= maxWidth) {
+      currentLine = candidate
+      return
+    }
+
+    if (currentLine) {
+      commitLine()
+      pushWord(word)
+      return
+    }
+
+    let segment = ''
+    for (const character of word) {
+      const nextSegment = `${segment}${character}`
+      if (segment && context.measureText(nextSegment).width > maxWidth) {
+        wrappedLines.push(segment)
+        segment = character
+      }
+      else {
+        segment = nextSegment
+      }
+    }
+
+    currentLine = segment
+  }
+
+  for (const paragraph of text.split(/\r?\n/)) {
+    const normalizedParagraph = paragraph.trim().replace(/\s+/g, ' ')
+    if (!normalizedParagraph) {
+      commitLine()
+      continue
+    }
+
+    for (const word of normalizedParagraph.split(' ')) {
+      pushWord(word)
+    }
+
+    commitLine()
+  }
+
+  commitLine()
+
+  return wrappedLines
 }
 
 function drawExportTrackMeta(
@@ -122,6 +169,7 @@ function drawExportTrackMeta(
     color: string
     font: string
     lineHeight: number
+    lineWidth: number
     text: string
   }> = []
 
@@ -130,6 +178,7 @@ function drawExportTrackMeta(
       color: EXPORT_TRACK_META_TITLE_COLOR,
       font: EXPORT_TRACK_META_TITLE_FONT,
       lineHeight: 72,
+      lineWidth: 9,
       text: trackMeta.title,
     })
   }
@@ -139,6 +188,7 @@ function drawExportTrackMeta(
       color: EXPORT_TRACK_META_SUBTITLE_COLOR,
       font: EXPORT_TRACK_META_SUBTITLE_FONT,
       lineHeight: 44,
+      lineWidth: 6,
       text: trackMeta.subtitle.toUpperCase(),
     })
   }
@@ -151,10 +201,6 @@ function drawExportTrackMeta(
     EXPORT_TRACK_META_MAX_WIDTH_PX,
     width - EXPORT_TRACK_META_SIDE_PADDING_PX,
   )
-  const contentHeight
-    = lines.reduce((total, line) => total + line.lineHeight, 0)
-      + EXPORT_TRACK_META_GAP_PX * Math.max(lines.length - 1, 0)
-  let currentY = height - EXPORT_TRACK_META_BOTTOM_PX - contentHeight
 
   context.save()
   context.textAlign = 'center'
@@ -164,16 +210,44 @@ function drawExportTrackMeta(
   context.shadowColor = EXPORT_TRACK_META_SHADOW_COLOR
   context.shadowOffsetY = 8
 
-  lines.forEach((line, index) => {
+  const wrappedBlocks = lines
+    .map((line) => {
+      context.font = line.font
+      return {
+        ...line,
+        wrappedLines: wrapTextToWidth(context, line.text, maxWidth),
+      }
+    })
+    .filter(line => line.wrappedLines.length > 0)
+
+  if (wrappedBlocks.length === 0) {
+    context.restore()
+    return
+  }
+
+  const contentHeight = wrappedBlocks.reduce((total, line, index) => {
+    return total
+      + line.lineHeight * line.wrappedLines.length
+      + (index > 0 ? EXPORT_TRACK_META_GAP_PX : 0)
+  }, 0)
+  let currentY = height - EXPORT_TRACK_META_BOTTOM_PX - contentHeight
+
+  wrappedBlocks.forEach((line, index) => {
     context.font = line.font
     context.fillStyle = line.color
-    const text = trimTextToWidth(context, line.text, maxWidth)
     context.lineJoin = 'round'
-    context.lineWidth = index === 0 ? 9 : 6
+    context.lineWidth = line.lineWidth
     context.strokeStyle = EXPORT_TRACK_META_STROKE_COLOR
-    context.strokeText(text, width / 2, currentY, maxWidth)
-    context.fillText(text, width / 2, currentY, maxWidth)
-    currentY += line.lineHeight + EXPORT_TRACK_META_GAP_PX
+
+    line.wrappedLines.forEach((wrappedLine) => {
+      context.strokeText(wrappedLine, width / 2, currentY)
+      context.fillText(wrappedLine, width / 2, currentY)
+      currentY += line.lineHeight
+    })
+
+    if (index < wrappedBlocks.length - 1) {
+      currentY += EXPORT_TRACK_META_GAP_PX
+    }
   })
 
   context.restore()
