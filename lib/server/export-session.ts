@@ -116,6 +116,40 @@ function getStderrTail(stderr: string | undefined, maxLength = 4000) {
   return stderr.length <= maxLength ? stderr : stderr.slice(-maxLength)
 }
 
+function parseFfmpegNumber(value: string | undefined, key: string) {
+  const trimmed = value?.trim().toLowerCase() ?? ''
+
+  if (trimmed === 'inf' || trimmed === '+inf') {
+    return Number.POSITIVE_INFINITY
+  }
+
+  if (trimmed === '-inf') {
+    return Number.NEGATIVE_INFINITY
+  }
+
+  const parsed = Number(trimmed)
+
+  if (Number.isNaN(parsed)) {
+    throw new TypeError(`FFmpeg loudness analysis did not return a valid ${key} value.`)
+  }
+
+  return parsed
+}
+
+function formatLoudnessValue(value: number) {
+  return Number.isFinite(value) ? value.toFixed(2) : String(value)
+}
+
+function hasFiniteLoudnessAnalysis(analysis: LoudnessAnalysis) {
+  return [
+    analysis.inputI,
+    analysis.inputLra,
+    analysis.inputTp,
+    analysis.inputThresh,
+    analysis.targetOffset,
+  ].every(value => Number.isFinite(value))
+}
+
 function parseLoudnessAnalysis(stderr: string | undefined) {
   const trimmed = stderr?.trim() ?? ''
   const jsonStart = trimmed.lastIndexOf('{')
@@ -127,13 +161,7 @@ function parseLoudnessAnalysis(stderr: string | undefined) {
 
   const parsed = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1)) as Record<string, string>
   const readNumber = (key: string) => {
-    const value = Number(parsed[key])
-
-    if (!Number.isFinite(value)) {
-      throw new TypeError(`FFmpeg loudness analysis did not return a valid ${key} value.`)
-    }
-
-    return value
+    return parseFfmpegNumber(parsed[key], key)
   }
 
   return {
@@ -188,7 +216,7 @@ async function analyzeExportAudioLoudness(
   const analysis = parseLoudnessAnalysis(stderr)
 
   console.info(
-    `${getLogPrefix(sessionId)} loudness:analysis elapsedMs=${Date.now() - startedAt} inputI=${analysis.inputI.toFixed(2)} inputTp=${analysis.inputTp.toFixed(2)} inputLra=${analysis.inputLra.toFixed(2)} offset=${analysis.targetOffset.toFixed(2)}`,
+    `${getLogPrefix(sessionId)} loudness:analysis elapsedMs=${Date.now() - startedAt} inputI=${formatLoudnessValue(analysis.inputI)} inputTp=${formatLoudnessValue(analysis.inputTp)} inputLra=${formatLoudnessValue(analysis.inputLra)} offset=${formatLoudnessValue(analysis.targetOffset)}`,
   )
 
   return analysis
@@ -200,12 +228,21 @@ async function normalizeExportAudio(
 ) {
   const startedAt = Date.now()
   const analysis = await analyzeExportAudioLoudness(sessionId, sessionDirectory)
+  const sourceAudioPath = getAudioPath(sessionDirectory)
+
+  if (!hasFiniteLoudnessAnalysis(analysis)) {
+    console.warn(
+      `${getLogPrefix(sessionId)} loudness:skip-normalization reason=non-finite-analysis inputI=${formatLoudnessValue(analysis.inputI)} inputTp=${formatLoudnessValue(analysis.inputTp)} inputLra=${formatLoudnessValue(analysis.inputLra)} offset=${formatLoudnessValue(analysis.targetOffset)}`,
+    )
+    return sourceAudioPath
+  }
+
   const normalizedAudioPath = getNormalizedAudioPath(sessionDirectory)
   const { stderr } = await execFileAsync(
     'ffmpeg',
     [
       '-i',
-      getAudioPath(sessionDirectory),
+      sourceAudioPath,
       '-af',
       getLoudnessNormalizationFilter(analysis),
       '-ar',

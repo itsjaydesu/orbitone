@@ -77,7 +77,6 @@ interface VideoExportDevToolsProps {
   isAudioLoading: boolean
   isPlaying: boolean
   language: AppLanguage
-  onBeforeStartExport?: () => void
   onExportCameraModeChange: (mode: ExportCameraMode) => void
   onExportFormatChange: (format: ExportFormat) => void
   onShowBottomTrackMetaChange: (showBottomTrackMeta: boolean) => void
@@ -101,7 +100,6 @@ export function VideoExportDevTools({
   isAudioLoading,
   isPlaying,
   language,
-  onBeforeStartExport,
   onExportCameraModeChange,
   onExportFormatChange,
   onShowBottomTrackMetaChange,
@@ -130,13 +128,11 @@ export function VideoExportDevTools({
   const isExporting = phase !== 'idle'
 
   const handleStartExport = useCallback(() => {
-    onBeforeStartExport?.()
     startExport(exportFormat, exportCameraMode, currentCameraView)
   }, [
     currentCameraView,
     exportCameraMode,
     exportFormat,
-    onBeforeStartExport,
     startExport,
   ])
 
