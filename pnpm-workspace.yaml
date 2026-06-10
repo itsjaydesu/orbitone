@@ -9,3 +9,6 @@ allowBuilds:
   sharp: true
   "@swc/core": true
   bcrypt: true
+  '@lightpanda/browser': true
+  '@tailwindcss/oxide': true
+  unrs-resolver: false
