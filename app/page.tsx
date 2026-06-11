@@ -1606,10 +1606,6 @@ export default function Home() {
     )
   }, [activeCameraView, updateCameraDraft])
 
-  const handleStartExport = useCallback(() => {
-    setShowSettings(false)
-  }, [])
-
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
   const shouldHoldInitialVisualizerNotes
     = Boolean(initialLibraryTrack) && trackSource !== 'loaded'
@@ -2361,7 +2357,6 @@ export default function Home() {
                     isAudioLoading={isAudioLoading}
                     isPlaying={isPlaying}
                     language={language}
-                    onBeforeStartExport={handleStartExport}
                     onExportCameraModeChange={setExportCameraMode}
                     onExportFormatChange={setExportFormat}
                     onShowBottomTrackMetaChange={showBottomTrackMeta => setSettings(current => ({

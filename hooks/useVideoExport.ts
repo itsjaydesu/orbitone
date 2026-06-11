@@ -1,14 +1,13 @@
+import type { ExportFrameController } from '@/components/Visualizer'
+import type { CameraView } from '@/lib/camera-presets'
 import type {
   ExportCameraMode,
   ExportFormat,
   ExportFrameRenderState,
   ExportSourceData,
 } from '@/lib/export'
-import type { CameraView } from '@/lib/camera-presets'
-import type { ExportFrameController } from '@/components/Visualizer'
 import { useCallback, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { renderOfflineAudioWav } from '@/lib/export-audio'
 import {
   createExportTimeline,
   EXPORT_FRAME_IMAGE_MIME_TYPE,
@@ -17,6 +16,7 @@ import {
   getExportFrameRenderState,
   validateExportRequest,
 } from '@/lib/export'
+import { renderOfflineAudioWav } from '@/lib/export-audio'
 
 export type ExportPhase
   = 'idle'
@@ -32,8 +32,13 @@ function downloadBlob(blob: Blob, filename: string) {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
+  anchor.remove()
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url)
+  }, 1000)
 }
 
 function uploadFile(
