@@ -259,14 +259,6 @@ export function useMusic(settings: MusicSettings) {
     return Math.min(Math.max(time, 0), audioDurationRef.current)
   }, [])
 
-  const clampPlaybackTime = useCallback((time: number) => {
-    if (!Number.isFinite(time) || audioDurationRef.current <= 0) {
-      return 0
-    }
-
-    return Math.min(Math.max(time, 0), audioDurationRef.current)
-  }, [])
-
   const setPlaybackTime = useCallback((time: number) => {
     currentTimeRef.current = time
     setCurrentTime(time)
@@ -285,14 +277,14 @@ export function useMusic(settings: MusicSettings) {
   const finishPlayback = useCallback(() => {
     clearPlaybackFrame()
 
-    const finalTime = clampPlaybackTime(audioDurationRef.current)
+    const finalTime = clampAudioTime(audioDurationRef.current)
 
     Tone.Transport.pause()
     Tone.Transport.seconds = finalTime
     setPlaybackTime(finalTime)
     setIsPlaying(false)
     setHasEnded(finalTime > 0)
-  }, [clampPlaybackTime, clearPlaybackFrame, setPlaybackTime])
+  }, [clampAudioTime, clearPlaybackFrame, setPlaybackTime])
 
   const setBpm = useCallback((value: number) => {
     const nextBpm = Math.round(value)
@@ -549,7 +541,7 @@ export function useMusic(settings: MusicSettings) {
           return
         }
 
-        const nextTime = clampPlaybackTime(Tone.Transport.seconds)
+        const nextTime = clampAudioTime(Tone.Transport.seconds)
 
         if (
           audioDurationRef.current > 0
@@ -571,7 +563,7 @@ export function useMusic(settings: MusicSettings) {
     clearPlaybackFrame()
     return clearPlaybackFrame
   }, [
-    clampPlaybackTime,
+    clampAudioTime,
     clearPlaybackFrame,
     finishPlayback,
     isPlaying,
@@ -582,7 +574,7 @@ export function useMusic(settings: MusicSettings) {
     if (isPlayingRef.current) {
       clearPlaybackFrame()
       Tone.Transport.pause()
-      setPlaybackTime(clampPlaybackTime(Tone.Transport.seconds))
+      setPlaybackTime(clampAudioTime(Tone.Transport.seconds))
       setIsPlaying(false)
       setHasEnded(false)
       return
@@ -623,7 +615,7 @@ export function useMusic(settings: MusicSettings) {
     setHasEnded(false)
     setIsPlaying(true)
   }, [
-    clampPlaybackTime,
+    clampAudioTime,
     clearPlaybackFrame,
     ensureAudioReady,
     hasEnded,
