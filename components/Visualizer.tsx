@@ -9,9 +9,9 @@ import type {
 } from '@/lib/camera-presets'
 import type { ExportCameraMode } from '@/lib/export'
 import type { NoteEvent } from '@/lib/music'
-import { Billboard, OrbitControls } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 import {
   useEffect,
   useLayoutEffect,
@@ -83,7 +83,7 @@ const MIDI_ROLL_PLANE_TRANSITION_DURATION = (
   + MIDI_ROLL_PLANE_FADE_IN_DURATION
 )
 const MIDI_ROLL_FLAT_SPEED = 1.8
-const MIDI_ROLL_FLAT_Y = 13 
+const MIDI_ROLL_FLAT_Y = 13
 const MIDI_ROLL_SPACE_Y = -2
 const MIDI_ROLL_DEFAULT_CAMERA_LIFT_RATIO = 0.1
 const MIDI_ROLL_PLAYED_FADE_DURATION_SCALE = 0.5
@@ -635,127 +635,179 @@ function Staff({
   )
 }
 
-function NoteMesh({
-  note,
-  timeWindow,
-  introStartRef,
-  introDelay,
-  introDuration = INTRO_NOTE_DURATION,
-  fadePhase = 'steady',
-  crossfadeStartClock = 0,
-  frozenTime,
-  timeline,
-}: {
+// ── Instanced orbiting notes ──
+// Every visible note (steady, entering, and exiting crossfade sets) is drawn by
+// a single InstancedMesh + one useFrame loop instead of one component/material/
+// draw-call per note. Because the scene is monochrome on black, each note's
+// opacity *and* glow are encoded into one per-instance grayscale brightness and
+// composited with additive blending — faded notes add ~0 (invisible, no depth
+// artifacts), struck notes add well above 1.0 so Bloom picks them up.
+const NOTE_INSTANCE_CAPACITY = 1200
+// Always-on luminance of an idle note disc (before glow/opacity are applied).
+const NOTE_DISK_BASE = 0.5
+const noteInstanceMaterial = new THREE.MeshBasicMaterial({
+  color: 0xFFFFFF,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+})
+
+interface NoteRenderItem {
   note: NoteEvent
-  timeWindow: number
-  introStartRef: IntroClockRef
+  phase: FadePhase
   introDelay: number
   introDuration?: number
-  fadePhase?: FadePhase
-  crossfadeStartClock?: number
   frozenTime?: number
+}
+
+function getNoteDisplayProgress(
+  phase: FadePhase,
+  elapsed: number,
+  introStartRef: IntroClockRef,
+  introDelay: number,
+  introDuration: number,
+  crossfadeStartClock: number,
+) {
+  if (phase === 'exiting') {
+    return 1 - smootherStep(
+      clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
+    )
+  }
+
+  if (phase === 'entering') {
+    return smootherStep(
+      clamp01(
+        (elapsed - crossfadeStartClock - introDelay) / CROSSFADE_ENTER_DURATION,
+      ),
+    )
+  }
+
+  return getIntroProgress(elapsed, introStartRef, introDelay, introDuration)
+}
+
+function InstancedNotes({
+  items,
+  timeWindow,
+  introStartRef,
+  crossfadeStartClock,
+  timeline,
+}: {
+  items: NoteRenderItem[]
+  timeWindow: number
+  introStartRef: IntroClockRef
+  crossfadeStartClock: number
   timeline?: VisualizerRenderTimeline
 }) {
-  const groupRef = useRef<THREE.Group>(null)
-  const meshMatRef = useRef<THREE.MeshStandardMaterial>(null)
-  const targetScale = useMemo(() => new THREE.Vector3(), [])
+  const meshRef = useRef<THREE.InstancedMesh>(null)
+  const scratch = useMemo(
+    () => ({
+      matrix: new THREE.Matrix4(),
+      position: new THREE.Vector3(),
+      scale: new THREE.Vector3(),
+      color: new THREE.Color(),
+    }),
+    [],
+  )
 
-  const radius = getNoteRadius(note.midi)
+  // Avoid a one-frame flash of capacity-count identity instances before the
+  // first useFrame writes real transforms.
+  useLayoutEffect(() => {
+    if (meshRef.current) {
+      meshRef.current.count = 0
+    }
+  }, [])
 
-  useFrame(({ clock }) => {
-    if (!groupRef.current || !meshMatRef.current) {
+  useFrame(({ clock, camera }) => {
+    const mesh = meshRef.current
+    if (!mesh) {
       return
     }
 
-    const currentTime = getResolvedTransportTime(timeline, frozenTime)
     const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
+    const count = Math.min(items.length, NOTE_INSTANCE_CAPACITY)
 
-    let displayProgress: number
-    if (fadePhase === 'exiting') {
-      displayProgress
-        = 1
-          - smootherStep(
-            clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
-          )
-    }
-    else if (fadePhase === 'entering') {
-      displayProgress = smootherStep(
-        clamp01(
-          (elapsed - crossfadeStartClock - introDelay)
-          / CROSSFADE_ENTER_DURATION,
-        ),
-      )
-    }
-    else {
-      displayProgress = getIntroProgress(
+    for (let i = 0; i < count; i += 1) {
+      const item = items[i]
+      const { note } = item
+      const currentTime = getResolvedTransportTime(timeline, item.frozenTime)
+      const displayProgress = getNoteDisplayProgress(
+        item.phase,
         elapsed,
         introStartRef,
-        introDelay,
-        introDuration,
+        item.introDelay,
+        item.introDuration ?? INTRO_NOTE_DURATION,
+        crossfadeStartClock,
       )
+
+      const radius = getNoteRadius(note.midi)
+      const angle = ((note.time - currentTime) / timeWindow) * Math.PI * 2
+      let normalizedAngle = angle % (Math.PI * 2)
+      if (normalizedAngle > Math.PI)
+        normalizedAngle -= Math.PI * 2
+      if (normalizedAngle < -Math.PI)
+        normalizedAngle += Math.PI * 2
+
+      const distance = Math.abs(normalizedAngle)
+      const fadeStart = Math.PI * 0.55
+      const fadeEnd = Math.PI
+      const edgeOpacity
+        = distance > fadeStart
+          ? smootherStep(1 - (distance - fadeStart) / (fadeEnd - fadeStart))
+          : 1
+      const visibility = edgeOpacity * displayProgress
+
+      const animatedRadius = radius * (0.3 + displayProgress * 0.7)
+      scratch.position.set(
+        -Math.sin(normalizedAngle) * animatedRadius,
+        Math.cos(normalizedAngle) * animatedRadius + (1 - displayProgress) * 0.22,
+        (1 - displayProgress) * -1.9,
+      )
+
+      const timeDiff = currentTime - note.time
+      const glow = getPlayedGlowIntensity({
+        duration: note.duration,
+        idleGlow: 0.18,
+        opacity: 1,
+        peakGlow: 1.6 + note.velocity * 1.4,
+        sustainGlow: 0.52 + note.velocity * 0.44,
+        timeDiff,
+      })
+      // Smooth analytic strike envelope (mirrors the glow ramp) so scale pops on
+      // attack and settles — no per-instance frame-to-frame state needed.
+      const strike = getPlayedGlowIntensity({
+        duration: note.duration,
+        idleGlow: 0,
+        opacity: 1,
+        peakGlow: 1,
+        sustainGlow: 0.33,
+        timeDiff,
+      })
+
+      const brightness = visibility * (NOTE_DISK_BASE + glow)
+      const introScale = 0.28 + displayProgress * 0.72
+      const playScale = 1 + strike * (0.5 + note.velocity)
+      scratch.scale.setScalar(Math.max(introScale * playScale, 0.0001))
+
+      scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
+      mesh.setMatrixAt(i, scratch.matrix)
+      scratch.color.setScalar(Math.max(brightness, 0))
+      mesh.setColorAt(i, scratch.color)
     }
 
-    const angle = ((note.time - currentTime) / timeWindow) * Math.PI * 2
-    let normalizedAngle = angle % (Math.PI * 2)
-
-    if (normalizedAngle > Math.PI)
-      normalizedAngle -= Math.PI * 2
-    if (normalizedAngle < -Math.PI)
-      normalizedAngle += Math.PI * 2
-
-    const distance = Math.abs(normalizedAngle)
-    const fadeStart = Math.PI * 0.55
-    const fadeEnd = Math.PI
-    const opacity
-      = distance > fadeStart
-        ? smootherStep(1 - (distance - fadeStart) / (fadeEnd - fadeStart))
-        : 1
-
-    const angleDuration = (note.duration / timeWindow) * Math.PI * 2
-    const isPlaying = normalizedAngle <= 0 && normalizedAngle >= -angleDuration
-
-    const animatedRadius = radius * (0.3 + displayProgress * 0.7)
-    groupRef.current.position.x = -Math.sin(normalizedAngle) * animatedRadius
-    groupRef.current.position.y
-      = Math.cos(normalizedAngle) * animatedRadius + (1 - displayProgress) * 0.22
-    groupRef.current.position.z = (1 - displayProgress) * -1.9
-    groupRef.current.rotation.z = normalizedAngle
-
-    meshMatRef.current.opacity = opacity * displayProgress
-    meshMatRef.current.color.setHex(0xFFFFFF)
-    meshMatRef.current.emissive.setHex(0xFFFFFF)
-
-    meshMatRef.current.emissiveIntensity = getPlayedGlowIntensity({
-      duration: note.duration,
-      idleGlow: 0.18,
-      opacity: meshMatRef.current.opacity,
-      peakGlow: 1.6 + note.velocity * 1.4,
-      sustainGlow: 0.52 + note.velocity * 0.44,
-      timeDiff: currentTime - note.time,
-    })
-
-    const playScale = isPlaying ? 1.5 + note.velocity : 1
-    const introScale = 0.28 + displayProgress * 0.72
-    targetScale.setScalar(playScale * introScale)
-    groupRef.current.scale.lerp(targetScale, 0.18)
+    mesh.count = count
+    mesh.instanceMatrix.needsUpdate = true
+    if (mesh.instanceColor) {
+      mesh.instanceColor.needsUpdate = true
+    }
   })
 
   return (
-    <group ref={groupRef} scale={0.001}>
-      <Billboard>
-        <mesh geometry={noteGeo} renderOrder={10}>
-          <meshStandardMaterial
-            ref={meshMatRef}
-            depthWrite={false}
-            transparent
-            opacity={0}
-            roughness={0.2}
-            metalness={0.8}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      </Billboard>
-    </group>
+    <instancedMesh
+      ref={meshRef}
+      args={[noteGeo, noteInstanceMaterial, NOTE_INSTANCE_CAPACITY]}
+      frustumCulled={false}
+      renderOrder={10}
+    />
   )
 }
 
@@ -1687,6 +1739,39 @@ function Scene({
     )
   }, [crossfadeNewNotes, isCrossfading, resolvedFilterTime, timeWindow])
 
+  // Flatten the steady / entering / exiting note sets into one list that a
+  // single InstancedMesh renders (one draw call, one useFrame loop).
+  const noteItems = useMemo<NoteRenderItem[]>(() => {
+    if (isCrossfading) {
+      const exiting = visibleExitingNotes.map<NoteRenderItem>(note => ({
+        note,
+        phase: 'exiting',
+        introDelay: 0,
+        frozenTime: exitFilterTime,
+      }))
+      const entering = visibleEnteringNotes.map<NoteRenderItem>(
+        (note, index) => ({
+          note,
+          phase: 'entering',
+          introDelay: getCrossfadeEnterDelay(index),
+        }),
+      )
+      return [...exiting, ...entering]
+    }
+
+    return visibleDisplayNotes.map<NoteRenderItem>((note, index) => ({
+      note,
+      phase: 'steady',
+      introDelay: getNoteIntroDelay(note, index),
+    }))
+  }, [
+    exitFilterTime,
+    isCrossfading,
+    visibleDisplayNotes,
+    visibleEnteringNotes,
+    visibleExitingNotes,
+  ])
+
   return (
     <>
       <color attach="background" args={['#000000']} />
@@ -1751,43 +1836,13 @@ function Scene({
 
       <group rotation={[0, 0, 0]}>
         <Staff introStartRef={introStartRef} timeline={timeline} />
-        {isCrossfading
-          && visibleExitingNotes.map(note => (
-            <NoteMesh
-              key={`note-exit-${note.id}`}
-              note={note}
-              timeWindow={timeWindow}
-              introStartRef={noteIntroStartRef}
-              introDelay={0}
-              fadePhase="exiting"
-              crossfadeStartClock={crossfadeStartClock}
-              frozenTime={exitFilterTime}
-              timeline={timeline}
-            />
-          ))}
-        {isCrossfading
-          ? visibleEnteringNotes.map((note, index) => (
-              <NoteMesh
-                key={`note-${note.id}`}
-                note={note}
-                timeWindow={timeWindow}
-                introStartRef={noteIntroStartRef}
-                introDelay={getCrossfadeEnterDelay(index)}
-                fadePhase="entering"
-                crossfadeStartClock={crossfadeStartClock}
-                timeline={timeline}
-              />
-            ))
-          : visibleDisplayNotes.map((note, index) => (
-              <NoteMesh
-                key={`note-${note.id}`}
-                note={note}
-                timeWindow={timeWindow}
-                introStartRef={noteIntroStartRef}
-                introDelay={getNoteIntroDelay(note, index)}
-                timeline={timeline}
-              />
-            ))}
+        <InstancedNotes
+          items={noteItems}
+          timeWindow={timeWindow}
+          introStartRef={noteIntroStartRef}
+          crossfadeStartClock={crossfadeStartClock}
+          timeline={timeline}
+        />
         <Playhead introStartRef={introStartRef} timeline={timeline} />
       </group>
 
@@ -1831,7 +1886,15 @@ function Scene({
           luminanceThreshold={0.24}
           luminanceSmoothing={0.9}
           intensity={DEFAULT_BLOOM_INTENSITY}
+          mipmapBlur
+          radius={0.72}
         />
+        {/* Filmic depth: darken the edges so the frame reads as a lit stage
+            rather than a flat void. Kept subtle to stay minimal. */}
+        <Vignette offset={0.28} darkness={0.62} eskil={false} />
+        {/* Fine monochrome grain adds texture and a "shot-on-film" feel.
+            premultiply keeps the grain on lit areas so the black stays clean. */}
+        <Noise premultiply opacity={isMobileView ? 0.35 : 0.5} />
       </EffectComposer>
     </>
   )
@@ -1919,7 +1982,7 @@ export function Visualizer({
   return (
     <Canvas
       camera={cameraConfig}
-      dpr={exportMode ? 1 : undefined}
+      dpr={exportMode ? 1 : isMobileView ? [1, 1.5] : [1, 2]}
       frameloop={exportMode ? 'never' : 'always'}
       gl={glProps}
     >
