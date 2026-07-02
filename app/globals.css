@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+/* Wire self-hosted next/font families into Tailwind's font utilities.
+   Latin display faces with graceful system fallbacks (incl. Japanese). */
+@theme inline {
+  --font-sans: var(--font-sans-custom), ui-sans-serif, system-ui,
+    'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
+  --font-mono: var(--font-mono-custom), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+}
+
 /* ── Neuromorphic Design System ── */
 
 :root {
@@ -10,9 +19,11 @@
   --nm-shadow-light: rgba(255, 255, 255, 0.05);
   --nm-accent: #ffffff;
   --nm-accent-dim: rgba(255, 255, 255, 0.15);
-  --nm-text: rgba(255, 255, 255, 0.87);
-  --nm-text-dim: rgba(255, 255, 255, 0.45);
-  --nm-text-faint: rgba(255, 255, 255, 0.25);
+  /* Text tiers lifted for legibility (esp. mobile in daylight) while staying
+     restrained and monochrome. */
+  --nm-text: rgba(255, 255, 255, 0.9);
+  --nm-text-dim: rgba(255, 255, 255, 0.56);
+  --nm-text-faint: rgba(255, 255, 255, 0.36);
   --nm-border: rgba(255, 255, 255, 0.04);
   --nm-note-cursor-image: url('/cursor.svg');
 }
@@ -29,6 +40,7 @@ html {
 
 body {
   color: var(--nm-text);
+  font-family: var(--font-sans);
 }
 
 @media (pointer: fine) {

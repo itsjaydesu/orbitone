@@ -1,6 +1,21 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
+import { Space_Grotesk, Space_Mono } from 'next/font/google'
 import './globals.css'
+
+const fontSans = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans-custom',
+  display: 'swap',
+})
+
+const fontMono = Space_Mono({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-mono-custom',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'orbitone',
@@ -23,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${fontSans.variable} ${fontMono.variable}`}>
       <body suppressHydrationWarning>
         {children}
         <Analytics />
