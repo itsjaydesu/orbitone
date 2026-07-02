@@ -262,6 +262,7 @@ function getPlayedGlowIntensity({
   peakGlow,
   sustainGlow,
   timeDiff,
+  centered = false,
 }: {
   duration: number
   idleGlow: number
@@ -269,7 +270,26 @@ function getPlayedGlowIntensity({
   peakGlow: number
   sustainGlow: number
   timeDiff: number
+  centered?: boolean
 }) {
+  if (centered) {
+    // Bloom centered on the playhead crossing: timeDiff 0 is the instant the note
+    // sits dead-center, so the glow peaks there and decays symmetrically as the
+    // note keeps orbiting past. A "played" orbital note reads as lit *at* center
+    // while still moving — no frozen note, no bright trail lingering to the right.
+    // The lit span scales with the note's duration (clamped) so longer notes
+    // bloom wider without glowing absurdly early.
+    const halfWindow = Math.min(Math.max(duration * 0.5, 0.1), 0.75)
+    const t = clamp01(Math.abs(timeDiff) / halfWindow)
+    if (t >= 1) {
+      return idleGlow * opacity
+    }
+
+    const env = smootherStep(1 - t)
+    const lit = THREE.MathUtils.lerp(sustainGlow, peakGlow, env)
+    return THREE.MathUtils.lerp(idleGlow, lit, env) * opacity
+  }
+
   if (timeDiff < 0 || timeDiff > duration) {
     return idleGlow * opacity
   }
@@ -771,6 +791,7 @@ function InstancedNotes({
         peakGlow: 1.6 + note.velocity * 1.4,
         sustainGlow: 0.52 + note.velocity * 0.44,
         timeDiff,
+        centered: true,
       })
       // Smooth analytic strike envelope (mirrors the glow ramp) so scale pops on
       // attack and settles — no per-instance frame-to-frame state needed.
@@ -781,6 +802,7 @@ function InstancedNotes({
         peakGlow: 1,
         sustainGlow: 0.33,
         timeDiff,
+        centered: true,
       })
 
       const brightness = visibility * (NOTE_DISK_BASE + glow)
