@@ -40,12 +40,14 @@ Dev server now runs through portless (`https://orbitone.local`) — do not bind 
 - [x] D6b: `webglcontextlost` → preventDefault + Canvas remount via epoch key (silent recovery; intro replays)
 - [x] Typecheck + lint (memo wrappers restructured for prefer-arrow-callback) + browser test (roll in two camera views during playback, zero console errors) + commit
 
-## Phase 5 — Bundle & loading (P3)
-- [ ] Decouple Visualizer from Tone (`getTransportSeconds` prop instead of `Tone.Transport.seconds`)
-- [ ] Lazy-load Tone.js: dynamic import gateway in useMusic; instrument-live/export-audio reached only via async paths
-- [ ] Lazy-load `lib/library.ts` + translations (idle-time dynamic import; library UI, initial random track, prev/next all async)
-- [ ] Verify with production build: initial JS chunk drop (baseline: 610 KB gz total, 404 KB gz main chunk)
-- [ ] Typecheck + browser test + commit
+## Phase 5 — Bundle & loading (P3) ✅ COMPLETE
+- [x] Visualizer decoupled from Tone (done in Phase 3 via `lib/transport-time.ts`)
+- [x] Tone.js fully lazy: `loadTone()` gateway (context configured at import); Parts scheduling deferred via `scheduleTrackPartsRef` + dirty flag until first play intent; instrument-live dynamically imported inside `ensureInstrument`; all transport access null-guarded pre-load; transport reader falls back to `currentTimeRef`
+- [x] `@tonejs/midi` lazy inside `parseMidiFile`
+- [x] Library + translations behind `useMidiLibrary()` (idle-time dynamic import); page rewired: indexes/random-initial-track/adjacent-nav/localization all null-safe; visualizer holds empty until initial track loads (or fails → falls back to default piece)
+- [x] Production build measured: **610.7 → 540.5 KB gz (2111.6 → 1784.4 KB raw)** first load. Main chunk = three+postprocessing only (Tone core, standardized-audio-context, @tonejs/midi, translations all deferred; verified at runtime: no Tone chunk until play, then chunk + 30 samples fetch on demand). Caveat: Turbopack still lists the library-data chunk (31.9 KB gz) in initial scripts — it hoists mount-reachable dynamic imports; async/non-blocking, acceptable. Future option: serve catalog as JSON
+- [x] Typecheck + lint + browser test + commit
+- Note: an external supervisor auto-respawns the portless orbitone dev server — never start one manually; just use https://orbitone.local
 
 ## Phase 6 — Mobile UX
 - [ ] M1: `h-dvh` + `overscroll-none` on main (100vh iOS bug)

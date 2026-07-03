@@ -57,6 +57,7 @@ import { PlaybackTimeline } from '@/components/PlaybackControls'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useMidiLibrary } from '@/hooks/useMidiLibrary'
 import { useMusic } from '@/hooks/useMusic'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
@@ -73,14 +74,6 @@ import {
   DEFAULT_INSTRUMENT_ID,
 
 } from '@/lib/instruments'
-import {
-  MIDI_LIBRARY,
-  MIDI_LIBRARY_CATEGORIES,
-} from '@/lib/library'
-import {
-  getLocalizedTrackSubtitle,
-  getLocalizedTrackTitle,
-} from '@/lib/library-translations'
 import { cn } from '@/lib/utils'
 import { isVideoExportClientEnabled } from '@/lib/video-export-env'
 
@@ -116,16 +109,6 @@ const VideoExportDevTools = dynamic(
   () => import('@/components/VideoExportDevTools').then(module => module.VideoExportDevTools),
   { ssr: false },
 )
-const DEFAULT_LIBRARY_CATEGORY_ID = MIDI_LIBRARY_CATEGORIES[0]?.id ?? ''
-const LIBRARY_CATEGORY_INDEX = new Map(
-  MIDI_LIBRARY_CATEGORIES.map(category => [category.id, category]),
-)
-const LIBRARY_TRACK_INDEX = new Map(
-  MIDI_LIBRARY_CATEGORIES.flatMap(category =>
-    category.items.map(item => [item.id, item] as const),
-  ),
-)
-
 interface LibraryCategoryMeta {
   blurb: string
   icon: LucideIcon
@@ -602,15 +585,6 @@ function stripMidiExtension(fileName: string) {
   return fileName.replace(/\.(mid|midi)$/i, '')
 }
 
-function getRandomLibraryTrack(): MidiLibraryItem | null {
-  if (MIDI_LIBRARY.length === 0) {
-    return null
-  }
-
-  const randomIndex = Math.floor(Math.random() * MIDI_LIBRARY.length)
-  return MIDI_LIBRARY[randomIndex] ?? null
-}
-
 function formatLoadedTitle(fileName: string, language: AppLanguage) {
   const stem = stripMidiExtension(fileName).trim()
 
@@ -665,9 +639,7 @@ export default function Home() {
   const [showInfo, setShowInfo] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
-  const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState(
-    DEFAULT_LIBRARY_CATEGORY_ID,
-  )
+  const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState('')
   const [currentTrackTitle, setCurrentTrackTitle] = useState<string | null>(
     null,
   )
@@ -683,9 +655,10 @@ export default function Home() {
   const [cameraDraftPresets, setCameraDraftPresets] = useState<CameraPresetMap>(
     () => cloneCameraPresetMap(DEFAULT_CAMERA_PRESETS),
   )
-  const [initialLibraryTrack] = useState<MidiLibraryItem | null>(() =>
-    getRandomLibraryTrack(),
-  )
+  const library = useMidiLibrary()
+  const [initialLibraryTrack, setInitialLibraryTrack]
+    = useState<MidiLibraryItem | null>(null)
+  const [initialTrackFailed, setInitialTrackFailed] = useState(false)
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>(DEFAULT_EXPORT_FORMAT)
   const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
@@ -774,10 +747,12 @@ export default function Home() {
 
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
-      LIBRARY_CATEGORY_INDEX.get(activeLibraryCategoryId)
-      ?? MIDI_LIBRARY_CATEGORIES[0]
-      ?? null,
-    [activeLibraryCategoryId],
+      library
+        ? (library.categoryIndex.get(activeLibraryCategoryId)
+          ?? library.categories[0]
+          ?? null)
+        : null,
+    [activeLibraryCategoryId, library],
   )
   const activeLibraryGroup = useMemo<LibraryPrimaryGroup | null>(
     () =>
@@ -794,14 +769,14 @@ export default function Home() {
     = activeLibraryGroup?.icon ?? ActiveLibraryCategoryIcon
   const activeTrainSubcategories = useMemo(
     () =>
-      (activeLibraryGroup?.categoryIds.length ?? 0) > 1
+      library && (activeLibraryGroup?.categoryIds.length ?? 0) > 1
         ? (activeLibraryGroup?.categoryIds
-            .map(categoryId => LIBRARY_CATEGORY_INDEX.get(categoryId))
+            .map(categoryId => library.categoryIndex.get(categoryId))
             .filter((category): category is MidiLibraryCategory =>
               Boolean(category),
             ) ?? [])
         : [],
-    [activeLibraryGroup],
+    [activeLibraryGroup, library],
   )
   const activeLibraryHeading
     = activeLibraryGroup?.label
@@ -816,18 +791,20 @@ export default function Home() {
     : activeLibraryCategoryMeta.blurb
   const currentLibraryTrack = useMemo<MidiLibraryItem | null>(
     () =>
-      currentLibraryTrackId
-        ? (LIBRARY_TRACK_INDEX.get(currentLibraryTrackId) ?? null)
+      currentLibraryTrackId && library
+        ? (library.trackIndex.get(currentLibraryTrackId) ?? null)
         : null,
-    [currentLibraryTrackId],
+    [currentLibraryTrackId, library],
   )
-  const localizedTrackTitle = currentLibraryTrack
-    ? getLocalizedTrackTitle(currentLibraryTrack, language)
+  const localizedTrackTitle = currentLibraryTrack && library
+    ? library.getLocalizedTrackTitle(currentLibraryTrack, language)
     : currentTrackTitle
-  const localizedTrackSubtitle = getLocalizedTrackSubtitle(
-    currentLibraryTrack?.subtitle ?? null,
-    language,
-  )
+  const localizedTrackSubtitle = library
+    ? library.getLocalizedTrackSubtitle(
+        currentLibraryTrack?.subtitle ?? null,
+        language,
+      )
+    : currentLibraryTrack?.subtitle ?? null
   const [displayTrackMeta, setDisplayTrackMeta] = useState<DisplayTrackMeta>(
     () => ({
       title: localizedTrackTitle,
@@ -1207,21 +1184,21 @@ export default function Home() {
   }, [closeLibrary, copy.libraryLoadError, fetchLibraryMidiFile, loadMidiFile])
 
   const loadAdjacentTrack = useCallback((direction: -1 | 1) => {
-    if (isLoadingLibrary)
+    if (isLoadingLibrary || !library || library.tracks.length === 0)
       return
     const currentIndex = currentLibraryTrackId
-      ? MIDI_LIBRARY.findIndex(item => item.id === currentLibraryTrackId)
+      ? library.tracks.findIndex(item => item.id === currentLibraryTrackId)
       : -1
     const nextIndex
       = currentIndex === -1
         ? 0
-        : (currentIndex + direction + MIDI_LIBRARY.length)
-          % MIDI_LIBRARY.length
-    const nextItem = MIDI_LIBRARY[nextIndex]
+        : (currentIndex + direction + library.tracks.length)
+          % library.tracks.length
+    const nextItem = library.tracks[nextIndex]
     if (nextItem) {
       loadLibraryMidi(nextItem)
     }
-  }, [currentLibraryTrackId, isLoadingLibrary, loadLibraryMidi])
+  }, [currentLibraryTrackId, isLoadingLibrary, library, loadLibraryMidi])
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== undefined) {
@@ -1486,6 +1463,35 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!library) {
+      return
+    }
+
+    if (!activeLibraryCategoryId) {
+      setActiveLibraryCategoryId(library.categories[0]?.id ?? '')
+    }
+  }, [activeLibraryCategoryId, library])
+
+  useEffect(() => {
+    if (
+      !library
+      || isAutomationMode
+      || initialLibraryTrack !== null
+      || initialTrackRequestedRef.current
+    ) {
+      return
+    }
+
+    if (library.tracks.length === 0) {
+      setInitialTrackFailed(true)
+      return
+    }
+
+    const randomIndex = Math.floor(Math.random() * library.tracks.length)
+    setInitialLibraryTrack(library.tracks[randomIndex] ?? null)
+  }, [initialLibraryTrack, isAutomationMode, library])
+
+  useEffect(() => {
     if (
       isAutomationMode
       || !initialLibraryTrack
@@ -1512,8 +1518,10 @@ export default function Home() {
           title: initialLibraryTrack.title,
         })
       }
-      catch (error) {
-        void error
+      catch {
+        if (!isCancelled) {
+          setInitialTrackFailed(true)
+        }
       }
       finally {
         if (!isCancelled) {
@@ -1617,8 +1625,10 @@ export default function Home() {
   }, [activeCameraView, updateCameraDraft])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
+  // Hold the visualizer empty until the initial library track has loaded so
+  // the intro sweep plays on the real track, not the generated default piece.
   const shouldHoldInitialVisualizerNotes
-    = Boolean(initialLibraryTrack) && trackSource !== 'loaded'
+    = !isAutomationMode && trackSource !== 'loaded' && !initialTrackFailed
   const needsExplicitAudioUnlock
     = requiresExplicitAudioUnlock && !isAudioUnlocked
   const playbackButtonBusy = isAudioLoading || isAudioUnlocking
@@ -2000,16 +2010,16 @@ export default function Home() {
                                         <span className="flex flex-wrap items-start justify-between gap-2">
                                           <span className="min-w-0">
                                             <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
-                                              {getLocalizedTrackTitle(
+                                              {library?.getLocalizedTrackTitle(
                                                 item,
                                                 language,
-                                              )}
+                                              ) ?? item.title}
                                             </span>
                                             <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--nm-text-faint)]">
-                                              {getLocalizedTrackSubtitle(
+                                              {library?.getLocalizedTrackSubtitle(
                                                 item.subtitle,
                                                 language,
-                                              )}
+                                              ) ?? item.subtitle}
                                               {item.sourceUrl && (
                                                 <a
                                                   href={item.sourceUrl}
