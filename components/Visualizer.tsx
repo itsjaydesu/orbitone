@@ -21,8 +21,8 @@ import {
   useState,
 } from 'react'
 import * as THREE from 'three'
-import * as Tone from 'tone'
 import { getExportCameraTransitionState } from '@/lib/export'
+import { readTransportSeconds } from '@/lib/transport-time'
 import {
   INTRO_CAMERA_DELAY,
   INTRO_CAMERA_DURATION,
@@ -234,7 +234,7 @@ function getResolvedTransportTime(
     return frozenTime
   }
 
-  return timeline?.transportTime ?? Tone.Transport.seconds
+  return timeline?.transportTime ?? readTransportSeconds()
 }
 
 function getIntroProgress(clockTime: number, introStartRef: IntroClockRef, delay: number, duration: number) {
@@ -1669,7 +1669,7 @@ function Scene({
 
   useFrame(({ clock }) => {
     const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
-    const transportTime = timeline?.transportTime ?? Tone.Transport.seconds
+    const transportTime = timeline?.transportTime ?? readTransportSeconds()
 
     lastClockRef.current = globalTime
 

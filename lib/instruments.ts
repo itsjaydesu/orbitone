@@ -168,10 +168,6 @@ export const INSTRUMENT_LIST: InstrumentDefinition[] = [
   INSTRUMENTS['glass-bells'],
 ]
 
-export function isInstrumentId(value: unknown): value is InstrumentId {
-  return typeof value === 'string' && value in INSTRUMENTS
-}
-
 export function getInstrument(id: InstrumentId): InstrumentDefinition {
   return INSTRUMENTS[id] ?? INSTRUMENTS[DEFAULT_INSTRUMENT_ID]
 }

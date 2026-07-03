@@ -25,6 +25,7 @@ import {
   DEFAULT_REVERB_ROOM_SIZE,
   GLOBAL_VOLUME_BOOST,
 } from '../lib/piano-audio'
+import { setTransportTimeReader } from '../lib/transport-time'
 
 type AudioSessionType = 'ambient' | 'auto' | 'play-and-record' | 'playback' | 'transient' | 'transient-solo'
 
@@ -56,18 +57,43 @@ interface TrackState {
 const TRACK_END_EPSILON_SECONDS = 0.05
 const IOS_AUDIO_PRIME_DURATION_SECONDS = 0.04
 const IOS_AUDIO_PRIME_TIMEOUT_MS = 150
+const TRANSPORT_TICKS_PER_QUARTER = 960
 
-function isLikelyIPhoneSafari() {
+let hasConfiguredToneContext = false
+
+// This app is pure scheduled playback competing with a WebGL render loop, so
+// trade input latency for buffer headroom. Must run before any Tone node or
+// transport access: the `Transport` module export is a static binding to the
+// context active at import time, so everything goes through getSharedTransport().
+function configureToneContext() {
+  if (hasConfiguredToneContext || typeof window === 'undefined') {
+    return
+  }
+
+  hasConfiguredToneContext = true
+  Tone.setContext(new Tone.Context({ latencyHint: 'playback', lookAhead: 0.2 }))
+  Tone.getTransport().PPQ = TRANSPORT_TICKS_PER_QUARTER
+}
+
+function getSharedTransport() {
+  configureToneContext()
+  return Tone.getTransport()
+}
+
+function isLikelyIOSSafari() {
   if (typeof navigator === 'undefined') {
     return false
   }
 
   const userAgent = navigator.userAgent
   const isIPhone = /iPhone/i.test(userAgent)
+  const isIPad
+    = /iPad/i.test(userAgent)
+      || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1)
   const isWebKit = /AppleWebKit/i.test(userAgent)
   const isExcludedBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(userAgent)
 
-  return isIPhone && isWebKit && !isExcludedBrowser
+  return (isIPhone || isIPad) && isWebKit && !isExcludedBrowser
 }
 
 async function setPlaybackAudioSessionType() {
@@ -145,29 +171,30 @@ export function useMusic(settings: MusicSettings) {
   const [hasEnded, setHasEnded] = useState(false)
   const instrumentsRef = useRef<Map<InstrumentId, LiveInstrument>>(new Map())
   const instrumentBuildPromisesRef = useRef<
-    Map<InstrumentId, Promise<LiveInstrument>>
+    Map<InstrumentId, Promise<LiveInstrument | null>>
   >(new Map())
   const chainReadyRef = useRef(false)
   const activeInstrumentIdRef = useRef<InstrumentId>(instrumentId)
-  const partRef = useRef<Tone.Part | null>(null)
-  const pedalPartRef = useRef<Tone.Part | null>(null)
+  const partRef = useRef<Tone.Part<[string, NoteEvent]> | null>(null)
+  const pedalPartRef = useRef<Tone.Part<[string, PedalEvent]> | null>(null)
   const trackGainRef = useRef<Tone.Gain | null>(null)
   const dryGainRef = useRef<Tone.Gain | null>(null)
   const reverbSendRef = useRef<Tone.Gain | null>(null)
   const reverbToneRef = useRef<Tone.Filter | null>(null)
   const wetGainRef = useRef<Tone.Gain | null>(null)
-  const eqRef = useRef<Tone.EQ3 | null>(null)
   const masterGainRef = useRef<Tone.Gain | null>(null)
   const reverbRef = useRef<Tone.Freeverb | null>(null)
   const limiterRef = useRef<Tone.Limiter | null>(null)
   const meterRef = useRef<Tone.Meter | null>(null)
   const partStartedRef = useRef(false)
-  const notesRef = useRef<NoteEvent[]>([])
   const isPlayingRef = useRef(false)
   const bpmRef = useRef(100)
+  const playbackSpeedRef = useRef(1)
   const currentTimeRef = useRef(0)
   const audioDurationRef = useRef(0)
+  const audioLevelRef = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const [audioLoadFailed, setAudioLoadFailed] = useState(false)
   const [requiresExplicitAudioUnlock, setRequiresExplicitAudioUnlock] = useState(false)
   const unlockPromiseRef = useRef<Promise<boolean> | null>(null)
   const requiresExplicitUnlockRef = useRef(false)
@@ -192,8 +219,6 @@ export function useMusic(settings: MusicSettings) {
     source: trackSource,
   } = trackState
   const trackPlaybackGain = originalPlaybackGain
-
-  const prevSpeedRef = useRef(1)
 
   const notes = useMemo(() => {
     const playbackSpeed = bpm / originalBpm
@@ -222,15 +247,11 @@ export function useMusic(settings: MusicSettings) {
   }, [notes])
 
   useEffect(() => {
-    notesRef.current = notes
-  }, [notes])
-
-  useEffect(() => {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
 
   useEffect(() => {
-    setRequiresExplicitAudioUnlock(isLikelyIPhoneSafari())
+    setRequiresExplicitAudioUnlock(isLikelyIOSSafari())
   }, [])
 
   useEffect(() => {
@@ -271,21 +292,31 @@ export function useMusic(settings: MusicSettings) {
   const syncTransportTime = useCallback(
     (time: number) => {
       const nextTime = clampAudioTime(time)
-      Tone.Transport.seconds = nextTime
+      getSharedTransport().seconds = nextTime
       currentTimeRef.current = nextTime
       return nextTime
     },
     [clampAudioTime],
   )
 
+  const pausePlayback = useCallback(() => {
+    clearPlaybackFrame()
+    getSharedTransport().pause()
+    currentTimeRef.current = clampAudioTime(getSharedTransport().seconds)
+    audioLevelRef.current = 0
+    setIsPlaying(false)
+    setHasEnded(false)
+  }, [clampAudioTime, clearPlaybackFrame])
+
   const finishPlayback = useCallback(() => {
     clearPlaybackFrame()
 
     const finalTime = clampAudioTime(audioDurationRef.current)
 
-    Tone.Transport.pause()
-    Tone.Transport.seconds = finalTime
+    getSharedTransport().pause()
+    getSharedTransport().seconds = finalTime
     currentTimeRef.current = finalTime
+    audioLevelRef.current = 0
     setIsPlaying(false)
     setHasEnded(finalTime > 0)
   }, [clampAudioTime, clearPlaybackFrame])
@@ -311,23 +342,22 @@ export function useMusic(settings: MusicSettings) {
       return
     }
 
+    configureToneContext()
     limiterRef.current = new Tone.Limiter(-1.5).toDestination()
     meterRef.current = new Tone.Meter({
       channelCount: 2,
       normalRange: false,
       smoothing: 0.85,
     })
-    eqRef.current = new Tone.EQ3({ low: 0, mid: 0, high: 0 })
     masterGainRef.current = new Tone.Gain(
       baseOutputGain * (volumePercent / 100),
     )
-    eqRef.current.connect(masterGainRef.current)
     masterGainRef.current.connect(limiterRef.current)
     masterGainRef.current.connect(meterRef.current)
 
     trackGainRef.current = new Tone.Gain(trackPlaybackGain)
-    dryGainRef.current = new Tone.Gain(0.42).connect(eqRef.current)
-    wetGainRef.current = new Tone.Gain(0.18).connect(eqRef.current)
+    dryGainRef.current = new Tone.Gain(0.42).connect(masterGainRef.current)
+    wetGainRef.current = new Tone.Gain(0.18).connect(masterGainRef.current)
     reverbToneRef.current = new Tone.Filter({
       Q: 0.7,
       frequency: 2400,
@@ -352,7 +382,8 @@ export function useMusic(settings: MusicSettings) {
 
   // Lazily build (and cache) a voice, wiring it into the shared chain. Voices
   // are kept alive so switching back to a previously-used instrument is instant
-  // and never re-downloads piano samples.
+  // and never re-downloads piano samples. A failed build (e.g. sample download
+  // on a flaky network) is evicted so the next attempt retries from scratch.
   const ensureInstrument = useCallback(
     async (id: InstrumentId): Promise<LiveInstrument | null> => {
       const trackGain = trackGainRef.current
@@ -362,8 +393,13 @@ export function useMusic(settings: MusicSettings) {
 
       const cached = instrumentsRef.current.get(id)
       if (cached) {
-        await cached.ready
-        return cached
+        try {
+          await cached.ready
+          return cached
+        }
+        catch {
+          return null
+        }
       }
 
       let pending = instrumentBuildPromisesRef.current.get(id)
@@ -376,14 +412,25 @@ export function useMusic(settings: MusicSettings) {
         if (definition.kind === 'sampler') {
           setIsAudioLoading(true)
         }
+        setAudioLoadFailed(false)
 
-        pending = instrument.ready.then(() => {
-          if (definition.kind === 'sampler') {
-            setIsAudioLoading(false)
-          }
-          setIsLoaded(true)
-          return instrument
-        })
+        pending = instrument.ready
+          .then(() => {
+            setIsLoaded(true)
+            return instrument
+          })
+          .catch(() => {
+            instrumentsRef.current.delete(id)
+            instrumentBuildPromisesRef.current.delete(id)
+            instrument.dispose()
+            setAudioLoadFailed(true)
+            return null
+          })
+          .finally(() => {
+            if (definition.kind === 'sampler') {
+              setIsAudioLoading(false)
+            }
+          })
         instrumentBuildPromisesRef.current.set(id, pending)
       }
 
@@ -395,7 +442,8 @@ export function useMusic(settings: MusicSettings) {
   const ensureAudioReady = useCallback(async () => {
     await Tone.start()
     ensureChain()
-    await ensureInstrument(activeInstrumentIdRef.current)
+    const instrument = await ensureInstrument(activeInstrumentIdRef.current)
+    return instrument !== null
   }, [ensureChain, ensureInstrument])
 
   const unlockAudio = useCallback(async () => {
@@ -416,7 +464,11 @@ export function useMusic(settings: MusicSettings) {
           }
 
           await primeSilentAudioBuffer(rawContext)
-          await ensureAudioReady()
+          const ready = await ensureAudioReady()
+
+          if (!ready) {
+            return false
+          }
 
           isAudioUnlockedRef.current = true
           setIsAudioUnlocked(true)
@@ -438,9 +490,9 @@ export function useMusic(settings: MusicSettings) {
   useEffect(() => {
     return () => {
       clearPlaybackFrame()
-      Tone.Transport.stop()
-      Tone.Transport.cancel()
-      Tone.Transport.seconds = 0
+      getSharedTransport().stop()
+      getSharedTransport().cancel()
+      getSharedTransport().seconds = 0
       partRef.current?.dispose()
       pedalPartRef.current?.dispose()
       instrumentsRef.current.forEach(instrument => instrument.dispose())
@@ -452,7 +504,6 @@ export function useMusic(settings: MusicSettings) {
       reverbToneRef.current?.dispose()
       wetGainRef.current?.dispose()
       reverbRef.current?.dispose()
-      eqRef.current?.dispose()
       masterGainRef.current?.dispose()
       meterRef.current?.dispose()
       limiterRef.current?.dispose()
@@ -462,13 +513,16 @@ export function useMusic(settings: MusicSettings) {
 
   useEffect(() => {
     if (masterGainRef.current) {
-      masterGainRef.current.gain.value = baseOutputGain * (volumePercent / 100)
+      masterGainRef.current.gain.rampTo(
+        baseOutputGain * (volumePercent / 100),
+        0.05,
+      )
     }
   }, [baseOutputGain, volumePercent])
 
   useEffect(() => {
     if (trackGainRef.current) {
-      trackGainRef.current.gain.value = trackPlaybackGain
+      trackGainRef.current.gain.rampTo(trackPlaybackGain, 0.05)
     }
   }, [trackPlaybackGain])
 
@@ -502,49 +556,38 @@ export function useMusic(settings: MusicSettings) {
     }
   }, [ensureInstrument, instrumentId])
 
+  // Parts are scheduled once per track, in transport ticks at the original
+  // tempo. Tempo changes are then a single Transport.bpm write — the tick
+  // timeline stretches for free, with no Part rebuild and no note-array churn.
   useEffect(() => {
-    if (notes.length === 0)
+    if (originalNotes.length === 0)
       return
 
-    const playbackSpeed = bpm / originalBpm
+    const transport = getSharedTransport()
+    const ticksPerSecond = (originalBpm / 60) * transport.PPQ
+    const toTicks = (seconds: number) =>
+      `${Math.max(0, Math.round(seconds * ticksPerSecond))}i`
     const wasPlaying = isPlayingRef.current
 
-    const prevSpeed = prevSpeedRef.current
-    const currentOriginalTime = Tone.Transport.seconds * prevSpeed
-    const newTransportTime = currentOriginalTime / playbackSpeed
-
-    Tone.Transport.seconds = newTransportTime
-    prevSpeedRef.current = playbackSpeed
-
-    if (!wasPlaying) {
-      currentTimeRef.current = Math.min(
-        Math.max(newTransportTime, 0),
-        audioDurationRef.current,
-      )
-    }
-
-    if (partRef.current) {
-      partRef.current.dispose()
-    }
-    if (pedalPartRef.current) {
-      pedalPartRef.current.dispose()
-    }
+    partRef.current?.dispose()
+    pedalPartRef.current?.dispose()
+    pedalPartRef.current = null
 
     // Note Part — dispatches to whichever instrument is currently active.
-    partRef.current = new Tone.Part<NoteEvent>((time, note) => {
+    partRef.current = new Tone.Part<[string, NoteEvent]>((time, note) => {
       const instrument = instrumentsRef.current.get(activeInstrumentIdRef.current)
       instrument?.triggerAttackRelease(
         note.midi,
-        note.duration,
+        note.duration / playbackSpeedRef.current,
         time,
         note.velocity,
         note.pedalSustained ?? false,
       )
-    }, notes)
+    }, originalNotes.map((note): [string, NoteEvent] => [toTicks(note.time), note]))
 
     // Pedal Part — dynamic reverb modulation
-    if (pedalEvents.length > 0) {
-      pedalPartRef.current = new Tone.Part<PedalEvent>((time, event) => {
+    if (originalPedalEvents.length > 0) {
+      pedalPartRef.current = new Tone.Part<[string, PedalEvent]>((time, event) => {
         const reverbSend = reverbSendRef.current
         const reverb = reverbRef.current
         if (!reverbSend || !reverb)
@@ -560,7 +603,7 @@ export function useMusic(settings: MusicSettings) {
           reverbSend.gain.rampTo(0.24, 0.3, time)
           reverb.roomSize.rampTo(DEFAULT_REVERB_ROOM_SIZE, 0.3, time)
         }
-      }, pedalEvents)
+      }, originalPedalEvents.map((event): [string, PedalEvent] => [toTicks(event.time), event]))
     }
 
     if (wasPlaying) {
@@ -571,7 +614,17 @@ export function useMusic(settings: MusicSettings) {
     else {
       partStartedRef.current = false
     }
-  }, [notes, pedalEvents, bpm, originalBpm])
+  }, [originalNotes, originalPedalEvents, originalBpm])
+
+  useEffect(() => {
+    const transport = getSharedTransport()
+    playbackSpeedRef.current = bpm / originalBpm
+    transport.bpm.value = bpm
+
+    if (!isPlayingRef.current) {
+      currentTimeRef.current = clampAudioTime(transport.seconds)
+    }
+  }, [bpm, clampAudioTime, originalBpm])
 
   useEffect(() => {
     if (isPlaying) {
@@ -580,7 +633,7 @@ export function useMusic(settings: MusicSettings) {
           return
         }
 
-        const nextTime = clampAudioTime(Tone.Transport.seconds)
+        const nextTime = clampAudioTime(getSharedTransport().seconds)
 
         if (
           audioDurationRef.current > 0
@@ -591,6 +644,14 @@ export function useMusic(settings: MusicSettings) {
         }
 
         currentTimeRef.current = nextTime
+
+        const meter = meterRef.current
+        if (meter) {
+          const level = meter.getValue()
+          const db = Array.isArray(level) ? Math.max(...level) : level
+          audioLevelRef.current = Math.min(Math.max((db + 48) / 48, 0), 1)
+        }
+
         animationFrameRef.current = window.requestAnimationFrame(tickPlayback)
       }
 
@@ -608,15 +669,69 @@ export function useMusic(settings: MusicSettings) {
     isPlaying,
   ])
 
+  // The transport is paused when the tab hides or the context is interrupted
+  // (iOS call, Control Center); otherwise scheduled notes are dropped while the
+  // UI keeps advancing silently.
+  useEffect(() => {
+    const pauseIfPlaying = () => {
+      if (isPlayingRef.current) {
+        pausePlayback()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pauseIfPlaying()
+        return
+      }
+
+      const rawContext = hasConfiguredToneContext
+        ? Tone.getContext().rawContext
+        : null
+      if (
+        rawContext
+        && rawContext.state !== 'running'
+        && isAudioUnlockedRef.current
+      ) {
+        void rawContext.resume().catch(() => {})
+      }
+    }
+
+    const rawContext = hasConfiguredToneContext
+      ? Tone.getContext().rawContext
+      : null
+    const handleStateChange = () => {
+      if (rawContext && rawContext.state !== 'running') {
+        pauseIfPlaying()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pagehide', pauseIfPlaying)
+    rawContext?.addEventListener('statechange', handleStateChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pagehide', pauseIfPlaying)
+      rawContext?.removeEventListener('statechange', handleStateChange)
+    }
+  }, [pausePlayback])
+
+  useEffect(() => {
+    setTransportTimeReader(() =>
+      hasConfiguredToneContext ? Tone.getTransport().seconds : 0,
+    )
+
+    return () => {
+      setTransportTimeReader(null)
+    }
+  }, [])
+
   const togglePlayBusyRef = useRef(false)
 
   const togglePlay = useCallback(async () => {
     if (isPlayingRef.current) {
-      clearPlaybackFrame()
-      Tone.Transport.pause()
-      currentTimeRef.current = clampAudioTime(Tone.Transport.seconds)
-      setIsPlaying(false)
-      setHasEnded(false)
+      pausePlayback()
       return
     }
 
@@ -636,7 +751,11 @@ export function useMusic(settings: MusicSettings) {
       }
 
       await setPlaybackAudioSessionType()
-      await ensureAudioReady()
+      const ready = await ensureAudioReady()
+
+      if (!ready) {
+        return
+      }
 
       const shouldRestartFromBeginning
         = hasEnded
@@ -654,7 +773,7 @@ export function useMusic(settings: MusicSettings) {
         partStartedRef.current = true
       }
 
-      Tone.Transport.start()
+      getSharedTransport().start()
       if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
         isAudioUnlockedRef.current = true
         setIsAudioUnlocked(true)
@@ -681,10 +800,9 @@ export function useMusic(settings: MusicSettings) {
       setHasEnded(false)
       currentTimeRef.current = 0
       instrumentsRef.current.forEach(instrument => instrument.releaseAll())
-      Tone.Transport.stop()
-      Tone.Transport.seconds = 0
+      getSharedTransport().stop()
+      getSharedTransport().seconds = 0
       partStartedRef.current = false
-      prevSpeedRef.current = 1
 
       const {
         notes: parsedNotes,
@@ -729,7 +847,7 @@ export function useMusic(settings: MusicSettings) {
 
     if (reachedTrackEnd) {
       clearPlaybackFrame()
-      Tone.Transport.pause()
+      getSharedTransport().pause()
       setIsPlaying(false)
       setHasEnded(true)
       return
@@ -746,6 +864,8 @@ export function useMusic(settings: MusicSettings) {
     isPlaying,
     isLoaded,
     isAudioLoading,
+    audioLoadFailed,
+    audioLevelRef,
     getPlaybackTime,
     hasEnded,
     togglePlay,

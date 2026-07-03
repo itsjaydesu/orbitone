@@ -59,10 +59,19 @@ const SALAMANDER_URLS: Record<string, string> = {
   'C8': 'C8.mp3',
 }
 
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
+
+const MIDI_NOTE_NAMES = Array.from({ length: 128 }, (_, midi) => {
+  const octave = Math.floor(midi / 12) - 1
+  return `${NOTE_NAMES[midi % 12]}${octave}`
+})
+
 function createPianoInstrument(): LiveInstrument {
   let resolveReady: () => void = () => {}
-  const ready = new Promise<void>((resolve) => {
+  let rejectReady: (error: Error) => void = () => {}
+  const ready = new Promise<void>((resolve, reject) => {
     resolveReady = resolve
+    rejectReady = reject
   })
 
   const sampler = new Tone.Sampler({
@@ -70,6 +79,7 @@ function createPianoInstrument(): LiveInstrument {
     release: 1,
     baseUrl: SALAMANDER_BASE_URL,
     onload: () => resolveReady(),
+    onerror: error => rejectReady(error),
   })
 
   return {
@@ -84,7 +94,7 @@ function createPianoInstrument(): LiveInstrument {
       // Register-aware release mimics longer decay on the piano's bass strings.
       sampler.release = getRegisterRelease(midi, pedalSustained)
       sampler.triggerAttackRelease(
-        Tone.Frequency(midi, 'midi').toNote(),
+        MIDI_NOTE_NAMES[midi] ?? MIDI_NOTE_NAMES[60],
         duration,
         time,
         velocity,

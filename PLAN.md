@@ -21,14 +21,18 @@ Status legend: `[ ]` todo · `[x]` done · `[~]` in progress
 - [x] Verified in browser: seekbar advances during playback, seek-while-playing continues from new position, console clean
 - [x] Typecheck + browser test + commit
 
-## Phase 3 — Audio engine robustness & efficiency
-- [ ] B1: sampler load failure path — onerror wiring in instrument-live, evict failed builds from caches in useMusic + export-audio, play button shows retryable error state (toast)
-- [ ] P2: BPM without rebuild — schedule Parts in ticks, drive `Tone.Transport.bpm`; notes stay immutable; visualizer + seekbar get time scale
-- [ ] P6: remove no-op EQ3; repurpose Meter into `audioLevelRef` (feeds Phase 6 reactive visuals); remove unread `notesRef`; volume `rampTo` instead of instant set
-- [ ] P6: midi→note-name lookup table in instrument-live (no per-trigger `Tone.Frequency` alloc)
-- [ ] M7: Tone context `latencyHint: 'playback'` + larger lookAhead
-- [ ] B4: visibilitychange + AudioContext statechange handling (pause when hidden/interrupted); iPad-aware Safari detection
-- [ ] Typecheck + browser test + commit
+## Phase 3 — Audio engine robustness & efficiency ✅ COMPLETE
+- [x] B1: sampler onerror → ready rejects; useMusic evicts failed builds from both caches, disposes, sets `audioLoadFailed` (exposed; toast wiring lands in Phase 7); ensureAudioReady returns boolean and togglePlay/unlockAudio abort cleanly
+- [x] P2: Parts scheduled once per track in transport ticks (PPQ 960) at original tempo; BPM changes = one `transport.bpm.value` write + `playbackSpeedRef` for callback durations. No Part rebuild, no note-array identity churn into scheduling. Scaled `notes` memo kept for display/export (ids stable → no spurious visualizer crossfade)
+- [x] P6: EQ3 removed (dry/wet → master direct); Meter now read every tick into exposed `audioLevelRef` (0..1 from dB); `notesRef` removed; master + track gains use `rampTo` (no zipper clicks)
+- [x] P6: 128-entry midi→note-name table replaces per-trigger `Tone.Frequency` alloc
+- [x] M7: fresh Tone context with `latencyHint: 'playback'`, `lookAhead 0.2` — required migrating every `Tone.Transport` (static import-time binding) to `getSharedTransport()`/`getTransport()`; Visualizer decoupled from Tone via `lib/transport-time.ts` reader bridge (Phase 5 item pulled forward)
+- [x] B4: visibilitychange + pagehide pause; AudioContext statechange pause (iOS interruption); resume attempt on return; `isLikelyIOSSafari` now covers iPad (incl. Macintosh+touch UA)
+- [x] Also: removed unused `isInstrumentId` (carried an `unknown`); shared `pausePlayback` helper
+- [x] Typecheck + browser test (portless origin https://orbitone.local) + commit
+
+### Dev-server note
+Dev server now runs through portless (`https://orbitone.local`) — do not bind :3000. The `.next` lock belongs to the portless-managed server; stop it before any `next build`.
 
 ## Phase 4 — Visualizer render perf
 - [ ] P2b: instanced MIDI roll — replace per-note mesh/material/useFrame with InstancedMesh (mirror InstancedNotes pattern), both flat and space layouts, crossfade layers included
