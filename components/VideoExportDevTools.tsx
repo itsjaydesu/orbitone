@@ -3,6 +3,7 @@
 import type { VisualizerSettings } from '@/components/Visualizer'
 import type { AppLanguage, CameraPresetMap, CameraView } from '@/lib/camera-presets'
 import type { ExportCameraMode, ExportFormat, ExportSourceData } from '@/lib/export'
+import type { InstrumentId } from '@/lib/instruments'
 import { ChevronRight } from 'lucide-react'
 import {
   useCallback,
@@ -74,6 +75,7 @@ interface VideoExportDevToolsProps {
     subtitle: string | null
     title: string | null
   }
+  instrumentId: InstrumentId
   isAudioLoading: boolean
   isPlaying: boolean
   language: AppLanguage
@@ -82,6 +84,12 @@ interface VideoExportDevToolsProps {
   onShowBottomTrackMetaChange: (showBottomTrackMeta: boolean) => void
   showBottomTrackMeta: boolean
   togglePlay: () => Promise<void>
+  /**
+   * Hides only the visible controls (e.g. when its settings tab is inactive).
+   * The offscreen capture rig and export overlay stay mounted so an in-progress
+   * or automation-triggered export is never interrupted by a tab switch.
+   */
+  visible?: boolean
   volumePercent: number
 }
 
@@ -97,6 +105,7 @@ export function VideoExportDevTools({
   exportSource,
   exportSourceFileName,
   exportTrackMeta,
+  instrumentId,
   isAudioLoading,
   isPlaying,
   language,
@@ -105,6 +114,7 @@ export function VideoExportDevTools({
   onShowBottomTrackMetaChange,
   showBottomTrackMeta,
   togglePlay,
+  visible = true,
   volumePercent,
 }: VideoExportDevToolsProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -121,6 +131,7 @@ export function VideoExportDevTools({
     exportSource,
     exportSourceFileName,
     exportTrackMeta,
+    instrumentId,
     isPlaying,
     togglePlay,
     volumePercent,
@@ -222,7 +233,7 @@ export function VideoExportDevTools({
 
   return (
     <>
-      <div className="mt-2 flex flex-col gap-2">
+      <div className={cn('flex flex-col gap-2', !visible && 'hidden')}>
         <button
           type="button"
           onClick={(e) => {

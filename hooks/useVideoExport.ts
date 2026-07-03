@@ -6,6 +6,7 @@ import type {
   ExportFrameRenderState,
   ExportSourceData,
 } from '@/lib/export'
+import type { InstrumentId } from '@/lib/instruments'
 import { useCallback, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
@@ -257,6 +258,7 @@ interface UseVideoExportOptions {
   exportSource: ExportSourceData
   exportSourceFileName: string | null
   exportTrackMeta: ExportTrackMeta
+  instrumentId: InstrumentId
   isPlaying: boolean
   togglePlay: () => Promise<void>
   volumePercent: number
@@ -266,6 +268,7 @@ export function useVideoExport({
   exportSource,
   exportSourceFileName,
   exportTrackMeta,
+  instrumentId,
   isPlaying,
   togglePlay,
   volumePercent,
@@ -504,6 +507,7 @@ export function useVideoExport({
         exportSource,
         timeline,
         volumePercent,
+        instrumentId,
       )
       if (cancelledRef.current) {
         return
@@ -620,6 +624,7 @@ export function useVideoExport({
     exportSource,
     exportSourceFileName,
     exportTrackMeta,
+    instrumentId,
     isPlaying,
     resetUiState,
     renderFrameNow,

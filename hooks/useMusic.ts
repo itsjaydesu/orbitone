@@ -1,4 +1,6 @@
 import type { AppLanguage } from '../lib/camera-presets'
+import type { LiveInstrument } from '../lib/instrument-live'
+import type { InstrumentId } from '../lib/instruments'
 import type {
   NoteEvent,
   PedalEvent,
@@ -12,6 +14,8 @@ import {
   useState,
 } from 'react'
 import * as Tone from 'tone'
+import { createLiveInstrument } from '../lib/instrument-live'
+import { getInstrument } from '../lib/instruments'
 import {
   DEFAULT_NOTE_LEAD_IN_SECONDS,
   generateBeautifulPianoPiece,
@@ -19,7 +23,6 @@ import {
 } from '../lib/music'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
-  getRegisterRelease,
   GLOBAL_VOLUME_BOOST,
 } from '../lib/piano-audio'
 
@@ -38,6 +41,7 @@ declare global {
 export interface MusicSettings {
   language: AppLanguage
   volumePercent: number
+  instrumentId: InstrumentId
 }
 
 interface TrackState {
@@ -122,7 +126,7 @@ async function primeSilentAudioBuffer(context: AudioContext) {
 }
 
 export function useMusic(settings: MusicSettings) {
-  const { language, volumePercent } = settings
+  const { language, volumePercent, instrumentId } = settings
   const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST
   const defaultMusic = useMemo(() => {
     const piece = generateBeautifulPianoPiece(32, 100)
@@ -140,7 +144,12 @@ export function useMusic(settings: MusicSettings) {
   const [isAudioLoading, setIsAudioLoading] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [hasEnded, setHasEnded] = useState(false)
-  const samplerRef = useRef<Tone.Sampler | null>(null)
+  const instrumentsRef = useRef<Map<InstrumentId, LiveInstrument>>(new Map())
+  const instrumentBuildPromisesRef = useRef<
+    Map<InstrumentId, Promise<LiveInstrument>>
+  >(new Map())
+  const chainReadyRef = useRef(false)
+  const activeInstrumentIdRef = useRef<InstrumentId>(instrumentId)
   const partRef = useRef<Tone.Part | null>(null)
   const pedalPartRef = useRef<Tone.Part | null>(null)
   const trackGainRef = useRef<Tone.Gain | null>(null)
@@ -153,7 +162,6 @@ export function useMusic(settings: MusicSettings) {
   const reverbRef = useRef<Tone.Freeverb | null>(null)
   const limiterRef = useRef<Tone.Limiter | null>(null)
   const meterRef = useRef<Tone.Meter | null>(null)
-  const initPromiseRef = useRef<Promise<void> | null>(null)
   const partStartedRef = useRef(false)
   const notesRef = useRef<NoteEvent[]>([])
   const isPlayingRef = useRef(false)
@@ -301,99 +309,98 @@ export function useMusic(settings: MusicSettings) {
     })
   }, [])
 
-  const ensureAudioReady = useCallback(async () => {
-    await Tone.start()
-
-    if (samplerRef.current) {
+  // Build the shared master/FX chain once. Instruments feed into `trackGain`.
+  const ensureChain = useCallback(() => {
+    if (chainReadyRef.current) {
       return
     }
 
-    if (!initPromiseRef.current) {
-      setIsAudioLoading(true)
-      initPromiseRef.current = new Promise<void>((resolve) => {
-        limiterRef.current = new Tone.Limiter(-1.5).toDestination()
-        meterRef.current = new Tone.Meter({
-          channelCount: 2,
-          normalRange: false,
-          smoothing: 0.85,
-        })
-        eqRef.current = new Tone.EQ3({ low: 0, mid: 0, high: 0 })
-        masterGainRef.current = new Tone.Gain(
-          baseOutputGain * (volumePercent / 100),
-        )
-        eqRef.current.connect(masterGainRef.current)
-        masterGainRef.current.connect(limiterRef.current)
-        masterGainRef.current.connect(meterRef.current)
+    limiterRef.current = new Tone.Limiter(-1.5).toDestination()
+    meterRef.current = new Tone.Meter({
+      channelCount: 2,
+      normalRange: false,
+      smoothing: 0.85,
+    })
+    eqRef.current = new Tone.EQ3({ low: 0, mid: 0, high: 0 })
+    masterGainRef.current = new Tone.Gain(
+      baseOutputGain * (volumePercent / 100),
+    )
+    eqRef.current.connect(masterGainRef.current)
+    masterGainRef.current.connect(limiterRef.current)
+    masterGainRef.current.connect(meterRef.current)
 
-        trackGainRef.current = new Tone.Gain(trackPlaybackGain)
-        dryGainRef.current = new Tone.Gain(0.42).connect(eqRef.current)
-        wetGainRef.current = new Tone.Gain(0.18).connect(eqRef.current)
-        reverbToneRef.current = new Tone.Filter({
-          Q: 0.7,
-          frequency: 2400,
-          rolloff: -24,
-          type: 'lowpass',
-        }).connect(wetGainRef.current)
+    trackGainRef.current = new Tone.Gain(trackPlaybackGain)
+    dryGainRef.current = new Tone.Gain(0.42).connect(eqRef.current)
+    wetGainRef.current = new Tone.Gain(0.18).connect(eqRef.current)
+    reverbToneRef.current = new Tone.Filter({
+      Q: 0.7,
+      frequency: 2400,
+      rolloff: -24,
+      type: 'lowpass',
+    }).connect(wetGainRef.current)
 
-        reverbRef.current = new Tone.Freeverb({
-          dampening: 2200,
-          roomSize: DEFAULT_REVERB_ROOM_SIZE,
-        })
-        reverbRef.current.wet.value = 1
-        reverbRef.current.connect(reverbToneRef.current)
+    reverbRef.current = new Tone.Freeverb({
+      dampening: 2200,
+      roomSize: DEFAULT_REVERB_ROOM_SIZE,
+    })
+    reverbRef.current.wet.value = 1
+    reverbRef.current.connect(reverbToneRef.current)
 
-        reverbSendRef.current = new Tone.Gain(0.24).connect(reverbRef.current)
+    reverbSendRef.current = new Tone.Gain(0.24).connect(reverbRef.current)
 
-        samplerRef.current = new Tone.Sampler({
-          urls: {
-            'A0': 'A0.mp3',
-            'C1': 'C1.mp3',
-            'D#1': 'Ds1.mp3',
-            'F#1': 'Fs1.mp3',
-            'A1': 'A1.mp3',
-            'C2': 'C2.mp3',
-            'D#2': 'Ds2.mp3',
-            'F#2': 'Fs2.mp3',
-            'A2': 'A2.mp3',
-            'C3': 'C3.mp3',
-            'D#3': 'Ds3.mp3',
-            'F#3': 'Fs3.mp3',
-            'A3': 'A3.mp3',
-            'C4': 'C4.mp3',
-            'D#4': 'Ds4.mp3',
-            'F#4': 'Fs4.mp3',
-            'A4': 'A4.mp3',
-            'C5': 'C5.mp3',
-            'D#5': 'Ds5.mp3',
-            'F#5': 'Fs5.mp3',
-            'A5': 'A5.mp3',
-            'C6': 'C6.mp3',
-            'D#6': 'Ds6.mp3',
-            'F#6': 'Fs6.mp3',
-            'A6': 'A6.mp3',
-            'C7': 'C7.mp3',
-            'D#7': 'Ds7.mp3',
-            'F#7': 'Fs7.mp3',
-            'A7': 'A7.mp3',
-            'C8': 'C8.mp3',
-          },
-          release: 1,
-          baseUrl: 'https://tonejs.github.io/audio/salamander/',
-          onload: () => {
-            setIsLoaded(true)
-            setIsAudioLoading(false)
-            resolve()
-          },
-        })
+    trackGainRef.current.connect(dryGainRef.current)
+    trackGainRef.current.connect(reverbSendRef.current)
 
-        samplerRef.current.connect(trackGainRef.current)
-        trackGainRef.current.connect(dryGainRef.current)
-        trackGainRef.current.connect(reverbSendRef.current)
-      })
-    }
-
-    await initPromiseRef.current
+    chainReadyRef.current = true
   }, [baseOutputGain, trackPlaybackGain, volumePercent])
+
+  // Lazily build (and cache) a voice, wiring it into the shared chain. Voices
+  // are kept alive so switching back to a previously-used instrument is instant
+  // and never re-downloads piano samples.
+  const ensureInstrument = useCallback(
+    async (id: InstrumentId): Promise<LiveInstrument | null> => {
+      const trackGain = trackGainRef.current
+      if (!trackGain) {
+        return null
+      }
+
+      const cached = instrumentsRef.current.get(id)
+      if (cached) {
+        await cached.ready
+        return cached
+      }
+
+      let pending = instrumentBuildPromisesRef.current.get(id)
+      if (!pending) {
+        const definition = getInstrument(id)
+        const instrument = createLiveInstrument(definition)
+        instrument.output.connect(trackGain)
+        instrumentsRef.current.set(id, instrument)
+
+        if (definition.kind === 'sampler') {
+          setIsAudioLoading(true)
+        }
+
+        pending = instrument.ready.then(() => {
+          if (definition.kind === 'sampler') {
+            setIsAudioLoading(false)
+          }
+          setIsLoaded(true)
+          return instrument
+        })
+        instrumentBuildPromisesRef.current.set(id, pending)
+      }
+
+      return pending
+    },
+    [],
+  )
+
+  const ensureAudioReady = useCallback(async () => {
+    await Tone.start()
+    ensureChain()
+    await ensureInstrument(activeInstrumentIdRef.current)
+  }, [ensureChain, ensureInstrument])
 
   const unlockAudio = useCallback(async () => {
     if (!requiresExplicitUnlockRef.current || isAudioUnlockedRef.current) {
@@ -437,7 +444,9 @@ export function useMusic(settings: MusicSettings) {
       clearPlaybackFrame()
       partRef.current?.dispose()
       pedalPartRef.current?.dispose()
-      samplerRef.current?.dispose()
+      instrumentsRef.current.forEach(instrument => instrument.dispose())
+      instrumentsRef.current.clear()
+      instrumentBuildPromisesRef.current.clear()
       trackGainRef.current?.dispose()
       dryGainRef.current?.dispose()
       reverbSendRef.current?.dispose()
@@ -448,7 +457,7 @@ export function useMusic(settings: MusicSettings) {
       masterGainRef.current?.dispose()
       meterRef.current?.dispose()
       limiterRef.current?.dispose()
-      initPromiseRef.current = null
+      chainReadyRef.current = false
     }
   }, [clearPlaybackFrame])
 
@@ -463,6 +472,36 @@ export function useMusic(settings: MusicSettings) {
       trackGainRef.current.gain.value = trackPlaybackGain
     }
   }, [trackPlaybackGain])
+
+  // Switch the active instrument. Before the chain exists, just remember the id
+  // (honored on first play). Otherwise build the new voice and only flip to it
+  // once it is ready — piano samples can take a moment — keeping the previous
+  // voice audible during the handoff so no notes drop or hit an unloaded sampler.
+  useEffect(() => {
+    if (!chainReadyRef.current) {
+      activeInstrumentIdRef.current = instrumentId
+      return
+    }
+
+    let cancelled = false
+
+    void ensureInstrument(instrumentId).then((instrument) => {
+      if (cancelled || !instrument) {
+        return
+      }
+
+      activeInstrumentIdRef.current = instrumentId
+      instrumentsRef.current.forEach((other, id) => {
+        if (id !== instrumentId) {
+          other.releaseAll()
+        }
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ensureInstrument, instrumentId])
 
   useEffect(() => {
     if (notes.length === 0)
@@ -492,14 +531,15 @@ export function useMusic(settings: MusicSettings) {
       pedalPartRef.current.dispose()
     }
 
-    // Note Part — register-aware release
+    // Note Part — dispatches to whichever instrument is currently active.
     partRef.current = new Tone.Part<NoteEvent>((time, note) => {
-      samplerRef.current!.release = getRegisterRelease(note.midi, note.pedalSustained ?? false)
-      samplerRef.current?.triggerAttackRelease(
-        Tone.Frequency(note.midi, 'midi').toNote(),
+      const instrument = instrumentsRef.current.get(activeInstrumentIdRef.current)
+      instrument?.triggerAttackRelease(
+        note.midi,
         note.duration,
         time,
         note.velocity,
+        note.pedalSustained ?? false,
       )
     }, notes)
 
@@ -630,7 +670,7 @@ export function useMusic(settings: MusicSettings) {
       setIsPlaying(false)
       setHasEnded(false)
       setPlaybackTime(0)
-      samplerRef.current?.releaseAll()
+      instrumentsRef.current.forEach(instrument => instrument.releaseAll())
       Tone.Transport.stop()
       Tone.Transport.seconds = 0
       partStartedRef.current = false

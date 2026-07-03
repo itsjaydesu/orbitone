@@ -9,6 +9,7 @@ import type {
   CameraView,
 } from '@/lib/camera-presets'
 import type { ExportCameraMode, ExportFormat } from '@/lib/export'
+import type { InstrumentId } from '@/lib/instruments'
 import type {
   MidiLibraryCategory,
   MidiLibraryItem,
@@ -20,7 +21,6 @@ import {
   ChevronRight,
   Clapperboard,
   Disc3,
-  Expand,
   ExternalLink,
   Feather,
   Gamepad2,
@@ -29,7 +29,6 @@ import {
   Loader2,
 
   Map as MapIcon,
-  Minimize,
   Music,
   Piano,
   Play,
@@ -54,6 +53,7 @@ import {
 } from 'react'
 import { CameraLab } from '@/components/CameraLab'
 import { NoteCursor } from '@/components/NoteCursor'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMusic } from '@/hooks/useMusic'
@@ -69,6 +69,10 @@ import {
 } from '@/lib/camera-presets'
 import { EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS } from '@/lib/export'
 import {
+  DEFAULT_INSTRUMENT_ID,
+
+} from '@/lib/instruments'
+import {
   MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
 } from '@/lib/library'
@@ -83,6 +87,7 @@ type AppSettings = VisualizerSettings & {
   autoCycleCamera: boolean
   showBottomTrackMeta: boolean
   volumePercent: number
+  instrumentId: InstrumentId
 }
 
 interface DisplayTrackMeta {
@@ -96,6 +101,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   volumePercent: 100,
   showMidiRoll: false,
   cameraView: 'default',
+  instrumentId: DEFAULT_INSTRUMENT_ID,
 }
 const DEFAULT_EXPORT_FORMAT: ExportFormat = 'mp4'
 const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
@@ -181,6 +187,11 @@ interface UiCopy {
 
   resetDefaults: string
   settings: string
+  tabSound: string
+  tabScene: string
+  tabExport: string
+  tabGeneral: string
+  instrument: string
   show: string
   hide: string
   restartPlayback: string
@@ -290,6 +301,11 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     previousTrack: 'Previous track',
     resetDefaults: 'Reset to Default',
     settings: 'Settings',
+    tabSound: 'Sound',
+    tabScene: 'Scene',
+    tabExport: 'Export',
+    tabGeneral: 'General',
+    instrument: 'Instrument',
     show: 'On',
     hide: 'Off',
     restartPlayback: 'Restart playback',
@@ -340,6 +356,11 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     previousTrack: '前の曲',
     resetDefaults: '初期設定に戻す',
     settings: '設定',
+    tabSound: 'サウンド',
+    tabScene: 'シーン',
+    tabExport: 'エクスポート',
+    tabGeneral: '一般',
+    instrument: '音源',
     show: '表示',
     hide: '非表示',
     restartPlayback: '最初から再生',
@@ -691,6 +712,7 @@ export default function Home() {
   } = useMusic({
     language,
     volumePercent: settings.volumePercent,
+    instrumentId: settings.instrumentId,
   })
   const playbackChromeManaged = isPlaying && !hasEnded
   const shouldPersistChrome = !playbackChromeManaged
@@ -2141,273 +2163,109 @@ export default function Home() {
           </div>
 
           {showSettings && (
-            <div
-              ref={settingsRef}
-              role="dialog"
-              aria-label={copy.settings}
-              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-3 rounded-xl p-4 text-[var(--nm-text)]"
-            >
-              <div className="flex flex-col gap-3">
-                {!isMobile && (
-                  <button
-                    onClick={(e) => {
-                      toggleFullscreen()
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                      isFullscreen
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      {isFullscreen
-                        ? (
-                            <Minimize className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                          )
-                        : (
-                            <Expand className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                          )}
-                      {copy.fullScreen}
-                    </span>
-                    <kbd
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        isFullscreen
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      F
-                    </kbd>
-                  </button>
+            <SettingsPanel
+              panelRef={settingsRef}
+              language={language}
+              copy={{
+                settings: copy.settings,
+                tabSound: copy.tabSound,
+                tabScene: copy.tabScene,
+                tabExport: copy.tabExport,
+                tabGeneral: copy.tabGeneral,
+                instrument: copy.instrument,
+                volume: copy.volume,
+                cameraView: copy.cameraView,
+                cameraAutoCycle: copy.cameraAutoCycle,
+                midiRoll: copy.midiRoll,
+                bottomTrackMeta: copy.bottomTrackMeta,
+                fullScreen: copy.fullScreen,
+                language: copy.language,
+                resetDefaults: copy.resetDefaults,
+                on: copy.show,
+                off: copy.hide,
+              }}
+              isMobile={isMobile}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+              instrumentId={settings.instrumentId}
+              onInstrumentChange={id => updateSetting('instrumentId', id)}
+              bpm={bpm}
+              onBpmChange={setBpm}
+              volumePercent={settings.volumePercent}
+              onVolumeChange={value => updateSetting('volumePercent', value)}
+              showMidiRoll={settings.showMidiRoll}
+              onToggleMidiRoll={() =>
+                updateSetting('showMidiRoll', !settings.showMidiRoll)}
+              showBottomTrackMeta={settings.showBottomTrackMeta}
+              onToggleBottomTrackMeta={() =>
+                updateSetting(
+                  'showBottomTrackMeta',
+                  !settings.showBottomTrackMeta,
                 )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={(e) => {
-                      updateSetting('showMidiRoll', !settings.showMidiRoll)
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.showMidiRoll
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.midiRoll}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.showMidiRoll
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.showMidiRoll ? copy.show : copy.hide}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      updateSetting(
-                        'showBottomTrackMeta',
-                        !settings.showBottomTrackMeta,
-                      )
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.showBottomTrackMeta
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.bottomTrackMeta}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.showBottomTrackMeta
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.showBottomTrackMeta ? copy.show : copy.hide}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
-                    <span>BPM</span>
-                    <span>{bpm}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={30}
-                    max={300}
-                    step={1}
-                    value={bpm}
-                    onChange={e => setBpm(Number.parseInt(e.target.value, 10))}
-                    className="nm-range"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
-                    <span>{copy.volume}</span>
-                    <span>
-                      {settings.volumePercent}
-                      %
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={150}
-                    step={1}
-                    value={settings.volumePercent}
-                    onChange={e =>
-                      updateSetting(
-                        'volumePercent',
-                        Number.parseInt(e.target.value, 10),
-                      )}
-                    className="nm-range"
-                  />
-                </div>
-
-                <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-[var(--nm-text-dim)]">
-                    {copy.cameraView}
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CAMERA_VIEWS.map(view => (
-                      <button
-                        key={view}
-                        onClick={(e) => {
-                          updateSetting('cameraView', view)
-                          e.currentTarget.blur()
-                        }}
-                        className={cn(
-                          'rounded-xl px-2 py-1.5 text-xs font-medium',
-                          settings.cameraView === view
-                            ? 'nm-toggle-active'
-                            : 'nm-raised text-[var(--nm-text-dim)]',
-                        )}
-                      >
-                        {cameraViewLabels[view]}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      updateSetting('autoCycleCamera', !settings.autoCycleCamera)
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.autoCycleCamera
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.cameraAutoCycle}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.autoCycleCamera
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.autoCycleCamera ? copy.show : copy.hide}
-                    </span>
-                  </button>
-                </div>
-
-                {isVideoExportClientEnabled && (
-                  <VideoExportDevTools
-                    cameraPresets={cameraDraftPresets}
-                    copy={{
-                      exportButton: copy.exportButton,
-                      exportCameraCurrent: copy.exportCameraCurrent,
-                      exportCameraCycle: copy.exportCameraCycle,
-                      exportCameraMode: copy.exportCameraMode,
-                      exportFormat: copy.exportFormat,
-                      videoExport: copy.videoExport,
-                    }}
-                    currentCameraView={settings.cameraView}
-                    currentTrackTitle={currentTrackTitle}
-                    displayTrackSubtitle={displayTrackMeta.subtitle}
-                    displayTrackTitle={displayTrackMeta.title}
-                    exportCameraMode={exportCameraMode}
-                    exportFormat={exportFormat}
-                    exportSource={{
-                      notes,
-                      pedalEvents,
-                      playbackGain,
-                    }}
-                    exportSourceFileName={currentTrackFileName}
-                    exportTrackMeta={{
-                      enabled: settings.showBottomTrackMeta,
-                      subtitle: displayTrackMeta.subtitle,
-                      title: displayTrackMeta.title,
-                    }}
-                    isAudioLoading={isAudioLoading}
-                    isPlaying={isPlaying}
-                    language={language}
-                    onExportCameraModeChange={setExportCameraMode}
-                    onExportFormatChange={setExportFormat}
-                    onShowBottomTrackMetaChange={showBottomTrackMeta => setSettings(current => ({
-                      ...current,
-                      showBottomTrackMeta,
-                    }))}
-                    showBottomTrackMeta={settings.showBottomTrackMeta}
-                    togglePlay={togglePlay}
-                    volumePercent={settings.volumePercent}
-                  />
-                )}
-
-                <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-[var(--nm-text-dim)]">
-                    {copy.language}
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LANGUAGE_OPTIONS.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={(e) => {
-                          startTransition(() => {
-                            setLanguage(option.value)
-                          })
-                          e.currentTarget.blur()
-                        }}
-                        className={cn(
-                          'rounded-xl px-2 py-1.5 text-xs font-medium',
-                          language === option.value
-                            ? 'nm-toggle-active'
-                            : 'nm-raised text-[var(--nm-text-dim)]',
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    resetSettings()
-                    e.currentTarget.blur()
-                  }}
-                  className="nm-destructive mt-2 w-full rounded-xl py-2 text-sm font-medium"
-                >
-                  {copy.resetDefaults}
-                </button>
-              </div>
-            </div>
+              cameraView={settings.cameraView}
+              cameraViews={CAMERA_VIEWS}
+              cameraViewLabels={cameraViewLabels}
+              onCameraViewChange={view => updateSetting('cameraView', view)}
+              autoCycleCamera={settings.autoCycleCamera}
+              onToggleAutoCycle={() =>
+                updateSetting('autoCycleCamera', !settings.autoCycleCamera)}
+              languageOptions={LANGUAGE_OPTIONS}
+              onLanguageChange={value =>
+                startTransition(() => {
+                  setLanguage(value)
+                })}
+              onReset={resetSettings}
+              showExportTab={isVideoExportClientEnabled}
+              renderVideoExport={
+                isVideoExportClientEnabled
+                  ? visible => (
+                    <VideoExportDevTools
+                      visible={visible}
+                      cameraPresets={cameraDraftPresets}
+                      copy={{
+                        exportButton: copy.exportButton,
+                        exportCameraCurrent: copy.exportCameraCurrent,
+                        exportCameraCycle: copy.exportCameraCycle,
+                        exportCameraMode: copy.exportCameraMode,
+                        exportFormat: copy.exportFormat,
+                        videoExport: copy.videoExport,
+                      }}
+                      currentCameraView={settings.cameraView}
+                      currentTrackTitle={currentTrackTitle}
+                      displayTrackSubtitle={displayTrackMeta.subtitle}
+                      displayTrackTitle={displayTrackMeta.title}
+                      exportCameraMode={exportCameraMode}
+                      exportFormat={exportFormat}
+                      exportSource={{
+                        notes,
+                        pedalEvents,
+                        playbackGain,
+                      }}
+                      exportSourceFileName={currentTrackFileName}
+                      exportTrackMeta={{
+                        enabled: settings.showBottomTrackMeta,
+                        subtitle: displayTrackMeta.subtitle,
+                        title: displayTrackMeta.title,
+                      }}
+                      instrumentId={settings.instrumentId}
+                      isAudioLoading={isAudioLoading}
+                      isPlaying={isPlaying}
+                      language={language}
+                      onExportCameraModeChange={setExportCameraMode}
+                      onExportFormatChange={setExportFormat}
+                      onShowBottomTrackMetaChange={showBottomTrackMeta =>
+                        setSettings(current => ({
+                          ...current,
+                          showBottomTrackMeta,
+                        }))}
+                      showBottomTrackMeta={settings.showBottomTrackMeta}
+                      togglePlay={togglePlay}
+                      volumePercent={settings.volumePercent}
+                    />
+                  )
+                  : undefined
+              }
+            />
           )}
         </div>
       </div>
