@@ -34,11 +34,11 @@ Status legend: `[ ]` todo · `[x]` done · `[~]` in progress
 ### Dev-server note
 Dev server now runs through portless (`https://orbitone.local`) — do not bind :3000. The `.next` lock belongs to the portless-managed server; stop it before any `next build`.
 
-## Phase 4 — Visualizer render perf
-- [ ] P2b: instanced MIDI roll — replace per-note mesh/material/useFrame with InstancedMesh (mirror InstancedNotes pattern), both flat and space layouts, crossfade layers included
-- [ ] P6b: scratch vectors in CameraController per-frame paths (no per-frame `new Vector3`)
-- [ ] D6b: WebGL context-loss handler — overlay + canvas remount on restore
-- [ ] Typecheck + browser test (all camera views, midi roll on/off, crossfade via track switch) + commit
+## Phase 4 — Visualizer render perf ✅ COMPLETE
+- [x] P2b: `InstancedMidiRoll` — one InstancedMesh + one useFrame per roll layer (≤4 layers during transitions) instead of a mesh + MeshStandardMaterial + frame callback per note; brightness (base luma + emissive glow) × opacity composited into instance color over additive blending, matching the InstancedNotes pipeline. `MidiRollNote` deleted
+- [x] P6b: CameraController per-frame allocations removed — intro front-pose hoisted to a render-scope memo (was allocating a full pose + toFixed strings per frame), scratch vector for orbit, direct component reads instead of vectorFromCameraVector
+- [x] D6b: `webglcontextlost` → preventDefault + Canvas remount via epoch key (silent recovery; intro replays)
+- [x] Typecheck + lint (memo wrappers restructured for prefer-arrow-callback) + browser test (roll in two camera views during playback, zero console errors) + commit
 
 ## Phase 5 — Bundle & loading (P3)
 - [ ] Decouple Visualizer from Tone (`getTransportSeconds` prop instead of `Tone.Transport.seconds`)

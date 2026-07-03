@@ -12,7 +12,7 @@ function formatTime(secs: number) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export const PlaybackTimeline = memo(function PlaybackTimeline({
+function PlaybackTimelineComponent({
   duration,
   getPlaybackTime,
   onSeek,
@@ -81,4 +81,6 @@ export const PlaybackTimeline = memo(function PlaybackTimeline({
       </div>
     </>
   )
-})
+}
+
+export const PlaybackTimeline = memo(PlaybackTimelineComponent)

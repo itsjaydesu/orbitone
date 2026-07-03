@@ -785,10 +785,9 @@ export function useMusic(settings: MusicSettings) {
       togglePlayBusyRef.current = false
     }
   }, [
-    clampAudioTime,
-    clearPlaybackFrame,
     ensureAudioReady,
     hasEnded,
+    pausePlayback,
     unlockAudio,
     syncTransportTime,
   ])
