@@ -2,7 +2,6 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['motion'],
   // Served through the portless reverse proxy (https://orbitone.local) instead
   // of localhost:PORT, so allow that origin to reach dev /_next/* assets.
   allowedDevOrigins: ['orbitone.local', 'orbitone.portless'],

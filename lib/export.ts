@@ -122,7 +122,7 @@ function getTransitionSafeFadeStartSeconds(
   const cycleOffset
     = ((contentEndSeconds % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
       + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
-      % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+    % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
 
   if (cycleOffset <= latestFadeStartOffset + EXPORT_FLOAT_EPSILON) {
     return contentEndSeconds
@@ -297,7 +297,7 @@ function slugifyExportFileStem(fileName: string) {
   const stem = fileName
     .replace(/\.[^/.]+$/u, '')
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replace(/[\u0300-\u036F]/gu, '')
     .replace(/['’]/gu, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, '-')

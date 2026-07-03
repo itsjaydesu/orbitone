@@ -4,6 +4,7 @@ import { getInstrument, midiToFrequency } from '@/lib/instruments'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
   fetchPianoSampleArrayBuffer,
+  FX_CHAIN,
   getNearestPianoSampleMidi,
   getRegisterRelease,
   GLOBAL_VOLUME_BOOST,
@@ -339,21 +340,21 @@ export async function renderOfflineAudioWav(
   compressor.release.value = 0.12
 
   const masterGain = offlineContext.createGain()
-  masterGain.gain.value = 1.25 * GLOBAL_VOLUME_BOOST * (volumePercent / 100)
+  masterGain.gain.value = FX_CHAIN.masterGain * GLOBAL_VOLUME_BOOST * (volumePercent / 100)
 
   const dryBus = offlineContext.createGain()
-  dryBus.gain.value = 0.42
+  dryBus.gain.value = FX_CHAIN.dryLevel
 
   const wetBus = offlineContext.createGain()
-  wetBus.gain.value = 0.18
+  wetBus.gain.value = FX_CHAIN.wetLevel
 
   const reverbSend = offlineContext.createGain()
-  reverbSend.gain.value = 0.24
+  reverbSend.gain.value = FX_CHAIN.reverbSendLevel
 
   const reverbFilter = offlineContext.createBiquadFilter()
   reverbFilter.type = 'lowpass'
-  reverbFilter.frequency.value = 2400
-  reverbFilter.Q.value = 0.7
+  reverbFilter.frequency.value = FX_CHAIN.reverbFilterFrequency
+  reverbFilter.Q.value = FX_CHAIN.reverbFilterQ
 
   const convolver = offlineContext.createConvolver()
   convolver.buffer = createImpulseResponse(
@@ -370,7 +371,7 @@ export async function renderOfflineAudioWav(
   masterGain.connect(compressor)
   compressor.connect(offlineContext.destination)
 
-  let pedalGainValue = 0.24
+  let pedalGainValue: number = FX_CHAIN.reverbSendLevel
   for (const event of source.pedalEvents) {
     const eventTime = timeline.playbackStartSeconds + event.time
     if (eventTime < 0 || eventTime > timeline.totalDurationSeconds) {
@@ -382,12 +383,12 @@ export async function renderOfflineAudioWav(
     reverbSend.gain.setValueAtTime(pedalGainValue, eventTime)
 
     if (event.value >= 64) {
-      pedalGainValue = 0.34
-      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + 0.1, timeline.totalDurationSeconds))
+      pedalGainValue = FX_CHAIN.pedalDownSendLevel
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + FX_CHAIN.pedalDownRampSeconds, timeline.totalDurationSeconds))
     }
     else {
-      pedalGainValue = 0.24
-      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + 0.3, timeline.totalDurationSeconds))
+      pedalGainValue = FX_CHAIN.reverbSendLevel
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + FX_CHAIN.pedalUpRampSeconds, timeline.totalDurationSeconds))
     }
   }
 

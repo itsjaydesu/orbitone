@@ -1,6 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
 import type { AppLanguage } from '@/lib/camera-presets'
-import { AudioWaveform, Piano, Sparkles, Zap } from 'lucide-react'
 
 /**
  * Instruments are modeled as pure data. Two thin renderers read this registry:
@@ -63,7 +61,6 @@ export interface SynthVoiceParams {
 export interface InstrumentDefinition {
   id: InstrumentId
   kind: InstrumentKind
-  icon: LucideIcon
   label: Record<AppLanguage, string>
   blurb: Record<AppLanguage, string>
   /** Present only when `kind === 'synth'`. */
@@ -76,7 +73,6 @@ export const INSTRUMENTS: Record<InstrumentId, InstrumentDefinition> = {
   'grand-piano': {
     id: 'grand-piano',
     kind: 'sampler',
-    icon: Piano,
     label: { en: 'Grand Piano', ja: 'グランドピアノ' },
     blurb: {
       en: 'Sampled acoustic grand — the classic Orbitone voice.',
@@ -86,7 +82,6 @@ export const INSTRUMENTS: Record<InstrumentId, InstrumentDefinition> = {
   'analog-pad': {
     id: 'analog-pad',
     kind: 'synth',
-    icon: AudioWaveform,
     label: { en: 'Analog', ja: 'アナログ' },
     blurb: {
       en: 'Warm detuned saws with a soft low-pass — round and lush.',
@@ -111,7 +106,6 @@ export const INSTRUMENTS: Record<InstrumentId, InstrumentDefinition> = {
   'square-lead': {
     id: 'square-lead',
     kind: 'synth',
-    icon: Zap,
     label: { en: 'Square', ja: 'スクエア' },
     blurb: {
       en: 'Hollow square lead with a bright, snappy attack — chiptune energy.',
@@ -136,7 +130,6 @@ export const INSTRUMENTS: Record<InstrumentId, InstrumentDefinition> = {
   'glass-bells': {
     id: 'glass-bells',
     kind: 'synth',
-    icon: Sparkles,
     label: { en: 'Glass', ja: 'グラス' },
     blurb: {
       en: 'Shimmering triangle bells with a long, glassy tail.',

@@ -1,9 +1,10 @@
 'use client'
 
+import type { LucideIcon } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import type { AppLanguage, CameraView } from '@/lib/camera-presets'
 import type { InstrumentId } from '@/lib/instruments'
-import { Expand, Minimize } from 'lucide-react'
+import { AudioWaveform, Expand, Minimize, Piano, Sparkles, Zap } from 'lucide-react'
 import { m, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import { getInstrument, INSTRUMENT_LIST } from '@/lib/instruments'
@@ -29,6 +30,13 @@ export interface SettingsPanelCopy {
 }
 
 type SettingsTab = 'sound' | 'scene' | 'export' | 'general'
+
+const INSTRUMENT_ICONS: Record<InstrumentId, LucideIcon> = {
+  'grand-piano': Piano,
+  'analog-pad': AudioWaveform,
+  'square-lead': Zap,
+  'glass-bells': Sparkles,
+}
 
 interface SettingsPanelProps {
   panelRef: Ref<HTMLDivElement>
@@ -194,7 +202,7 @@ function InstrumentPicker({
   return (
     <div className="grid grid-cols-2 gap-2">
       {INSTRUMENT_LIST.map((instrument) => {
-        const Icon = instrument.icon
+        const Icon = INSTRUMENT_ICONS[instrument.id]
         const active = instrument.id === instrumentId
 
         return (

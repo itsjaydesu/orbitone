@@ -39,7 +39,7 @@ export function ExportOverlay({ phase, progress, errorMessage, language, onCance
   const progressPercent = Math.round(progress * 100)
 
   return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="nm-card flex w-80 flex-col items-center gap-5 rounded-2xl p-6 text-[var(--nm-text)]">
         <div className="flex w-full items-center justify-between">
           <span className="text-sm font-semibold tracking-wide">{label}</span>

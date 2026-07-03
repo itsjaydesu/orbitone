@@ -21,6 +21,7 @@ import {
 } from '../lib/music'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
+  FX_CHAIN,
   GLOBAL_VOLUME_BOOST,
 } from '../lib/piano-audio'
 import { setTransportTimeReader } from '../lib/transport-time'
@@ -159,7 +160,7 @@ async function primeSilentAudioBuffer(context: AudioContext) {
 
 export function useMusic(settings: MusicSettings) {
   const { volumePercent, instrumentId } = settings
-  const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST
+  const baseOutputGain = FX_CHAIN.masterGain * GLOBAL_VOLUME_BOOST
   const defaultMusic = useMemo(() => {
     const piece = generateBeautifulPianoPiece(32, 100)
 
@@ -372,11 +373,11 @@ export function useMusic(settings: MusicSettings) {
     masterGainRef.current.connect(meterRef.current)
 
     trackGainRef.current = new tone.Gain(trackPlaybackGain)
-    dryGainRef.current = new tone.Gain(0.42).connect(masterGainRef.current)
-    wetGainRef.current = new tone.Gain(0.18).connect(masterGainRef.current)
+    dryGainRef.current = new tone.Gain(FX_CHAIN.dryLevel).connect(masterGainRef.current)
+    wetGainRef.current = new tone.Gain(FX_CHAIN.wetLevel).connect(masterGainRef.current)
     reverbToneRef.current = new tone.Filter({
-      Q: 0.7,
-      frequency: 2400,
+      Q: FX_CHAIN.reverbFilterQ,
+      frequency: FX_CHAIN.reverbFilterFrequency,
       rolloff: -24,
       type: 'lowpass',
     }).connect(wetGainRef.current)
@@ -388,7 +389,7 @@ export function useMusic(settings: MusicSettings) {
     reverbRef.current.wet.value = 1
     reverbRef.current.connect(reverbToneRef.current)
 
-    reverbSendRef.current = new tone.Gain(0.24).connect(reverbRef.current)
+    reverbSendRef.current = new tone.Gain(FX_CHAIN.reverbSendLevel).connect(reverbRef.current)
 
     trackGainRef.current.connect(dryGainRef.current)
     trackGainRef.current.connect(reverbSendRef.current)
@@ -629,13 +630,13 @@ export function useMusic(settings: MusicSettings) {
 
           if (event.value >= 64) {
             // Pedal down: quick ramp to wetter sound
-            reverbSend.gain.rampTo(0.34, 0.1, time)
-            reverb.roomSize.rampTo(0.86, 0.1, time)
+            reverbSend.gain.rampTo(FX_CHAIN.pedalDownSendLevel, FX_CHAIN.pedalDownRampSeconds, time)
+            reverb.roomSize.rampTo(FX_CHAIN.pedalDownRoomSize, FX_CHAIN.pedalDownRampSeconds, time)
           }
           else {
             // Pedal up: slower ramp back to dry (asymmetric — mimics acoustic behavior)
-            reverbSend.gain.rampTo(0.24, 0.3, time)
-            reverb.roomSize.rampTo(DEFAULT_REVERB_ROOM_SIZE, 0.3, time)
+            reverbSend.gain.rampTo(FX_CHAIN.reverbSendLevel, FX_CHAIN.pedalUpRampSeconds, time)
+            reverb.roomSize.rampTo(DEFAULT_REVERB_ROOM_SIZE, FX_CHAIN.pedalUpRampSeconds, time)
           }
         }, originalPedalEvents.map((event): [string, PedalEvent] => [toTicks(event.time), event]))
       }

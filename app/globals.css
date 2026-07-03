@@ -56,10 +56,7 @@ body {
 
 @media (pointer: fine) {
   html.nm-system-cursor-hidden,
-  html.nm-system-cursor-hidden body,
-  html.nm-system-cursor-hidden body *,
-  html.nm-system-cursor-hidden body *::before,
-  html.nm-system-cursor-hidden body *::after {
+  html.nm-system-cursor-hidden * {
     cursor: none !important;
   }
 }
@@ -551,7 +548,9 @@ body {
 
 .nm-list-item {
   border-radius: 12px;
-  transition: all 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 @media (hover: hover) {

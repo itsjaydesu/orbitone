@@ -133,7 +133,6 @@ type IntroClockRef = MutableRefObject<number | null>
 type OrbitControlsRef = RefObject<ComponentRef<typeof OrbitControls> | null>
 type FadePhase = 'steady' | 'entering' | 'exiting'
 
-
 interface CrossfadeState {
   active: boolean
   oldNotes: NoteEvent[]

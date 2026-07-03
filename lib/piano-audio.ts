@@ -1,6 +1,22 @@
 export const GLOBAL_VOLUME_BOOST = 1.75
 export const DEFAULT_REVERB_ROOM_SIZE = 0.8
 
+// Single source of truth for the piano bus levels — the live Tone chain
+// (hooks/useMusic) and the offline export mixer (lib/export-audio) must stay
+// in lockstep or exports stop sounding like playback.
+export const FX_CHAIN = {
+  masterGain: 1.25,
+  dryLevel: 0.42,
+  wetLevel: 0.18,
+  reverbSendLevel: 0.24,
+  reverbFilterFrequency: 2400,
+  reverbFilterQ: 0.7,
+  pedalDownSendLevel: 0.34,
+  pedalDownRoomSize: 0.86,
+  pedalDownRampSeconds: 0.1,
+  pedalUpRampSeconds: 0.3,
+} as const
+
 export const PIANO_SAMPLE_BASE_URL = 'https://tonejs.github.io/audio/salamander/'
 
 export const PIANO_SAMPLE_FILES = {

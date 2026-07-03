@@ -1,14 +1,16 @@
 minimumReleaseAge: 10080
+shellEmulator: true
+
 minimumReleaseAgeStrict: true
 trustPolicy: no-downgrade
 blockExoticSubdeps: true
 strictDepBuilds: true
 
 allowBuilds:
+  '@lightpanda/browser': true
+  '@swc/core': true
+  '@tailwindcss/oxide': true
+  bcrypt: true
   esbuild: true
   sharp: true
-  "@swc/core": true
-  bcrypt: true
-  '@lightpanda/browser': true
-  '@tailwindcss/oxide': true
   unrs-resolver: false
