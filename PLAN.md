@@ -13,13 +13,13 @@ Status legend: `[ ]` todo · `[x]` done · `[~]` in progress
 - [x] B3: hydration-safe language init ('en' first render, navigator.language via effect)
 - [x] Typecheck + commit
 
-## Phase 2 — Core React perf (P1)
-- [ ] Throttle `setCurrentTime` in useMusic rAF loop (~4 Hz state, end-detection still per-frame)
-- [ ] New `components/PlaybackControls.tsx`: seekbar + time labels driven by own rAF writing to DOM refs (no per-frame React state), play button included
-- [ ] `React.memo` on `Visualizer`
-- [ ] Memoize `getNotesSignature(notes)` in Scene (currently O(n) string join per render)
-- [ ] Verify: play a track, confirm smooth seekbar, no whole-page re-render per frame (React profiler counter via eval)
-- [ ] Typecheck + browser test + commit
+## Phase 2 — Core React perf (P1) ✅ COMPLETE
+- [x] useMusic: removed `currentTime` React state entirely — `currentTimeRef` is the per-frame source of truth, exposed via stable `getPlaybackTime()`; playback now causes zero React renders (better than the planned 4 Hz throttle)
+- [x] New `components/PlaybackControls.tsx` (`PlaybackTimeline`): own rAF writes input value + time label via DOM refs; scrub-guard so imperative writes don't fight the user's drag. Play button stayed in page (it only renders from low-frequency state — moving it bought nothing)
+- [x] `React.memo` on `Visualizer`
+- [x] Memoized `getNotesSignature(notes)` in Scene
+- [x] Verified in browser: seekbar advances during playback, seek-while-playing continues from new position, console clean
+- [x] Typecheck + browser test + commit
 
 ## Phase 3 — Audio engine robustness & efficiency
 - [ ] B1: sampler load failure path — onerror wiring in instrument-live, evict failed builds from caches in useMusic + export-audio, play button shows retryable error state (toast)

@@ -13,6 +13,7 @@ import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 import {
+  memo,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -1451,7 +1452,7 @@ function Scene({
   const prevMidiRollPlaneRef = useRef(activePose.flatLock)
   const prevMidiRollCameraViewRef = useRef(cameraView)
   const timeWindow = DEFAULT_TIME_WINDOW
-  const activeNoteSignature = getNotesSignature(notes)
+  const activeNoteSignature = useMemo(() => getNotesSignature(notes), [notes])
   const displayNoteSignature = useMemo(
     () => getNotesSignature(displayNotes),
     [displayNotes],
@@ -1948,7 +1949,7 @@ function CanvasElementBridge({
   return null
 }
 
-export function Visualizer({
+export const Visualizer = memo(function Visualizer({
   cameraPresets,
   exportMode = false,
   exportCameraMode,
@@ -2027,4 +2028,4 @@ export function Visualizer({
       />
     </Canvas>
   )
-}
+})

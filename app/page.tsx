@@ -53,6 +53,7 @@ import {
 } from 'react'
 import { CameraLab } from '@/components/CameraLab'
 import { NoteCursor } from '@/components/NoteCursor'
+import { PlaybackTimeline } from '@/components/PlaybackControls'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -694,7 +695,7 @@ export default function Home() {
   const {
     isPlaying,
     isAudioLoading,
-    currentTime,
+    getPlaybackTime,
     hasEnded,
     requiresExplicitAudioUnlock,
     isAudioUnlocked,
@@ -1442,21 +1443,6 @@ export default function Home() {
     showLibrary,
     showSettings,
   ])
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number.parseFloat(e.target.value)
-    seek(time)
-  }
-
-  const formatTime = (secs: number) => {
-    if (!Number.isFinite(secs) || secs < 0) {
-      return '0:00'
-    }
-
-    const m = Math.floor(secs / 60)
-    const s = Math.floor(secs % 60)
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -2677,19 +2663,11 @@ export default function Home() {
         inert={!chromeVisible}
         style={timelineChromeStyle}
       >
-        <input
-          type="range"
-          min={0}
-          max={duration || 100}
-          step={0.1}
-          value={currentTime}
-          onChange={handleSeek}
-          className="nm-seekbar"
+        <PlaybackTimeline
+          duration={duration}
+          getPlaybackTime={getPlaybackTime}
+          onSeek={seek}
         />
-        <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
       </div>
 
       <div

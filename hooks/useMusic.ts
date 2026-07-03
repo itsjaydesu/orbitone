@@ -142,7 +142,6 @@ export function useMusic(settings: MusicSettings) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const [isAudioLoading, setIsAudioLoading] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
   const [hasEnded, setHasEnded] = useState(false)
   const instrumentsRef = useRef<Map<InstrumentId, LiveInstrument>>(new Map())
   const instrumentBuildPromisesRef = useRef<
@@ -267,19 +266,16 @@ export function useMusic(settings: MusicSettings) {
     return Math.min(Math.max(time, 0), audioDurationRef.current)
   }, [])
 
-  const setPlaybackTime = useCallback((time: number) => {
-    currentTimeRef.current = time
-    setCurrentTime(time)
-  }, [])
+  const getPlaybackTime = useCallback(() => currentTimeRef.current, [])
 
   const syncTransportTime = useCallback(
     (time: number) => {
       const nextTime = clampAudioTime(time)
       Tone.Transport.seconds = nextTime
-      setPlaybackTime(nextTime)
+      currentTimeRef.current = nextTime
       return nextTime
     },
-    [clampAudioTime, setPlaybackTime],
+    [clampAudioTime],
   )
 
   const finishPlayback = useCallback(() => {
@@ -289,10 +285,10 @@ export function useMusic(settings: MusicSettings) {
 
     Tone.Transport.pause()
     Tone.Transport.seconds = finalTime
-    setPlaybackTime(finalTime)
+    currentTimeRef.current = finalTime
     setIsPlaying(false)
     setHasEnded(finalTime > 0)
-  }, [clampAudioTime, clearPlaybackFrame, setPlaybackTime])
+  }, [clampAudioTime, clearPlaybackFrame])
 
   const setBpm = useCallback((value: number) => {
     const nextBpm = Math.round(value)
@@ -594,7 +590,7 @@ export function useMusic(settings: MusicSettings) {
           return
         }
 
-        setPlaybackTime(nextTime)
+        currentTimeRef.current = nextTime
         animationFrameRef.current = window.requestAnimationFrame(tickPlayback)
       }
 
@@ -610,7 +606,6 @@ export function useMusic(settings: MusicSettings) {
     clearPlaybackFrame,
     finishPlayback,
     isPlaying,
-    setPlaybackTime,
   ])
 
   const togglePlayBusyRef = useRef(false)
@@ -619,7 +614,7 @@ export function useMusic(settings: MusicSettings) {
     if (isPlayingRef.current) {
       clearPlaybackFrame()
       Tone.Transport.pause()
-      setPlaybackTime(clampAudioTime(Tone.Transport.seconds))
+      currentTimeRef.current = clampAudioTime(Tone.Transport.seconds)
       setIsPlaying(false)
       setHasEnded(false)
       return
@@ -676,7 +671,6 @@ export function useMusic(settings: MusicSettings) {
     ensureAudioReady,
     hasEnded,
     unlockAudio,
-    setPlaybackTime,
     syncTransportTime,
   ])
 
@@ -685,7 +679,7 @@ export function useMusic(settings: MusicSettings) {
       clearPlaybackFrame()
       setIsPlaying(false)
       setHasEnded(false)
-      setPlaybackTime(0)
+      currentTimeRef.current = 0
       instrumentsRef.current.forEach(instrument => instrument.releaseAll())
       Tone.Transport.stop()
       Tone.Transport.seconds = 0
@@ -725,7 +719,7 @@ export function useMusic(settings: MusicSettings) {
       )
       return false
     }
-  }, [clearPlaybackFrame, language, setPlaybackTime])
+  }, [clearPlaybackFrame, language])
 
   const seek = useCallback((time: number) => {
     const nextTime = syncTransportTime(time)
@@ -748,15 +742,11 @@ export function useMusic(settings: MusicSettings) {
     setBpm(Math.round(originalBpm))
   }, [originalBpm, setBpm])
 
-  const displayTime = Number.isFinite(currentTime)
-    ? Math.min(Math.max(currentTime, 0), duration)
-    : 0
-
   return {
     isPlaying,
     isLoaded,
     isAudioLoading,
-    currentTime: displayTime,
+    getPlaybackTime,
     hasEnded,
     togglePlay,
     notes,
