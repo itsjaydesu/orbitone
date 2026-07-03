@@ -780,6 +780,7 @@ export function useMusic(settings: MusicSettings) {
   }, [])
 
   const togglePlayBusyRef = useRef(false)
+  const [isStartingPlayback, setIsStartingPlayback] = useState(false)
 
   const togglePlay = useCallback(async () => {
     if (isPlayingRef.current) {
@@ -792,6 +793,7 @@ export function useMusic(settings: MusicSettings) {
     }
 
     togglePlayBusyRef.current = true
+    setIsStartingPlayback(true)
 
     try {
       if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
@@ -835,6 +837,7 @@ export function useMusic(settings: MusicSettings) {
     }
     finally {
       togglePlayBusyRef.current = false
+      setIsStartingPlayback(false)
     }
   }, [
     ensureAudioReady,
@@ -918,6 +921,7 @@ export function useMusic(settings: MusicSettings) {
     isPlaying,
     isLoaded,
     isAudioLoading,
+    isStartingPlayback,
     audioLoadFailed,
     audioLevelRef,
     getPlaybackTime,

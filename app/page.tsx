@@ -668,6 +668,7 @@ export default function Home() {
   const {
     isPlaying,
     isAudioLoading,
+    isStartingPlayback,
     getPlaybackTime,
     hasEnded,
     requiresExplicitAudioUnlock,
@@ -1631,7 +1632,8 @@ export default function Home() {
     = !isAutomationMode && trackSource !== 'loaded' && !initialTrackFailed
   const needsExplicitAudioUnlock
     = requiresExplicitAudioUnlock && !isAudioUnlocked
-  const playbackButtonBusy = isAudioLoading || isAudioUnlocking
+  const playbackButtonBusy
+    = isAudioLoading || isAudioUnlocking || isStartingPlayback
   const playbackButtonLabel = playbackButtonBusy
     ? isAudioUnlocking
       ? copy.enablingSound
@@ -1683,12 +1685,12 @@ export default function Home() {
     : undefined
   const timelineChromeStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 42dvh)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7.75rem)',
       }
     : undefined
   const playChromeStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 34dvh)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)',
       }
     : undefined
   const infoOverlayStyle = {
@@ -1701,7 +1703,7 @@ export default function Home() {
   } as const
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-black font-sans">
+    <main className="relative h-dvh w-full overflow-hidden overscroll-none bg-black font-sans">
       <input
         type="file"
         accept=".mid,.midi"
@@ -1730,7 +1732,7 @@ export default function Home() {
             href="https://github.com/itsjaydesu/orbitone"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+            className="-m-3 p-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
             aria-label="GitHub"
           >
             <GitHubMark className="h-[0.9rem] w-[0.9rem] translate-y-[2px]" />
@@ -1744,7 +1746,7 @@ export default function Home() {
                 type="button"
                 onClick={() => loadAdjacentTrack(-1)}
                 disabled={isLoadingLibrary}
-                className="pointer-events-auto rounded-full p-1.5 text-white/30 transition-colors hover:text-white/70 disabled:opacity-40 sm:p-1"
+                className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
                 aria-label={copy.previousTrack}
               >
                 <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
@@ -1772,7 +1774,7 @@ export default function Home() {
                 type="button"
                 onClick={() => loadAdjacentTrack(1)}
                 disabled={isLoadingLibrary}
-                className="pointer-events-auto rounded-full p-1.5 text-white/30 transition-colors hover:text-white/70 disabled:opacity-40 sm:p-1"
+                className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
                 aria-label={copy.nextTrack}
               >
                 <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
@@ -1828,7 +1830,7 @@ export default function Home() {
                 <>
                   <button
                     type="button"
-                    className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px] sm:bg-black/20"
+                    className="nm-animate-fade fixed inset-0 z-40 bg-black/65 sm:bg-black/30"
                     onClick={closeLibrary}
                     aria-label={copy.closeLibrary}
                   />
@@ -1861,7 +1863,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={closeLibrary}
-                          className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                          className="nm-raised flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
                           aria-label={copy.closeLibrary}
                         >
                           <X className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
@@ -2183,6 +2185,7 @@ export default function Home() {
               }}
               isMobile={isMobile}
               isFullscreen={isFullscreen}
+              onClose={() => setShowSettings(false)}
               onToggleFullscreen={toggleFullscreen}
               instrumentId={settings.instrumentId}
               onInstrumentChange={id => updateSetting('instrumentId', id)}
@@ -2269,7 +2272,7 @@ export default function Home() {
 
       {showInfo && (
         <div
-          className="nm-animate-fade fixed inset-0 z-[20000000] overflow-y-auto bg-black/70 backdrop-blur-sm"
+          className="nm-animate-fade fixed inset-0 z-[20000000] overflow-y-auto bg-black/80"
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
@@ -2728,7 +2731,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="visualizer-intro h-full w-full">
+      <div className="h-full w-full">
         <Visualizer
           cameraPresets={cameraDraftPresets}
           isMobileView={isMobile}

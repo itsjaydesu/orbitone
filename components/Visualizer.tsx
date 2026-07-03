@@ -114,13 +114,15 @@ const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
   orbit: 3,
   zenith: 2,
 }
+// Small positive values raise the composition just enough to clear the
+// bottom-anchored transport controls without stranding dead space below.
 const MOBILE_CAMERA_TARGET_Y_SHIFTS: Record<CameraView, number> = {
-  default: 3.0,
-  front: -3,
-  side: -3,
-  vortex: 3.0,
-  orbit: -3,
-  zenith: 3.0,
+  default: 1.2,
+  front: -1,
+  side: -1,
+  vortex: 1.2,
+  orbit: -1,
+  zenith: 1.0,
 }
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32)

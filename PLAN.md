@@ -49,15 +49,16 @@ Dev server now runs through portless (`https://orbitone.local`) — do not bind 
 - [x] Typecheck + lint + browser test + commit
 - Note: an external supervisor auto-respawns the portless orbitone dev server — never start one manually; just use https://orbitone.local
 
-## Phase 6 — Mobile UX
-- [ ] M1: `h-dvh` + `overscroll-none` on main (100vh iOS bug)
-- [ ] M2: reclaim dead bottom 40% on mobile — controls to thumb zone, camera target shift reduced so composition fills viewport
-- [ ] M3: SettingsPanel mobile bottom sheet (mirror library sheet: scrim, handle, safe-area, max-h + scroll); desktop gets max-h + scroll too
-- [ ] M4: wrap all custom `.nm-*:hover` rules in `@media (hover: hover)`
-- [ ] M5: touch targets ≥44px (chevrons, GitHub link, settings tabs, close buttons); chevron resting contrast up
-- [ ] M6: use-mobile cleanup (drop redundant resize listener)
-- [ ] P5: remove full-screen `backdrop-blur` over live canvas (library scrim, info overlay)
-- [ ] Typecheck + mobile-viewport browser test + commit
+## Phase 6 — Mobile UX ✅ COMPLETE
+- [x] M1: `h-dvh` + `overscroll-none` on main
+- [x] M2: controls moved to thumb zone (timeline safe+7.75rem, play safe+1.75rem, was 42dvh/34dvh); `MOBILE_CAMERA_TARGET_Y_SHIFTS` reduced (3.0→1.2 etc.) — composition now fills the phone screen, dead bottom band gone (verified via screenshots)
+- [x] M3: SettingsPanel mobile bottom sheet (scrim + handle + safe-area padding + 85dvh cap + scrollable content, `onClose` prop); desktop dropdown gains max-h + scroll
+- [x] M4: all 8 interactive `.nm-*:hover` rules wrapped in `@media (hover: hover)`; library-track hover drops its 32px-blur outer shadow
+- [x] M5: touch targets — chevrons min-44px + resting white/45, GitHub link -m-3/p-3 hit area, library close min-44px, settings tabs/reset min-h-10
+- [x] M6: use-mobile uses `mql.matches` + change listener only (resize listener dropped)
+- [x] P5: backdrop-blur removed from library scrim + info overlay (opacity bumped to compensate)
+- [x] Bonus: `isStartingPlayback` state covers the click→Tone-load window so the play button shows busy immediately (was a dead-feeling button during chunk fetch); dead CSS (.nm-title/.nm-link/.nm-checkbox) and rule-less `visualizer-intro` class removed early
+- [x] Typecheck + lint + mobile & desktop browser verification + commit
 
 ## Phase 7 — Visual polish & design cohesion
 - [ ] D1: music-reactive scene — `audioLevelRef` modulates ring luminance + bloom intensity (subtle)

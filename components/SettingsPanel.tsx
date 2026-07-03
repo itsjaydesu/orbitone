@@ -35,6 +35,7 @@ interface SettingsPanelProps {
   copy: SettingsPanelCopy
   isMobile: boolean
   isFullscreen: boolean
+  onClose: () => void
   onToggleFullscreen: () => void
   // Sound
   instrumentId: InstrumentId
@@ -226,6 +227,7 @@ export function SettingsPanel({
   copy,
   isMobile,
   isFullscreen,
+  onClose,
   onToggleFullscreen,
   instrumentId,
   onInstrumentChange,
@@ -261,172 +263,197 @@ export function SettingsPanel({
   const activeInstrument = getInstrument(instrumentId)
 
   return (
-    <div
-      ref={panelRef}
-      role="dialog"
-      aria-label={copy.settings}
-      className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-3 rounded-xl p-4 text-[var(--nm-text)]"
-    >
-      <div className="nm-well nm-tabs-rail flex gap-1 rounded-xl p-1">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={(e) => {
-              setActiveTab(tab.id)
-              e.currentTarget.blur()
-            }}
-            aria-pressed={activeTab === tab.id}
-            className={cn(
-              'flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
-              activeTab === tab.id
-                ? 'nm-toggle-active'
-                : 'text-[var(--nm-text-dim)] hover:text-[var(--nm-text)]',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Sound ── */}
-      <div className={cn('flex-col gap-3', activeTab === 'sound' ? 'flex' : 'hidden')}>
-        <div className="flex flex-col gap-2">
-          <FieldLabel>{copy.instrument}</FieldLabel>
-          <InstrumentPicker
-            instrumentId={instrumentId}
-            language={language}
-            onChange={onInstrumentChange}
-          />
-          <p className="text-[11px] leading-snug text-[var(--nm-text-faint)]">
-            {activeInstrument.blurb[language]}
-          </p>
-        </div>
-
-        <SliderRow
-          label="BPM"
-          value={bpm}
-          valueLabel={String(bpm)}
-          min={30}
-          max={300}
-          step={1}
-          onChange={onBpmChange}
+    <>
+      {isMobile && (
+        <button
+          type="button"
+          className="nm-animate-fade fixed inset-0 z-40 bg-black/65"
+          onClick={onClose}
+          aria-label={copy.settings}
         />
-
-        <SliderRow
-          label={copy.volume}
-          value={volumePercent}
-          valueLabel={`${volumePercent}%`}
-          min={0}
-          max={150}
-          step={1}
-          onChange={onVolumeChange}
-        />
-      </div>
-
-      {/* ── Scene ── */}
-      <div className={cn('flex-col gap-3', activeTab === 'scene' ? 'flex' : 'hidden')}>
-        {!isMobile && (
-          <button
-            type="button"
-            onClick={(e) => {
-              onToggleFullscreen()
-              e.currentTarget.blur()
-            }}
-            className={cn(
-              'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-              isFullscreen ? 'nm-toggle-active' : 'nm-raised text-[var(--nm-text)]',
-            )}
-          >
-            <span className="flex items-center gap-2">
-              {isFullscreen
-                ? <Minimize className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                : <Expand className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />}
-              {copy.fullScreen}
-            </span>
-            <kbd
+      )}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-label={copy.settings}
+        className={cn(
+          'nm-card pointer-events-auto z-50 flex flex-col gap-3 text-[var(--nm-text)]',
+          isMobile
+            ? 'nm-animate-sheet fixed inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[1.6rem] p-3'
+            : 'nm-animate-dropdown absolute top-12 right-0 max-h-[min(78vh,44rem)] w-80 rounded-xl p-4',
+        )}
+        style={
+          isMobile
+            ? {
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              }
+            : undefined
+        }
+      >
+        {isMobile && <div className="nm-sheet-handle" />}
+        <div className="nm-well nm-tabs-rail flex gap-1 rounded-xl p-1">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={(e) => {
+                setActiveTab(tab.id)
+                e.currentTarget.blur()
+              }}
+              aria-pressed={activeTab === tab.id}
               className={cn(
-                'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                isFullscreen ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
+                'min-h-10 flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
+                activeTab === tab.id
+                  ? 'nm-toggle-active'
+                  : 'text-[var(--nm-text-dim)] hover:text-[var(--nm-text)]',
               )}
             >
-              F
-            </kbd>
-          </button>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <ToggleRow
-            label={copy.midiRoll}
-            active={showMidiRoll}
-            onToggle={onToggleMidiRoll}
-            onLabel={copy.on}
-            offLabel={copy.off}
-          />
-          <ToggleRow
-            label={copy.bottomTrackMeta}
-            active={showBottomTrackMeta}
-            onToggle={onToggleBottomTrackMeta}
-            onLabel={copy.on}
-            offLabel={copy.off}
-          />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <FieldLabel>{copy.cameraView}</FieldLabel>
-          <SegmentedControl
-            options={cameraViews.map(view => ({
-              value: view,
-              label: cameraViewLabels[view],
-            }))}
-            value={cameraView}
-            columns={3}
-            onChange={onCameraViewChange}
-          />
-          <ToggleRow
-            label={copy.cameraAutoCycle}
-            active={autoCycleCamera}
-            onToggle={onToggleAutoCycle}
-            onLabel={copy.on}
-            offLabel={copy.off}
-          />
-        </div>
-      </div>
+        <div className="nm-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+          {/* ── Sound ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'sound' ? 'flex' : 'hidden')}>
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.instrument}</FieldLabel>
+              <InstrumentPicker
+                instrumentId={instrumentId}
+                language={language}
+                onChange={onInstrumentChange}
+              />
+              <p className="text-[11px] leading-snug text-[var(--nm-text-faint)]">
+                {activeInstrument.blurb[language]}
+              </p>
+            </div>
 
-      {/*
+            <SliderRow
+              label="BPM"
+              value={bpm}
+              valueLabel={String(bpm)}
+              min={30}
+              max={300}
+              step={1}
+              onChange={onBpmChange}
+            />
+
+            <SliderRow
+              label={copy.volume}
+              value={volumePercent}
+              valueLabel={`${volumePercent}%`}
+              min={0}
+              max={150}
+              step={1}
+              onChange={onVolumeChange}
+            />
+          </div>
+
+          {/* ── Scene ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'scene' ? 'flex' : 'hidden')}>
+            {!isMobile && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  onToggleFullscreen()
+                  e.currentTarget.blur()
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                  isFullscreen ? 'nm-toggle-active' : 'nm-raised text-[var(--nm-text)]',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {isFullscreen
+                    ? <Minimize className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                    : <Expand className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />}
+                  {copy.fullScreen}
+                </span>
+                <kbd
+                  className={cn(
+                    'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                    isFullscreen ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
+                  )}
+                >
+                  F
+                </kbd>
+              </button>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <ToggleRow
+                label={copy.midiRoll}
+                active={showMidiRoll}
+                onToggle={onToggleMidiRoll}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+              <ToggleRow
+                label={copy.bottomTrackMeta}
+                active={showBottomTrackMeta}
+                onToggle={onToggleBottomTrackMeta}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.cameraView}</FieldLabel>
+              <SegmentedControl
+                options={cameraViews.map(view => ({
+                  value: view,
+                  label: cameraViewLabels[view],
+                }))}
+                value={cameraView}
+                columns={3}
+                onChange={onCameraViewChange}
+              />
+              <ToggleRow
+                label={copy.cameraAutoCycle}
+                active={autoCycleCamera}
+                onToggle={onToggleAutoCycle}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+            </div>
+          </div>
+
+          {/*
         Export tab: rendered as a direct flex child so its controls line up with
         the panel's gaps when active. VideoExportDevTools hides only its own
         controls off-tab (via `visible`), keeping the offscreen capture rig and
         overlay mounted so exports are never interrupted by a tab switch.
       */}
-      {showExportTab && renderVideoExport?.(activeTab === 'export')}
+          {showExportTab && renderVideoExport?.(activeTab === 'export')}
 
-      {/* ── General ── */}
-      <div className={cn('flex-col gap-3', activeTab === 'general' ? 'flex' : 'hidden')}>
-        <div className="flex flex-col gap-2">
-          <FieldLabel>{copy.language}</FieldLabel>
-          <SegmentedControl
-            options={languageOptions.map(option => ({
-              value: option.value,
-              label: option.label,
-            }))}
-            value={language}
-            columns={2}
-            onChange={onLanguageChange}
-          />
+          {/* ── General ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'general' ? 'flex' : 'hidden')}>
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.language}</FieldLabel>
+              <SegmentedControl
+                options={languageOptions.map(option => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                value={language}
+                columns={2}
+                onChange={onLanguageChange}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                onReset()
+                e.currentTarget.blur()
+              }}
+              className="nm-destructive min-h-10 w-full rounded-xl py-2 text-sm font-medium"
+            >
+              {copy.resetDefaults}
+            </button>
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            onReset()
-            e.currentTarget.blur()
-          }}
-          className="nm-destructive w-full rounded-xl py-2 text-sm font-medium"
-        >
-          {copy.resetDefaults}
-        </button>
       </div>
-    </div>
+    </>
   )
 }
