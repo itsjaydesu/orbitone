@@ -1,6 +1,7 @@
 'use client'
 import type { LucideIcon } from 'lucide-react'
 import type { SVGProps } from 'react'
+import type { ToastData } from '@/components/Toast'
 import type { VisualizerSettings } from '@/components/Visualizer'
 import type {
   AppLanguage,
@@ -39,6 +40,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import {
@@ -55,6 +57,7 @@ import { CameraLab } from '@/components/CameraLab'
 import { NoteCursor } from '@/components/NoteCursor'
 import { PlaybackTimeline } from '@/components/PlaybackControls'
 import { SettingsPanel } from '@/components/SettingsPanel'
+import { Toast } from '@/components/Toast'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMidiLibrary } from '@/hooks/useMidiLibrary'
@@ -163,6 +166,8 @@ interface UiCopy {
   libraryTitle: string
   loaded: string
   loadingPiano: string
+  midiParseError: string
+  audioLoadError: string
   midiRoll: string
   nextTrack: string
   noTracksDescription: string
@@ -278,6 +283,8 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     libraryTitle: 'MIDI Library',
     loaded: 'Loaded',
     loadingPiano: 'Loading piano',
+    midiParseError: 'Could not read that MIDI file.',
+    audioLoadError: 'Could not load the instrument — check your connection and press play to retry.',
     midiRoll: 'MIDI Roll',
     nextTrack: 'Next track',
     noTracksDescription: 'Switch tabs and try another collection.',
@@ -332,6 +339,8 @@ const UI_COPY: Record<AppLanguage, UiCopy> = {
     libraryTitle: 'MIDIライブラリ',
     loaded: '読み込み済み',
     loadingPiano: 'ピアノ音源を読み込み中',
+    midiParseError: 'MIDIファイルを解析できませんでした。',
+    audioLoadError: '音源を読み込めませんでした。接続を確認して、もう一度再生してください。',
     midiRoll: 'MIDIロール',
     nextTrack: '次の曲',
     noTracksDescription:
@@ -664,11 +673,16 @@ export default function Home() {
   const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
     DEFAULT_EXPORT_CAMERA_MODE,
   )
+  // While an export runs inside the settings panel, closing the panel would
+  // unmount the capture rig and silently kill the export — closes are held.
+  const [isExportActive, setIsExportActive] = useState(false)
 
   const {
     isPlaying,
     isAudioLoading,
     isStartingPlayback,
+    audioLoadFailed,
+    audioLevelRef,
     getPlaybackTime,
     hasEnded,
     requiresExplicitAudioUnlock,
@@ -686,12 +700,37 @@ export default function Home() {
     playbackGain,
     trackSource,
   } = useMusic({
-    language,
     volumePercent: settings.volumePercent,
     instrumentId: settings.instrumentId,
   })
   const playbackChromeManaged = isPlaying && !hasEnded
   const shouldPersistChrome = !playbackChromeManaged
+  const reduceMotion = useReducedMotion() ?? false
+
+  const [toast, setToast] = useState<ToastData | null>(null)
+  const showToast = useCallback((message: string) => {
+    setToast({ id: Date.now(), message })
+  }, [])
+
+  useEffect(() => {
+    if (!toast) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(current => (current?.id === toast.id ? null : current))
+    }, 4200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (audioLoadFailed) {
+      showToast(UI_COPY[language].audioLoadError)
+    }
+  }, [audioLoadFailed, language, showToast])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -1029,7 +1068,9 @@ export default function Home() {
 
       setShowInfo(false)
       setShowLibrary(false)
-      setShowSettings(false)
+      if (!isExportActive) {
+        setShowSettings(false)
+      }
       setShowCameraLab(false)
     }
 
@@ -1038,7 +1079,7 @@ export default function Home() {
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
     }
-  }, [showCameraLab, showInfo, showLibrary, showSettings])
+  }, [isExportActive, showCameraLab, showInfo, showLibrary, showSettings])
 
   useEffect(() => {
     try {
@@ -1093,6 +1134,7 @@ export default function Home() {
       const didLoad = await loadMidi(file)
 
       if (!didLoad) {
+        showToast(UI_COPY[language].midiParseError)
         return false
       }
 
@@ -1104,7 +1146,7 @@ export default function Home() {
 
       return true
     },
-    [language, loadMidi],
+    [language, loadMidi, showToast],
   )
 
   const fetchLibraryMidiFile = useCallback(async (item: MidiLibraryItem) => {
@@ -1177,12 +1219,12 @@ export default function Home() {
       }
     }
     catch {
-      alert(copy.libraryLoadError)
+      showToast(copy.libraryLoadError)
     }
     finally {
       setIsLoadingLibrary(false)
     }
-  }, [closeLibrary, copy.libraryLoadError, fetchLibraryMidiFile, loadMidiFile])
+  }, [closeLibrary, copy.libraryLoadError, fetchLibraryMidiFile, loadMidiFile, showToast])
 
   const loadAdjacentTrack = useCallback((direction: -1 | 1) => {
     if (isLoadingLibrary || !library || library.tracks.length === 0)
@@ -1259,6 +1301,9 @@ export default function Home() {
         case 's':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           setShowSettings(v => !v)
           setShowInfo(false)
 
@@ -1272,6 +1317,9 @@ export default function Home() {
         case 'i':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           setShowInfo(v => !v)
 
           setShowSettings(false)
@@ -1280,6 +1328,9 @@ export default function Home() {
         case 'l':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           toggleLibrary()
           break
         case 'u':
@@ -1304,7 +1355,9 @@ export default function Home() {
           break
         case 'escape':
           shouldRevealChrome = true
-          setShowSettings(false)
+          if (!isExportActive) {
+            setShowSettings(false)
+          }
           setShowInfo(false)
 
           closeLibrary()
@@ -1324,6 +1377,7 @@ export default function Home() {
     closeLibrary,
     cycleCameraView,
     handlePlaybackToggle,
+    isExportActive,
     loadAdjacentTrack,
     scheduleIdleHide,
     toggleFullscreen,
@@ -1704,1053 +1758,1096 @@ export default function Home() {
 
   return (
     <main className="relative h-dvh w-full overflow-hidden overscroll-none bg-black font-sans">
-      <input
-        type="file"
-        accept=".mid,.midi"
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-      />
+      <LazyMotion features={domAnimation} strict>
+        <input
+          type="file"
+          accept=".mid,.midi"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+        />
 
-      <div
-        className={cn('pointer-events-none', topChromeClass)}
-        inert={!chromeVisible}
-        style={topChromeStyle}
-      >
-        <div className="pointer-events-auto flex items-center gap-1.5">
-          <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
-            <span
-              className={cn(
-                'inline-block transition-opacity duration-150 ease-out motion-reduce:transition-none',
-                isHeaderBrandVisible ? 'opacity-100' : 'opacity-0',
-              )}
+        <div
+          className={cn('pointer-events-none', topChromeClass)}
+          inert={!chromeVisible}
+          style={topChromeStyle}
+        >
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
+              <span
+                className={cn(
+                  'inline-block transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                  isHeaderBrandVisible ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                {headerBrandName}
+              </span>
+            </h1>
+            <a
+              href="https://github.com/itsjaydesu/orbitone"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="-m-3 p-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+              aria-label="GitHub"
             >
-              {headerBrandName}
-            </span>
-          </h1>
-          <a
-            href="https://github.com/itsjaydesu/orbitone"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="-m-3 p-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-            aria-label="GitHub"
-          >
-            <GitHubMark className="h-[0.9rem] w-[0.9rem] translate-y-[2px]" />
-          </a>
-        </div>
+              <GitHubMark className="h-[0.9rem] w-[0.9rem] translate-y-[2px]" />
+            </a>
+          </div>
 
-        <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 min-[840px]:absolute min-[840px]:left-1/2 min-[840px]:top-0 min-[840px]:w-full min-[840px]:max-w-[min(46rem,calc(100%-32rem))] min-[840px]:-translate-x-1/2 min-[840px]:px-6 min-[840px]:pt-1">
-          {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => loadAdjacentTrack(-1)}
-                disabled={isLoadingLibrary}
-                className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
-                aria-label={copy.previousTrack}
-              >
-                <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-              </button>
-              <div className="max-w-[min(42rem,100%)] px-4 py-2.5 text-center sm:px-5 sm:py-3">
-                <div
-                  className={cn(
-                    'transition-opacity duration-150 ease-out motion-reduce:transition-none',
-                    isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
-                  )}
+          <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 min-[840px]:absolute min-[840px]:left-1/2 min-[840px]:top-0 min-[840px]:w-full min-[840px]:max-w-[min(46rem,calc(100%-32rem))] min-[840px]:-translate-x-1/2 min-[840px]:px-6 min-[840px]:pt-1">
+            {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => loadAdjacentTrack(-1)}
+                  disabled={isLoadingLibrary}
+                  className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
+                  aria-label={copy.previousTrack}
                 >
-                  {displayTrackMeta.title && (
-                    <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                      {displayTrackMeta.title}
-                    </div>
-                  )}
-                  {displayTrackMeta.subtitle && (
-                    <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
-                      {displayTrackMeta.subtitle}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => loadAdjacentTrack(1)}
-                disabled={isLoadingLibrary}
-                className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
-                aria-label={copy.nextTrack}
-              >
-                <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="relative justify-self-end">
-          <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            {!isMobile && (
-              <button
-                onClick={(e) => {
-                  fileInputRef.current?.click()
-                  e.currentTarget.blur()
-                }}
-                onDragEnter={handleUploadDragEnter}
-                onDragOver={handleUploadDragOver}
-                onDragLeave={handleUploadDragLeave}
-                onDrop={handleUploadDrop}
-                className={cn(
-                  'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  isUploadDragActive ? 'nm-drag-active' : 'nm-raised',
-                )}
-                aria-label={copy.upload}
-              >
-                <Upload className="h-6 w-6 sm:h-5 sm:w-5" />
-              </button>
-            )}
-
-            <div ref={libraryRef} className="relative">
-              <button
-                onClick={(e) => {
-                  toggleLibrary()
-                  e.currentTarget.blur()
-                }}
-                className={cn(
-                  'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  showLibrary ? 'nm-pressed' : 'nm-raised',
-                )}
-                aria-label={copy.libraryButton}
-              >
-                {isLoadingLibrary
-                  ? (
-                      <Loader2 className="h-6 w-6 animate-spin sm:h-5 sm:w-5" />
-                    )
-                  : (
-                      <Library className="h-6 w-6 sm:h-5 sm:w-5" />
-                    )}
-              </button>
-
-              {showLibrary && (
-                <>
-                  <button
-                    type="button"
-                    className="nm-animate-fade fixed inset-0 z-40 bg-black/65 sm:bg-black/30"
-                    onClick={closeLibrary}
-                    aria-label={copy.closeLibrary}
-                  />
-
+                  <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                </button>
+                <div className="max-w-[min(42rem,100%)] px-4 py-2.5 text-center sm:px-5 sm:py-3">
                   <div
-                    role="dialog"
-                    aria-modal="true"
                     className={cn(
-                      'nm-card pointer-events-auto fixed z-50 flex min-h-0 flex-col overflow-hidden text-[var(--nm-text)]',
-                      isMobile
-                        ? 'nm-animate-sheet inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[1.6rem] p-3'
-                        : 'nm-animate-dropdown absolute top-12 right-0 bottom-auto left-auto h-[min(74vh,46rem)] w-[min(38rem,calc(100vw-3rem))] rounded-[1.75rem] p-4',
+                      'transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                      isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
                     )}
-                    style={
-                      isMobile
-                        ? {
-                            paddingBottom:
-                              'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-                          }
-                        : undefined
-                    }
                   >
-                    {isMobile && <div className="nm-sheet-handle" />}
-                    <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
-                          {copy.libraryTitle}
-                        </h3>
-
-                        <button
-                          type="button"
-                          onClick={closeLibrary}
-                          className="nm-raised flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                          aria-label={copy.closeLibrary}
-                        >
-                          <X className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      className="mt-3 grid grid-cols-6 gap-1.5"
-                      role="tablist"
-                      aria-label={copy.libraryTabList}
-                    >
-                      {libraryPrimaryGroups.map((group) => {
-                        const isTabActive = activeLibraryGroup?.id === group.id
-                        const GroupIcon = group.icon
-
-                        return (
-                          <button
-                            key={group.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={isTabActive}
-                            aria-label={group.label}
-                            onClick={() =>
-                              setActiveLibraryCategoryId(
-                                group.defaultCategoryId,
-                              )}
-                            title={group.label}
-                            className={cn(
-                              'flex min-h-10 min-w-0 items-center justify-center rounded-xl p-1.5 transition-all',
-                              isTabActive
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            <GroupIcon
-                              className={cn(
-                                'h-[1.125rem] w-[1.125rem] shrink-0',
-                                isTabActive
-                                  ? 'text-[var(--nm-bg)]'
-                                  : 'text-[var(--nm-text)]',
-                              )}
-                            />
-                            <span className="sr-only">{group.shortLabel}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    {activeTrainSubcategories.length > 0 && (
-                      <div
-                        className="mt-2 flex gap-2"
-                        role="tablist"
-                        aria-label={copy.trainSubcategories}
-                      >
-                        {activeTrainSubcategories.map((category) => {
-                          const isSubtabActive
-                            = category.id === activeLibraryCategoryId
-                          const categoryMeta = getLibraryCategoryMeta(
-                            category.id,
-                            language,
-                          )
-                          const SubIcon = categoryMeta.icon
-
-                          return (
-                            <button
-                              key={category.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={isSubtabActive}
-                              aria-label={categoryMeta.shortLabel}
-                              title={categoryMeta.shortLabel}
-                              onClick={() =>
-                                setActiveLibraryCategoryId(category.id)}
-                              className={cn(
-                                'flex h-10 w-14 shrink-0 items-center justify-center rounded-full transition-all',
-                                isSubtabActive
-                                  ? 'nm-toggle-active'
-                                  : 'nm-raised text-[var(--nm-text-dim)]',
-                              )}
-                            >
-                              <SubIcon className="h-4 w-4" />
-                            </button>
-                          )
-                        })}
+                    {displayTrackMeta.title && (
+                      <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                        {displayTrackMeta.title}
                       </div>
                     )}
+                    {displayTrackMeta.subtitle && (
+                      <div className="mt-1 type-overline whitespace-normal break-words leading-tight text-[var(--nm-text-faint)] sm:text-xs">
+                        {displayTrackMeta.subtitle}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadAdjacentTrack(1)}
+                  disabled={isLoadingLibrary}
+                  className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
+                  aria-label={copy.nextTrack}
+                >
+                  <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                </button>
+              </div>
+            )}
+          </div>
 
-                    {activeLibraryCategory && (
-                      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-2 sm:p-3">
-                        <div className="px-2 py-1 sm:px-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--nm-text)]">
-                              <ActiveLibraryGroupIcon className="h-4 w-4 shrink-0" />
-                              <span className="truncate">
-                                {activeLibraryHeading}
-                              </span>
-                              {activeLibraryGroup
-                                && activeLibraryGroup.categoryIds.length > 1 && (
-                                <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
-                                  {activeLibraryCategoryMeta.shortLabel}
-                                </span>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                              {activeLibraryDescription}
-                            </p>
+          <div className="relative justify-self-end">
+            <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+              {!isMobile && (
+                <button
+                  onClick={(e) => {
+                    fileInputRef.current?.click()
+                    e.currentTarget.blur()
+                  }}
+                  onDragEnter={handleUploadDragEnter}
+                  onDragOver={handleUploadDragOver}
+                  onDragLeave={handleUploadDragLeave}
+                  onDrop={handleUploadDrop}
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    isUploadDragActive ? 'nm-drag-active' : 'nm-raised',
+                  )}
+                  aria-label={copy.upload}
+                >
+                  <Upload className="h-6 w-6 sm:h-5 sm:w-5" />
+                </button>
+              )}
+
+              <div ref={libraryRef} className="relative">
+                <button
+                  onClick={(e) => {
+                    toggleLibrary()
+                    e.currentTarget.blur()
+                  }}
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    showLibrary ? 'nm-pressed' : 'nm-raised',
+                  )}
+                  aria-label={copy.libraryButton}
+                >
+                  {isLoadingLibrary
+                    ? (
+                        <Loader2 className="h-6 w-6 animate-spin sm:h-5 sm:w-5" />
+                      )
+                    : (
+                        <Library className="h-6 w-6 sm:h-5 sm:w-5" />
+                      )}
+                </button>
+
+                <AnimatePresence>
+                  {showLibrary && (
+                    <>
+                      <m.button
+                        key="library-scrim"
+                        type="button"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                        className="fixed inset-0 z-40 bg-black/65 sm:bg-black/30"
+                        onClick={closeLibrary}
+                        aria-label={copy.closeLibrary}
+                      />
+
+                      <m.div
+                        key="library-panel"
+                        role="dialog"
+                        aria-modal="true"
+                        initial={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+                        animate={isMobile ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+                        exit={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : isMobile
+                              ? { duration: 0.34, ease: [0.32, 0.72, 0, 1] }
+                              : { duration: 0.2, ease: 'easeOut' }
+                        }
+                        className={cn(
+                          'nm-card pointer-events-auto fixed z-50 flex min-h-0 flex-col overflow-hidden text-[var(--nm-text)]',
+                          isMobile
+                            ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[1.6rem] p-3'
+                            : 'absolute top-12 right-0 bottom-auto left-auto h-[min(74vh,46rem)] w-[min(38rem,calc(100vw-3rem))] rounded-[1.75rem] p-4',
+                        )}
+                        style={
+                          isMobile
+                            ? {
+                                paddingBottom:
+                                'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+                              }
+                            : undefined
+                        }
+                      >
+                        {isMobile && <div className="nm-sheet-handle" />}
+                        <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
+                              {copy.libraryTitle}
+                            </h3>
+
+                            <button
+                              type="button"
+                              onClick={closeLibrary}
+                              className="nm-raised flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                              aria-label={copy.closeLibrary}
+                            >
+                              <X className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                            </button>
                           </div>
                         </div>
 
                         <div
-                          ref={libraryListRef}
-                          className="nm-scrollbar mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1 sm:pr-2"
+                          className="mt-3 grid grid-cols-6 gap-1.5"
+                          role="tablist"
+                          aria-label={copy.libraryTabList}
                         >
-                          {visibleLibraryItems.length > 0
-                            ? (
-                                visibleLibraryItems.map((item) => {
-                                  const isActive
-                                    = currentLibraryTrackId === item.id
+                          {libraryPrimaryGroups.map((group) => {
+                            const isTabActive = activeLibraryGroup?.id === group.id
+                            const GroupIcon = group.icon
 
-                                  return (
-                                    <button
-                                      key={item.id}
-                                      type="button"
-                                      onClick={() => loadLibraryMidi(item)}
-                                      disabled={isLoadingLibrary}
-                                      className={cn(
-                                        'nm-library-track flex w-full items-start gap-3 rounded-[1rem] px-3 py-3 text-left transition-all',
-                                        isActive
-                                          ? 'nm-library-track-active'
-                                          : 'nm-list-item text-[var(--nm-text-dim)]',
-                                        isLoadingLibrary && 'opacity-70',
-                                      )}
-                                    >
-                                      <span
-                                        className={cn(
-                                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border',
-                                          isActive
-                                            ? 'border-white/8 bg-white text-[var(--nm-bg)] shadow-[0_10px_24px_rgba(0,0,0,0.35)]'
-                                            : 'border-white/6 bg-white/[0.03] text-[var(--nm-text-dim)]',
-                                        )}
-                                      >
-                                        <ActiveLibraryCategoryIcon className="h-4 w-4" />
-                                      </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="flex flex-wrap items-start justify-between gap-2">
-                                          <span className="min-w-0">
-                                            <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
-                                              {library?.getLocalizedTrackTitle(
-                                                item,
-                                                language,
-                                              ) ?? item.title}
-                                            </span>
-                                            <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--nm-text-faint)]">
-                                              {library?.getLocalizedTrackSubtitle(
-                                                item.subtitle,
-                                                language,
-                                              ) ?? item.subtitle}
-                                              {item.sourceUrl && (
-                                                <a
-                                                  href={item.sourceUrl}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  onClick={e =>
-                                                    e.stopPropagation()}
-                                                  className="inline-flex shrink-0 text-white/70 transition-colors hover:text-white"
-                                                  aria-label="Source"
-                                                >
-                                                  <ExternalLink className="h-3 w-3" />
-                                                </a>
-                                              )}
-                                            </span>
-                                          </span>
-                                          <span className="flex shrink-0 items-center gap-2">
-                                            {isActive && (
-                                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text)]">
-                                                {copy.loaded}
-                                              </span>
-                                            )}
-                                            <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
-                                              {item.durationLabel}
-                                            </span>
-                                          </span>
-                                        </span>
-                                      </span>
-                                    </button>
-                                  )
-                                })
+                            return (
+                              <button
+                                key={group.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={isTabActive}
+                                aria-label={group.label}
+                                onClick={() =>
+                                  setActiveLibraryCategoryId(
+                                    group.defaultCategoryId,
+                                  )}
+                                title={group.label}
+                                className={cn(
+                                  'flex min-h-10 min-w-0 items-center justify-center rounded-xl p-1.5 transition-all',
+                                  isTabActive
+                                    ? 'nm-toggle-active'
+                                    : 'nm-raised text-[var(--nm-text-dim)]',
+                                )}
+                              >
+                                <GroupIcon
+                                  className={cn(
+                                    'h-[1.125rem] w-[1.125rem] shrink-0',
+                                    isTabActive
+                                      ? 'text-[var(--nm-bg)]'
+                                      : 'text-[var(--nm-text)]',
+                                  )}
+                                />
+                                <span className="sr-only">{group.shortLabel}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {activeTrainSubcategories.length > 0 && (
+                          <div
+                            className="mt-2 flex gap-2"
+                            role="tablist"
+                            aria-label={copy.trainSubcategories}
+                          >
+                            {activeTrainSubcategories.map((category) => {
+                              const isSubtabActive
+                                = category.id === activeLibraryCategoryId
+                              const categoryMeta = getLibraryCategoryMeta(
+                                category.id,
+                                language,
                               )
-                            : (
-                                <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
-                                  <ActiveLibraryCategoryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
-                                  <h4 className="text-sm font-semibold text-[var(--nm-text)]">
-                                    {copy.noTracksTitle(
-                                      activeLibraryCategoryMeta.label,
-                                    )}
-                                  </h4>
-                                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                                    {copy.noTracksDescription}
-                                  </p>
+                              const SubIcon = categoryMeta.icon
+
+                              return (
+                                <button
+                                  key={category.id}
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={isSubtabActive}
+                                  aria-label={categoryMeta.shortLabel}
+                                  title={categoryMeta.shortLabel}
+                                  onClick={() =>
+                                    setActiveLibraryCategoryId(category.id)}
+                                  className={cn(
+                                    'flex h-10 w-14 shrink-0 items-center justify-center rounded-full transition-all',
+                                    isSubtabActive
+                                      ? 'nm-toggle-active'
+                                      : 'nm-raised text-[var(--nm-text-dim)]',
+                                  )}
+                                >
+                                  <SubIcon className="h-4 w-4" />
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {activeLibraryCategory && (
+                          <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-2 sm:p-3">
+                            <div className="px-2 py-1 sm:px-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--nm-text)]">
+                                  <ActiveLibraryGroupIcon className="h-4 w-4 shrink-0" />
+                                  <span className="truncate">
+                                    {activeLibraryHeading}
+                                  </span>
+                                  {activeLibraryGroup
+                                    && activeLibraryGroup.categoryIds.length > 1 && (
+                                    <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 type-overline text-[var(--nm-text-faint)]">
+                                      {activeLibraryCategoryMeta.shortLabel}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
-                          {activeLibraryCategory?.id === 'originals' && (
-                            <p className="mt-3 px-3 text-xs leading-relaxed text-[var(--nm-text-faint)]">
-                              {language === 'ja'
+                                <p className="mt-1 text-xs leading-relaxed text-[var(--nm-text-dim)]">
+                                  {activeLibraryDescription}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div
+                              ref={libraryListRef}
+                              className="nm-scrollbar mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1 sm:pr-2"
+                            >
+                              {visibleLibraryItems.length > 0
                                 ? (
-                                    <>
-                                      作曲していますか？あなたのMIDIファイルを
-                                      <a
-                                        href="https://x.com/itsjaydesu"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
-                                      >
-                                        Xでお送りください
-                                      </a>
-                                      。確認のうえ追加いたします。
-                                    </>
+                                    visibleLibraryItems.map((item) => {
+                                      const isActive
+                                        = currentLibraryTrackId === item.id
+
+                                      return (
+                                        <button
+                                          key={item.id}
+                                          type="button"
+                                          onClick={() => loadLibraryMidi(item)}
+                                          disabled={isLoadingLibrary}
+                                          className={cn(
+                                            'nm-library-track flex w-full items-start gap-3 rounded-[1rem] px-3 py-3 text-left transition-all',
+                                            isActive
+                                              ? 'nm-library-track-active'
+                                              : 'nm-list-item text-[var(--nm-text-dim)]',
+                                            isLoadingLibrary && 'opacity-70',
+                                          )}
+                                        >
+                                          <span
+                                            className={cn(
+                                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border',
+                                              isActive
+                                                ? 'border-white/8 bg-white text-[var(--nm-bg)] shadow-[0_10px_24px_rgba(0,0,0,0.35)]'
+                                                : 'border-white/6 bg-white/[0.03] text-[var(--nm-text-dim)]',
+                                            )}
+                                          >
+                                            <ActiveLibraryCategoryIcon className="h-4 w-4" />
+                                          </span>
+                                          <span className="min-w-0 flex-1">
+                                            <span className="flex flex-wrap items-start justify-between gap-2">
+                                              <span className="min-w-0">
+                                                <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
+                                                  {library?.getLocalizedTrackTitle(
+                                                    item,
+                                                    language,
+                                                  ) ?? item.title}
+                                                </span>
+                                                <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--nm-text-faint)]">
+                                                  {library?.getLocalizedTrackSubtitle(
+                                                    item.subtitle,
+                                                    language,
+                                                  ) ?? item.subtitle}
+                                                  {item.sourceUrl && (
+                                                    <a
+                                                      href={item.sourceUrl}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      onClick={e =>
+                                                        e.stopPropagation()}
+                                                      className="inline-flex shrink-0 text-white/70 transition-colors hover:text-white"
+                                                      aria-label="Source"
+                                                    >
+                                                      <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                  )}
+                                                </span>
+                                              </span>
+                                              <span className="flex shrink-0 items-center gap-2">
+                                                {isActive && (
+                                                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 type-overline text-[var(--nm-text)]">
+                                                    {copy.loaded}
+                                                  </span>
+                                                )}
+                                                <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 type-overline text-[var(--nm-text-faint)]">
+                                                  {item.durationLabel}
+                                                </span>
+                                              </span>
+                                            </span>
+                                          </span>
+                                        </button>
+                                      )
+                                    })
                                   )
                                 : (
-                                    <>
-                                      Are you a composer? If you&#39;d like to add
-                                      your MIDI file here, please
-                                      {' '}
-                                      <a
-                                        href="https://x.com/itsjaydesu"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
-                                      >
-                                        message me on X
-                                      </a>
-                                      {' '}
-                                      with your MIDI, and I&#39;ll review and add
-                                      when I can.
-                                    </>
+                                    <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
+                                      <ActiveLibraryCategoryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
+                                      <h4 className="text-sm font-semibold text-[var(--nm-text)]">
+                                        {copy.noTracksTitle(
+                                          activeLibraryCategoryMeta.label,
+                                        )}
+                                      </h4>
+                                      <p className="mt-2 max-w-xs text-xs leading-relaxed text-[var(--nm-text-dim)]">
+                                        {copy.noTracksDescription}
+                                      </p>
+                                    </div>
                                   )}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+                              {activeLibraryCategory?.id === 'originals' && (
+                                <p className="mt-3 px-3 text-xs leading-relaxed text-[var(--nm-text-faint)]">
+                                  {language === 'ja'
+                                    ? (
+                                        <>
+                                          作曲していますか？あなたのMIDIファイルを
+                                          <a
+                                            href="https://x.com/itsjaydesu"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
+                                          >
+                                            Xでお送りください
+                                          </a>
+                                          。確認のうえ追加いたします。
+                                        </>
+                                      )
+                                    : (
+                                        <>
+                                          Are you a composer? If you&#39;d like to add
+                                          your MIDI file here, please
+                                          {' '}
+                                          <a
+                                            href="https://x.com/itsjaydesu"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
+                                          >
+                                            message me on X
+                                          </a>
+                                          {' '}
+                                          with your MIDI, and I&#39;ll review and add
+                                          when I can.
+                                        </>
+                                      )}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </m.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
 
-            <button
-              onClick={(e) => {
-                setShowInfo(true)
-
-                setShowSettings(false)
-                closeLibrary()
-                e.currentTarget.blur()
-              }}
-              className={cn(
-                'rounded-xl p-2.5 text-[var(--nm-text)]',
-                showInfo ? 'nm-pressed' : 'nm-raised',
-              )}
-              aria-label={copy.infoButton}
-            >
-              <Info className="h-6 w-6 sm:h-5 sm:w-5" />
-            </button>
-
-            <div className="flex items-center gap-2">
               <button
-                ref={settingsTriggerRef}
                 onClick={(e) => {
-                  setShowSettings(current => !current)
-                  setShowInfo(false)
+                  setShowInfo(true)
+
+                  setShowSettings(false)
                   closeLibrary()
                   e.currentTarget.blur()
                 }}
                 className={cn(
                   'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  showSettings ? 'nm-pressed' : 'nm-raised',
+                  showInfo ? 'nm-pressed' : 'nm-raised',
                 )}
-                aria-label={copy.closeSettings}
+                aria-label={copy.infoButton}
               >
-                <SettingsIcon className="h-6 w-6 sm:h-5 sm:w-5" />
+                <Info className="h-6 w-6 sm:h-5 sm:w-5" />
               </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  ref={settingsTriggerRef}
+                  onClick={(e) => {
+                    setShowSettings(current =>
+                      current && isExportActive ? current : !current,
+                    )
+                    setShowInfo(false)
+                    closeLibrary()
+                    e.currentTarget.blur()
+                  }}
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    showSettings ? 'nm-pressed' : 'nm-raised',
+                  )}
+                  aria-label={copy.closeSettings}
+                >
+                  <SettingsIcon className="h-6 w-6 sm:h-5 sm:w-5" />
+                </button>
+              </div>
+
+              {isMobile && (
+                <button
+                  onClick={(e) => {
+                    e.currentTarget.blur()
+                    cycleCameraView()
+                  }}
+                  className="nm-raised rounded-xl p-2.5 text-[var(--nm-text)]"
+                  aria-label={cameraViewLabels[settings.cameraView]}
+                >
+                  <Camera className="h-6 w-6 sm:h-5 sm:w-5" />
+                </button>
+              )}
             </div>
 
-            {isMobile && (
-              <button
-                onClick={(e) => {
-                  e.currentTarget.blur()
-                  cycleCameraView()
-                }}
-                className="nm-raised rounded-xl p-2.5 text-[var(--nm-text)]"
-                aria-label={cameraViewLabels[settings.cameraView]}
-              >
-                <Camera className="h-6 w-6 sm:h-5 sm:w-5" />
-              </button>
-            )}
-          </div>
-
-          {showSettings && (
-            <SettingsPanel
-              panelRef={settingsRef}
-              language={language}
-              copy={{
-                settings: copy.settings,
-                tabSound: copy.tabSound,
-                tabScene: copy.tabScene,
-                tabExport: copy.tabExport,
-                tabGeneral: copy.tabGeneral,
-                instrument: copy.instrument,
-                volume: copy.volume,
-                cameraView: copy.cameraView,
-                cameraAutoCycle: copy.cameraAutoCycle,
-                midiRoll: copy.midiRoll,
-                bottomTrackMeta: copy.bottomTrackMeta,
-                fullScreen: copy.fullScreen,
-                language: copy.language,
-                resetDefaults: copy.resetDefaults,
-                on: copy.show,
-                off: copy.hide,
-              }}
-              isMobile={isMobile}
-              isFullscreen={isFullscreen}
-              onClose={() => setShowSettings(false)}
-              onToggleFullscreen={toggleFullscreen}
-              instrumentId={settings.instrumentId}
-              onInstrumentChange={id => updateSetting('instrumentId', id)}
-              bpm={bpm}
-              onBpmChange={setBpm}
-              volumePercent={settings.volumePercent}
-              onVolumeChange={value => updateSetting('volumePercent', value)}
-              showMidiRoll={settings.showMidiRoll}
-              onToggleMidiRoll={() =>
-                updateSetting('showMidiRoll', !settings.showMidiRoll)}
-              showBottomTrackMeta={settings.showBottomTrackMeta}
-              onToggleBottomTrackMeta={() =>
-                updateSetting(
-                  'showBottomTrackMeta',
-                  !settings.showBottomTrackMeta,
-                )}
-              cameraView={settings.cameraView}
-              cameraViews={CAMERA_VIEWS}
-              cameraViewLabels={cameraViewLabels}
-              onCameraViewChange={view => updateSetting('cameraView', view)}
-              autoCycleCamera={settings.autoCycleCamera}
-              onToggleAutoCycle={() =>
-                updateSetting('autoCycleCamera', !settings.autoCycleCamera)}
-              languageOptions={LANGUAGE_OPTIONS}
-              onLanguageChange={value =>
-                startTransition(() => {
-                  setLanguage(value)
-                })}
-              onReset={resetSettings}
-              showExportTab={isVideoExportClientEnabled}
-              renderVideoExport={
-                isVideoExportClientEnabled
-                  ? visible => (
-                    <VideoExportDevTools
-                      visible={visible}
-                      cameraPresets={cameraDraftPresets}
-                      copy={{
-                        exportButton: copy.exportButton,
-                        exportCameraCurrent: copy.exportCameraCurrent,
-                        exportCameraCycle: copy.exportCameraCycle,
-                        exportCameraMode: copy.exportCameraMode,
-                        exportFormat: copy.exportFormat,
-                        videoExport: copy.videoExport,
-                      }}
-                      currentCameraView={settings.cameraView}
-                      currentTrackTitle={currentTrackTitle}
-                      displayTrackSubtitle={displayTrackMeta.subtitle}
-                      displayTrackTitle={displayTrackMeta.title}
-                      exportCameraMode={exportCameraMode}
-                      exportFormat={exportFormat}
-                      exportSource={{
-                        notes,
-                        pedalEvents,
-                        playbackGain,
-                      }}
-                      exportSourceFileName={currentTrackFileName}
-                      exportTrackMeta={{
-                        enabled: settings.showBottomTrackMeta,
-                        subtitle: displayTrackMeta.subtitle,
-                        title: displayTrackMeta.title,
-                      }}
-                      instrumentId={settings.instrumentId}
-                      isAudioLoading={isAudioLoading}
-                      isPlaying={isPlaying}
-                      language={language}
-                      onExportCameraModeChange={setExportCameraMode}
-                      onExportFormatChange={setExportFormat}
-                      onShowBottomTrackMetaChange={showBottomTrackMeta =>
-                        setSettings(current => ({
-                          ...current,
-                          showBottomTrackMeta,
-                        }))}
-                      showBottomTrackMeta={settings.showBottomTrackMeta}
-                      togglePlay={togglePlay}
-                      volumePercent={settings.volumePercent}
-                    />
-                  )
-                  : undefined
-              }
-            />
-          )}
-        </div>
-      </div>
-
-      {showInfo && (
-        <div
-          className="nm-animate-fade fixed inset-0 z-[20000000] overflow-y-auto bg-black/80"
-          role="dialog"
-          aria-modal="true"
-          tabIndex={-1}
-          style={infoOverlayStyle}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowInfo(false)
-            }
-          }}
-        >
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-          >
-            <div
-              ref={infoRef}
-              className={cn(
-                'nm-animate-modal w-full overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                isMobile ? 'max-w-full px-5 py-5' : 'max-w-[42rem] px-7 py-6',
+            <AnimatePresence>
+              {showSettings && (
+                <SettingsPanel
+                  panelRef={settingsRef}
+                  language={language}
+                  copy={{
+                    settings: copy.settings,
+                    tabSound: copy.tabSound,
+                    tabScene: copy.tabScene,
+                    tabExport: copy.tabExport,
+                    tabGeneral: copy.tabGeneral,
+                    instrument: copy.instrument,
+                    volume: copy.volume,
+                    cameraView: copy.cameraView,
+                    cameraAutoCycle: copy.cameraAutoCycle,
+                    midiRoll: copy.midiRoll,
+                    bottomTrackMeta: copy.bottomTrackMeta,
+                    fullScreen: copy.fullScreen,
+                    language: copy.language,
+                    resetDefaults: copy.resetDefaults,
+                    on: copy.show,
+                    off: copy.hide,
+                  }}
+                  isMobile={isMobile}
+                  isFullscreen={isFullscreen}
+                  onClose={() => {
+                    if (!isExportActive) {
+                      setShowSettings(false)
+                    }
+                  }}
+                  onToggleFullscreen={toggleFullscreen}
+                  instrumentId={settings.instrumentId}
+                  onInstrumentChange={id => updateSetting('instrumentId', id)}
+                  bpm={bpm}
+                  onBpmChange={setBpm}
+                  volumePercent={settings.volumePercent}
+                  onVolumeChange={value => updateSetting('volumePercent', value)}
+                  showMidiRoll={settings.showMidiRoll}
+                  onToggleMidiRoll={() =>
+                    updateSetting('showMidiRoll', !settings.showMidiRoll)}
+                  showBottomTrackMeta={settings.showBottomTrackMeta}
+                  onToggleBottomTrackMeta={() =>
+                    updateSetting(
+                      'showBottomTrackMeta',
+                      !settings.showBottomTrackMeta,
+                    )}
+                  cameraView={settings.cameraView}
+                  cameraViews={CAMERA_VIEWS}
+                  cameraViewLabels={cameraViewLabels}
+                  onCameraViewChange={view => updateSetting('cameraView', view)}
+                  autoCycleCamera={settings.autoCycleCamera}
+                  onToggleAutoCycle={() =>
+                    updateSetting('autoCycleCamera', !settings.autoCycleCamera)}
+                  languageOptions={LANGUAGE_OPTIONS}
+                  onLanguageChange={value =>
+                    startTransition(() => {
+                      setLanguage(value)
+                    })}
+                  onReset={resetSettings}
+                  showExportTab={isVideoExportClientEnabled}
+                  renderVideoExport={
+                    isVideoExportClientEnabled
+                      ? visible => (
+                        <VideoExportDevTools
+                          visible={visible}
+                          cameraPresets={cameraDraftPresets}
+                          copy={{
+                            exportButton: copy.exportButton,
+                            exportCameraCurrent: copy.exportCameraCurrent,
+                            exportCameraCycle: copy.exportCameraCycle,
+                            exportCameraMode: copy.exportCameraMode,
+                            exportFormat: copy.exportFormat,
+                            videoExport: copy.videoExport,
+                          }}
+                          currentCameraView={settings.cameraView}
+                          currentTrackTitle={currentTrackTitle}
+                          displayTrackSubtitle={displayTrackMeta.subtitle}
+                          displayTrackTitle={displayTrackMeta.title}
+                          exportCameraMode={exportCameraMode}
+                          exportFormat={exportFormat}
+                          exportSource={{
+                            notes,
+                            pedalEvents,
+                            playbackGain,
+                          }}
+                          exportSourceFileName={currentTrackFileName}
+                          exportTrackMeta={{
+                            enabled: settings.showBottomTrackMeta,
+                            subtitle: displayTrackMeta.subtitle,
+                            title: displayTrackMeta.title,
+                          }}
+                          instrumentId={settings.instrumentId}
+                          isAudioLoading={isAudioLoading}
+                          isPlaying={isPlaying}
+                          language={language}
+                          onExportActiveChange={setIsExportActive}
+                          onExportCameraModeChange={setExportCameraMode}
+                          onExportFormatChange={setExportFormat}
+                          onShowBottomTrackMetaChange={showBottomTrackMeta =>
+                            setSettings(current => ({
+                              ...current,
+                              showBottomTrackMeta,
+                            }))}
+                          showBottomTrackMeta={settings.showBottomTrackMeta}
+                          togglePlay={togglePlay}
+                          volumePercent={settings.volumePercent}
+                        />
+                      )
+                      : undefined
+                  }
+                />
               )}
-              style={infoModalStyle}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {showInfo && (
+            <m.div
+              key="info-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.2 }}
+              className="fixed inset-0 z-[20000000] overflow-y-auto bg-black/80"
+              role="dialog"
+              aria-modal="true"
+              tabIndex={-1}
+              style={infoOverlayStyle}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowInfo(false)
+                }
+              }}
             >
-              <div className="space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
-                <section className="space-y-5">
-                  <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
-                    {displayBrandName}
-                    {' '}
-                    <a
-                      href="https://github.com/itsjaydesu/orbitone"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex translate-y-[0.1em] align-baseline text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                      aria-label="GitHub"
-                    >
-                      <GitHubMark className="h-[1.5625rem] w-[1.5625rem]" />
-                    </a>
-                    {' '}
-                    <span className="text-[var(--nm-text-dim)]">
-                      by
-                      {' '}
+              <div
+                className="flex min-h-full items-center justify-center p-4"
+              >
+                <m.div
+                  key="info-card"
+                  ref={infoRef}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.25, ease: 'easeOut' }}
+                  className={cn(
+                    'w-full overflow-y-auto rounded-[1.5rem] border border-white/12 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    isMobile ? 'max-w-full px-5 py-5' : 'max-w-[42rem] px-7 py-6',
+                  )}
+                  style={infoModalStyle}
+                >
+                  <div className="space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
+                    <section className="space-y-5">
+                      <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
+                        {displayBrandName}
+                        {' '}
+                        <a
+                          href="https://github.com/itsjaydesu/orbitone"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex translate-y-[0.1em] align-baseline text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+                          aria-label="GitHub"
+                        >
+                          <GitHubMark className="h-[1.5625rem] w-[1.5625rem]" />
+                        </a>
+                        {' '}
+                        <span className="text-[var(--nm-text-dim)]">
+                          by
+                          {' '}
+                          <a
+                            href="https://x.com/itsjaydesu"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                          >
+                            @itsjaydesu
+                          </a>
+                        </span>
+                      </p>
+
+                      <div className="p-4 sm:p-5">
+                        <div className="space-y-4">
+                          {language === 'ja'
+                            ? (
+                                <>
+                                  <p>
+                                    <strong className="font-semibold text-[var(--nm-text)]">
+                                      {displayBrandName}
+                                    </strong>
+                                    は私の初めてのオープンソースプロジェクトです。MIDIファイルを、ミニマルで心地よいビジュアルのミュージックボックスに変えることを目指しています。
+                                  </p>
+
+                                  <p>
+                                    <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                                      C
+                                    </span>
+                                    でカメラアングルの切り替え、
+                                    <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                                      M
+                                    </span>
+                                    でMIDIロールを表示できます。
+                                  </p>
+
+                                  <p>
+                                    MIDIファイルにはちょっとした懐かしさがあります。楽しんでもらえたらうれしいです。
+                                  </p>
+
+                                  <p>
+                                    このプロジェクトは自由に使ってください。何か作ったら、ぜひ見せてください。改善のアイデアがあれば、プルリクエストを送ってもらえるとうれしいです！
+                                  </p>
+                                </>
+                              )
+                            : (
+                                <>
+                                  <p>
+                                    <strong className="font-semibold text-[var(--nm-text)]">
+                                      {displayBrandName}
+                                    </strong>
+                                    {' '}
+                                    is my first open source project. The goal is turning
+                                    a MIDI file into a minimal and pleasantly visualized
+                                    music box.
+                                  </p>
+
+                                  <p>
+                                    Try pressing
+                                    {' '}
+                                    <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                                      C
+                                    </span>
+                                    {' '}
+                                    for different camera angles and
+                                    {' '}
+                                    <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
+                                      M
+                                    </span>
+                                    {' '}
+                                    for a MIDI roll.
+                                  </p>
+
+                                  <p>
+                                    There&apos;s some nice nostalgia in the MIDI files,
+                                    hope you enjoy.
+                                  </p>
+
+                                  <p>
+                                    Please use this project for anything you like. If you
+                                    make something with it, I&apos;d love to see it. If
+                                    you have ideas on how to improve it, shoot me a pull
+                                    request!
+                                  </p>
+                                </>
+                              )}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="space-y-4 border-t border-white/12 pt-5">
+                      <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                        {copy.keyboardShortcutsTitle}
+                      </h3>
+                      <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+                        {keyboardShortcuts.map(shortcut => (
+                          <div
+                            key={shortcut.keyLabel}
+                            className="flex items-baseline gap-4"
+                          >
+                            <span className="min-w-[4.75rem] shrink-0 text-[var(--nm-text)]">
+                              [
+                              {shortcut.keyLabel}
+                              ]
+                            </span>
+                            <span className="text-[13px] text-[var(--nm-text-dim)]">
+                              {shortcut.description}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="space-y-4 border-t border-white/12 pt-5">
+                      <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                        {language === 'ja' ? 'クレジット' : 'Credits'}
+                      </h3>
+                      <div className="space-y-4 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
+                        {language === 'ja'
+                          ? (
+                              <>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://shtr-m.net/"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      shtr-m.net
+                                    </a>
+                                  </p>
+                                  <p>
+                                    日本の鉄道駅の発車メロディ（発メロ）のアーカイブです。
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://bitmidi.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      BitMidi
+                                    </a>
+                                  </p>
+                                  <p>
+                                    ゲーム、映画、テレビなどのクラシックMIDIファイルのコミュニティアーカイブです。
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://www.vgmusic.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      VGMusic
+                                    </a>
+                                  </p>
+                                  <p>
+                                    1996年から続くビデオゲーム音楽のMIDIアーカイブです。
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://magenta.tensorflow.org/datasets/maestro"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      MAESTRO Dataset
+                                    </a>
+                                  </p>
+                                  <p>
+                                    Google Magentaによる「MIDI and Audio Edited for
+                                    Synchronous TRacks and
+                                    Organization」データセットです。国際ピアノeコンペティションの演奏から収録された、ベロシティやペダル情報を含む高品質なピアノMIDI録音です。
+                                  </p>
+                                </div>
+                              </>
+                            )
+                          : (
+                              <>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://shtr-m.net/"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      shtr-m.net
+                                    </a>
+                                  </p>
+                                  <p>
+                                    Japanese train station departure melodies (hassha
+                                    melody) sourced from this railfan archive.
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://bitmidi.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      BitMidi
+                                    </a>
+                                  </p>
+                                  <p>
+                                    A community archive of classic MIDI files spanning
+                                    games, film, and television.
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://www.vgmusic.com"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      VGMusic
+                                    </a>
+                                  </p>
+                                  <p>
+                                    A video game music MIDI archive running since 1996.
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[var(--nm-text)]">
+                                    <a
+                                      href="https://magenta.tensorflow.org/datasets/maestro"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                      MAESTRO Dataset
+                                    </a>
+                                  </p>
+                                  <p>
+                                    The &quot;MIDI and Audio Edited for Synchronous TRacks
+                                    and Organization&quot; dataset by Google Magenta.
+                                    High-fidelity piano MIDI recordings captured from
+                                    International Piano-e-Competition performances, with
+                                    velocity and pedal data intact.
+                                  </p>
+                                </div>
+                              </>
+                            )}
+                      </div>
+                    </section>
+
+                    <section className="space-y-4 border-t border-white/12 pt-5">
+                      <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
+                        {language === 'ja' ? '今後やりたいこと' : 'Things That Might Be Next'}
+                      </h3>
+                      <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
+                        {language === 'ja'
+                          ? (
+                              <ul className="list-inside list-disc space-y-1">
+                                <li>散らかっている部分のリファクタリング</li>
+                                <li>
+                                  ピアノ以外の楽器を追加する（シンセ、ストリングスなど）
+                                </li>
+                                <li>
+                                  本物のアコースティックピアノの音源を使った、よりオーガニックなサウンド
+                                </li>
+                                <li>マルチトラックMIDIのサポートとトラック別の可視化</li>
+                                <li>プレイリスト・キュー機能</li>
+                              </ul>
+                            )
+                          : (
+                              <ul className="list-inside list-disc space-y-1">
+                                <li>Some refactors to clean up some messy parts</li>
+                                <li>
+                                  Additional instruments (synth, strings, etc.)
+                                </li>
+                                <li>
+                                  Authentic organic piano using real acoustic samples
+                                </li>
+                                <li>
+                                  Multi-track MIDI support with per-track visualization
+                                </li>
+                                <li>Playlist queue for continuous playback</li>
+                              </ul>
+                            )}
+                      </div>
+                    </section>
+
+                    <section className="flex items-center justify-center gap-5 border-t border-white/12 pt-5">
+                      <a
+                        href="https://github.com/itsjaydesu"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
+                        aria-label="GitHub"
+                        title="GitHub"
+                      >
+                        <GitHubMark className="h-8 w-8" />
+                      </a>
+                      <a
+                        href="https://itsjaydesu.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-opacity hover:opacity-80"
+                        aria-label={language === 'ja' ? 'サイト' : 'Website'}
+                        title={language === 'ja' ? 'サイト' : 'Website'}
+                      >
+                        <Image
+                          src="/jay-avatar.PNG"
+                          alt="Portrait of itsjaydesu"
+                          width={128}
+                          height={128}
+                          className="h-12 w-12 object-cover"
+                        />
+                      </a>
                       <a
                         href="https://x.com/itsjaydesu"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
+                        className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
+                        aria-label="X"
+                        title="X"
                       >
-                        @itsjaydesu
+                        <XMark className="h-8 w-8" />
                       </a>
-                    </span>
-                  </p>
-
-                  <div className="p-4 sm:p-5">
-                    <div className="space-y-4">
-                      {language === 'ja'
-                        ? (
-                            <>
-                              <p>
-                                <strong className="font-semibold text-[var(--nm-text)]">
-                                  {displayBrandName}
-                                </strong>
-                                は私の初めてのオープンソースプロジェクトです。MIDIファイルを、ミニマルで心地よいビジュアルのミュージックボックスに変えることを目指しています。
-                              </p>
-
-                              <p>
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  C
-                                </span>
-                                でカメラアングルの切り替え、
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  M
-                                </span>
-                                でMIDIロールを表示できます。
-                              </p>
-
-                              <p>
-                                MIDIファイルにはちょっとした懐かしさがあります。楽しんでもらえたらうれしいです。
-                              </p>
-
-                              <p>
-                                このプロジェクトは自由に使ってください。何か作ったら、ぜひ見せてください。改善のアイデアがあれば、プルリクエストを送ってもらえるとうれしいです！
-                              </p>
-                            </>
-                          )
-                        : (
-                            <>
-                              <p>
-                                <strong className="font-semibold text-[var(--nm-text)]">
-                                  {displayBrandName}
-                                </strong>
-                                {' '}
-                                is my first open source project. The goal is turning
-                                a MIDI file into a minimal and pleasantly visualized
-                                music box.
-                              </p>
-
-                              <p>
-                                Try pressing
-                                {' '}
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  C
-                                </span>
-                                {' '}
-                                for different camera angles and
-                                {' '}
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  M
-                                </span>
-                                {' '}
-                                for a MIDI roll.
-                              </p>
-
-                              <p>
-                                There&apos;s some nice nostalgia in the MIDI files,
-                                hope you enjoy.
-                              </p>
-
-                              <p>
-                                Please use this project for anything you like. If you
-                                make something with it, I&apos;d love to see it. If
-                                you have ideas on how to improve it, shoot me a pull
-                                request!
-                              </p>
-                            </>
-                          )}
-                    </div>
+                    </section>
                   </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {copy.keyboardShortcutsTitle}
-                  </h3>
-                  <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-                    {keyboardShortcuts.map(shortcut => (
-                      <div
-                        key={shortcut.keyLabel}
-                        className="flex items-baseline gap-4"
-                      >
-                        <span className="min-w-[4.75rem] shrink-0 text-[var(--nm-text)]">
-                          [
-                          {shortcut.keyLabel}
-                          ]
-                        </span>
-                        <span className="text-[13px] text-[var(--nm-text-dim)]">
-                          {shortcut.description}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {language === 'ja' ? 'クレジット' : 'Credits'}
-                  </h3>
-                  <div className="space-y-4 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
-                    {language === 'ja'
-                      ? (
-                          <>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://shtr-m.net/"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  shtr-m.net
-                                </a>
-                              </p>
-                              <p>
-                                日本の鉄道駅の発車メロディ（発メロ）のアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://bitmidi.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  BitMidi
-                                </a>
-                              </p>
-                              <p>
-                                ゲーム、映画、テレビなどのクラシックMIDIファイルのコミュニティアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://www.vgmusic.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  VGMusic
-                                </a>
-                              </p>
-                              <p>
-                                1996年から続くビデオゲーム音楽のMIDIアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://magenta.tensorflow.org/datasets/maestro"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  MAESTRO Dataset
-                                </a>
-                              </p>
-                              <p>
-                                Google Magentaによる「MIDI and Audio Edited for
-                                Synchronous TRacks and
-                                Organization」データセットです。国際ピアノeコンペティションの演奏から収録された、ベロシティやペダル情報を含む高品質なピアノMIDI録音です。
-                              </p>
-                            </div>
-                          </>
-                        )
-                      : (
-                          <>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://shtr-m.net/"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  shtr-m.net
-                                </a>
-                              </p>
-                              <p>
-                                Japanese train station departure melodies (hassha
-                                melody) sourced from this railfan archive.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://bitmidi.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  BitMidi
-                                </a>
-                              </p>
-                              <p>
-                                A community archive of classic MIDI files spanning
-                                games, film, and television.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://www.vgmusic.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  VGMusic
-                                </a>
-                              </p>
-                              <p>
-                                A video game music MIDI archive running since 1996.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://magenta.tensorflow.org/datasets/maestro"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  MAESTRO Dataset
-                                </a>
-                              </p>
-                              <p>
-                                The &quot;MIDI and Audio Edited for Synchronous TRacks
-                                and Organization&quot; dataset by Google Magenta.
-                                High-fidelity piano MIDI recordings captured from
-                                International Piano-e-Competition performances, with
-                                velocity and pedal data intact.
-                              </p>
-                            </div>
-                          </>
-                        )}
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {language === 'ja' ? '今後やりたいこと' : 'Things That Might Be Next'}
-                  </h3>
-                  <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
-                    {language === 'ja'
-                      ? (
-                          <ul className="list-inside list-disc space-y-1">
-                            <li>散らかっている部分のリファクタリング</li>
-                            <li>
-                              ピアノ以外の楽器を追加する（シンセ、ストリングスなど）
-                            </li>
-                            <li>
-                              本物のアコースティックピアノの音源を使った、よりオーガニックなサウンド
-                            </li>
-                            <li>マルチトラックMIDIのサポートとトラック別の可視化</li>
-                            <li>プレイリスト・キュー機能</li>
-                          </ul>
-                        )
-                      : (
-                          <ul className="list-inside list-disc space-y-1">
-                            <li>Some refactors to clean up some messy parts</li>
-                            <li>
-                              Additional instruments (synth, strings, etc.)
-                            </li>
-                            <li>
-                              Authentic organic piano using real acoustic samples
-                            </li>
-                            <li>
-                              Multi-track MIDI support with per-track visualization
-                            </li>
-                            <li>Playlist queue for continuous playback</li>
-                          </ul>
-                        )}
-                  </div>
-                </section>
-
-                <section className="flex items-center justify-center gap-5 border-t border-white/12 pt-5">
-                  <a
-                    href="https://github.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
-                    aria-label="GitHub"
-                    title="GitHub"
-                  >
-                    <GitHubMark className="h-8 w-8" />
-                  </a>
-                  <a
-                    href="https://itsjaydesu.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-opacity hover:opacity-80"
-                    aria-label={language === 'ja' ? 'サイト' : 'Website'}
-                    title={language === 'ja' ? 'サイト' : 'Website'}
-                  >
-                    <Image
-                      src="/jay-avatar.PNG"
-                      alt="Portrait of itsjaydesu"
-                      width={128}
-                      height={128}
-                      className="h-12 w-12 object-cover"
-                      priority
-                    />
-                  </a>
-                  <a
-                    href="https://x.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
-                    aria-label="X"
-                    title="X"
-                  >
-                    <XMark className="h-8 w-8" />
-                  </a>
-                </section>
+                </m.div>
               </div>
-            </div>
+            </m.div>
+          )}
+        </AnimatePresence>
+
+        {showCameraLab && (
+          <div ref={cameraLabRef}>
+            <CameraLab
+              activeView={activeCameraView}
+              draftPose={activeCameraDraft}
+              isDirty={isActiveCameraDirty}
+              language={language}
+              onClose={() => setShowCameraLab(false)}
+              onPoseChange={pose => updateCameraDraft(activeCameraView, pose)}
+              onResetToDefault={resetActiveCameraView}
+              onRevert={revertActiveCameraView}
+              onSave={saveActiveCameraView}
+              onSelectView={view => updateSetting('cameraView', view)}
+            />
           </div>
-        </div>
-      )}
-
-      {showCameraLab && (
-        <div ref={cameraLabRef}>
-          <CameraLab
-            activeView={activeCameraView}
-            draftPose={activeCameraDraft}
-            isDirty={isActiveCameraDirty}
-            language={language}
-            onClose={() => setShowCameraLab(false)}
-            onPoseChange={pose => updateCameraDraft(activeCameraView, pose)}
-            onResetToDefault={resetActiveCameraView}
-            onRevert={revertActiveCameraView}
-            onSave={saveActiveCameraView}
-            onSelectView={view => updateSetting('cameraView', view)}
-          />
-        </div>
-      )}
-
-      <div
-        className={cn(
-          bottomChromeClass,
-          chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
-          'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
         )}
-        inert={!chromeVisible}
-        style={timelineChromeStyle}
-      >
-        <PlaybackTimeline
-          duration={duration}
-          getPlaybackTime={getPlaybackTime}
-          onSeek={seek}
-        />
-      </div>
 
-      <div
-        className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
-        inert={!chromeVisible}
-        style={playChromeStyle}
-      >
-        <button
-          onClick={(e) => {
-            handlePlaybackToggle()
-            e.currentTarget.blur()
-          }}
-          disabled={playbackButtonBusy}
-          aria-label={playbackButtonLabel}
-          className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
-        >
-          {playbackButtonIcon}
-        </button>
-      </div>
-
-      {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
         <div
           className={cn(
-            'pointer-events-none absolute left-1/2 z-10 w-full max-w-[min(42rem,calc(100%-2rem))] -translate-x-1/2 px-4 text-center',
-            isMenuReady && 'transition-opacity duration-700 ease-out',
-            bottomTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+            bottomChromeClass,
+            chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
+            'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
           )}
-          aria-hidden={!bottomTrackMetaVisible}
-          style={bottomTrackMetaStyle}
+          inert={!chromeVisible}
+          style={timelineChromeStyle}
         >
+          <PlaybackTimeline
+            duration={duration}
+            getPlaybackTime={getPlaybackTime}
+            onSeek={seek}
+          />
+        </div>
+
+        <div
+          className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
+          inert={!chromeVisible}
+          style={playChromeStyle}
+        >
+          <button
+            onClick={(e) => {
+              handlePlaybackToggle()
+              e.currentTarget.blur()
+            }}
+            disabled={playbackButtonBusy}
+            aria-label={playbackButtonLabel}
+            className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
+          >
+            {playbackButtonIcon}
+          </button>
+        </div>
+
+        {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
           <div
             className={cn(
-              'transition-opacity duration-150 ease-out motion-reduce:transition-none',
-              isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+              'pointer-events-none absolute left-1/2 z-10 w-full max-w-[min(42rem,calc(100%-2rem))] -translate-x-1/2 px-4 text-center',
+              isMenuReady && 'transition-opacity duration-700 ease-out',
+              bottomTrackMetaVisible ? 'opacity-100' : 'opacity-0',
             )}
+            aria-hidden={!bottomTrackMetaVisible}
+            style={bottomTrackMetaStyle}
           >
-            {displayTrackMeta.title && (
-              <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                {displayTrackMeta.title}
-              </div>
-            )}
-            {displayTrackMeta.subtitle && (
-              <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
-                {displayTrackMeta.subtitle}
-              </div>
-            )}
+            <div
+              className={cn(
+                'transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+              )}
+            >
+              {displayTrackMeta.title && (
+                <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                  {displayTrackMeta.title}
+                </div>
+              )}
+              {displayTrackMeta.subtitle && (
+                <div className="mt-1 type-overline whitespace-normal break-words leading-tight text-[var(--nm-text-faint)] sm:text-xs">
+                  {displayTrackMeta.subtitle}
+                </div>
+              )}
+            </div>
           </div>
+        )}
+
+        <div className="h-full w-full">
+          <Visualizer
+            cameraPresets={cameraDraftPresets}
+            isMobileView={isMobile}
+            isCameraEditing={showCameraLab}
+            notes={shouldHoldInitialVisualizerNotes ? [] : notes}
+            onCameraPoseChange={handleVisualizerCameraPoseChange}
+            settings={settings}
+            audioLevelRef={audioLevelRef}
+          />
         </div>
-      )}
 
-      <div className="h-full w-full">
-        <Visualizer
-          cameraPresets={cameraDraftPresets}
-          isMobileView={isMobile}
-          isCameraEditing={showCameraLab}
-          notes={shouldHoldInitialVisualizerNotes ? [] : notes}
-          onCameraPoseChange={handleVisualizerCameraPoseChange}
-          settings={settings}
-        />
-      </div>
+        <Toast toast={toast} />
 
-      <NoteCursor />
+        <NoteCursor />
 
-      {showFullscreenHint && !isMobile && (
-        <div className="pointer-events-none fixed inset-0 z-[99999] flex items-center justify-center">
-          <div className="nm-fullscreen-hint rounded-2xl border border-white/10 bg-black/60 px-8 py-5 text-lg font-medium tracking-wide text-white/80 shadow-lg backdrop-blur-md">
-            {copy.fullScreenHint}
+        {showFullscreenHint && !isMobile && (
+          <div className="pointer-events-none fixed inset-0 z-[99999] flex items-center justify-center">
+            <div className="nm-fullscreen-hint rounded-2xl border border-white/10 bg-black/60 px-8 py-5 text-lg font-medium tracking-wide text-white/80 shadow-lg backdrop-blur-md">
+              {copy.fullScreenHint}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </LazyMotion>
     </main>
   )
 }

@@ -3,11 +3,11 @@ import type { InstrumentId, SynthVoiceParams } from '@/lib/instruments'
 import { getInstrument, midiToFrequency } from '@/lib/instruments'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
+  fetchPianoSampleArrayBuffer,
   getNearestPianoSampleMidi,
   getRegisterRelease,
   GLOBAL_VOLUME_BOOST,
-  PIANO_SAMPLE_BASE_URL,
-  PIANO_SAMPLE_FILES,
+  PIANO_SAMPLE_MIDI_VALUES,
 } from '@/lib/piano-audio'
 
 interface LoadedPianoSample {
@@ -115,27 +115,28 @@ async function loadPianoSamples() {
       const decodeContext = new AudioContextConstructor()
 
       try {
+        // Raw sample bytes come from the shared fetch cache, so an export
+        // after live playback re-decodes but never re-downloads.
         const entries = await Promise.all(
-          Object.entries(PIANO_SAMPLE_FILES).map(async ([midi, fileName]) => {
-            const response = await fetch(`${PIANO_SAMPLE_BASE_URL}${fileName}`)
-            if (!response.ok) {
-              throw new Error(`Failed to load piano sample ${fileName}.`)
-            }
-
-            const arrayBuffer = await response.arrayBuffer()
+          PIANO_SAMPLE_MIDI_VALUES.map(async (midi) => {
+            const arrayBuffer = await fetchPianoSampleArrayBuffer(midi)
             const audioBuffer = await decodeContext.decodeAudioData(arrayBuffer.slice(0))
 
             return [
-              Number(midi),
+              midi,
               {
                 audioBuffer,
-                midi: Number(midi),
+                midi,
               },
             ] as const
           }),
         )
 
         return new Map(entries)
+      }
+      catch (error) {
+        pianoSampleMapPromise = null
+        throw error
       }
       finally {
         await decodeContext.close()

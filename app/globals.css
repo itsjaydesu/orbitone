@@ -9,6 +9,17 @@
   --font-mono: var(--font-mono-custom), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ── Type Tokens ──
+   One shared overline voice for every micro-label (badges, field labels,
+   subtitles, kbd chips); the wordmark keeps its own wider tracking. */
+
+.type-overline {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 /* ── Neuromorphic Design System ── */
 
 :root {

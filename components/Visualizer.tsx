@@ -11,7 +11,8 @@ import type { ExportCameraMode } from '@/lib/export'
 import type { NoteEvent } from '@/lib/music'
 import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
+import { BloomEffect } from 'postprocessing'
 import {
   memo,
   useEffect,
@@ -131,6 +132,7 @@ const boxGeo = new THREE.BoxGeometry(1, 1, 1)
 type IntroClockRef = MutableRefObject<number | null>
 type OrbitControlsRef = RefObject<ComponentRef<typeof OrbitControls> | null>
 type FadePhase = 'steady' | 'entering' | 'exiting'
+
 
 interface CrossfadeState {
   active: boolean
@@ -574,11 +576,13 @@ function StaffRing({
   radius,
   index,
   introStartRef,
+  energyRef,
   timeline,
 }: {
   radius: number
   index: number
   introStartRef: IntroClockRef
+  energyRef: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   const geometry = useMemo(() => createCircularLineGeometry(radius), [radius])
@@ -625,8 +629,10 @@ function StaffRing({
     geometry.setDrawRange(0, drawCount)
     ringRef.current.scale.setScalar(0.965 + progress * 0.035)
     ringRef.current.position.z = (1 - progress) * -0.75;
+    // Rings breathe with the music: the smoothed master level lifts their
+    // luminance so the whole staff glows on loud passages.
     (ringRef.current.material as THREE.LineBasicMaterial).opacity
-      = 0.08 + progress * 0.18
+      = (0.08 + progress * 0.18) * (1 + energyRef.current * 0.7)
   })
 
   return <primitive object={line} ref={ringRef} />
@@ -634,9 +640,11 @@ function StaffRing({
 
 function Staff({
   introStartRef,
+  energyRef,
   timeline,
 }: {
   introStartRef: IntroClockRef
+  energyRef: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   return (
@@ -647,6 +655,7 @@ function Staff({
           radius={radius}
           index={index}
           introStartRef={introStartRef}
+          energyRef={energyRef}
           timeline={timeline}
         />
       ))}
@@ -1457,6 +1466,7 @@ function Scene({
   onCameraPoseChange,
   settings,
   isMobileView,
+  audioLevelRef,
   timeline,
 }: {
   cameraPresets: CameraPresetMap
@@ -1467,6 +1477,7 @@ function Scene({
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
   settings: VisualizerSettings
+  audioLevelRef?: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   const { showMidiRoll, cameraView } = settings
@@ -1496,7 +1507,28 @@ function Scene({
     toView: cameraView,
   })
   const lastClockRef = useRef(0)
+  const smoothedEnergyRef = useRef(0)
+  // Constructed directly (not via the <Bloom> wrapper): React 19 passes `ref`
+  // through props and @react-three/postprocessing JSON.stringify()s its props,
+  // which throws on the circular effect instance a ref would carry.
+  const bloomEffect = useMemo(
+    () =>
+      new BloomEffect({
+        intensity: DEFAULT_BLOOM_INTENSITY,
+        luminanceThreshold: 0.24,
+        luminanceSmoothing: 0.9,
+        mipmapBlur: true,
+        radius: 0.72,
+      }),
+    [],
+  )
   const displaySignatureRef = useRef(getNotesSignature(notes))
+
+  useEffect(() => {
+    return () => {
+      bloomEffect.dispose()
+    }
+  }, [bloomEffect])
   const prevMidiRollPlaneRef = useRef(activePose.flatLock)
   const prevMidiRollCameraViewRef = useRef(cameraView)
   const timeWindow = DEFAULT_TIME_WINDOW
@@ -1721,6 +1753,17 @@ function Scene({
 
     lastClockRef.current = globalTime
 
+    // Fast attack, slow release — reads as the scene "breathing" with the
+    // music rather than flickering per note. Exports have no live level, so
+    // the offline render keeps the deterministic baseline look.
+    const targetEnergy = audioLevelRef?.current ?? 0
+    const smoothing = targetEnergy > smoothedEnergyRef.current ? 0.28 : 0.045
+    smoothedEnergyRef.current
+      += (targetEnergy - smoothedEnergyRef.current) * smoothing
+
+    bloomEffect.intensity
+      = DEFAULT_BLOOM_INTENSITY * (1 + smoothedEnergyRef.current * 0.4)
+
     if (!timeline && Math.abs(transportTime - filterTime) > 0.5) {
       setFilterTime(transportTime)
     }
@@ -1906,7 +1949,11 @@ function Scene({
       )}
 
       <group rotation={[0, 0, 0]}>
-        <Staff introStartRef={introStartRef} timeline={timeline} />
+        <Staff
+          introStartRef={introStartRef}
+          energyRef={smoothedEnergyRef}
+          timeline={timeline}
+        />
         <InstancedNotes
           items={noteItems}
           timeWindow={timeWindow}
@@ -1953,13 +2000,7 @@ function Scene({
       />
 
       <EffectComposer>
-        <Bloom
-          luminanceThreshold={0.24}
-          luminanceSmoothing={0.9}
-          intensity={DEFAULT_BLOOM_INTENSITY}
-          mipmapBlur
-          radius={0.72}
-        />
+        <primitive object={bloomEffect} />
         {/* Filmic depth: darken the edges so the frame reads as a lit stage
             rather than a flat void. Kept subtle to stay minimal. */}
         <Vignette offset={0.28} darkness={0.62} eskil={false} />
@@ -2009,6 +2050,7 @@ function VisualizerComponent({
   onExportFrameController,
   renderTimeline,
   settings,
+  audioLevelRef,
 }: {
   cameraPresets: CameraPresetMap
   exportMode?: boolean
@@ -2021,6 +2063,7 @@ function VisualizerComponent({
   onExportFrameController?: (controller: ExportFrameController | null) => void
   renderTimeline?: VisualizerRenderTimeline
   settings: VisualizerSettings
+  audioLevelRef?: MutableRefObject<number>
 }) {
   const activePose = cameraPresets[settings.cameraView]
   const initialPose
@@ -2085,6 +2128,7 @@ function VisualizerComponent({
         onCameraPoseChange={onCameraPoseChange}
         timeline={renderTimeline}
         settings={settings}
+        audioLevelRef={audioLevelRef}
       />
     </Canvas>
   )

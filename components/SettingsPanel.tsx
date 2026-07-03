@@ -4,6 +4,7 @@ import type { ReactNode, Ref } from 'react'
 import type { AppLanguage, CameraView } from '@/lib/camera-presets'
 import type { InstrumentId } from '@/lib/instruments'
 import { Expand, Minimize } from 'lucide-react'
+import { m, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import { getInstrument, INSTRUMENT_LIST } from '@/lib/instruments'
 import { cn } from '@/lib/utils'
@@ -66,7 +67,7 @@ interface SettingsPanelProps {
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
+    <span className="type-overline text-[var(--nm-text-faint)]">
       {children}
     </span>
   )
@@ -100,7 +101,7 @@ function ToggleRow({
       <span>{label}</span>
       <span
         className={cn(
-          'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+          'rounded-md px-2 py-0.5 type-overline',
           active ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
         )}
       >
@@ -261,26 +262,43 @@ export function SettingsPanel({
   ]
 
   const activeInstrument = getInstrument(instrumentId)
+  const reduceMotion = useReducedMotion() ?? false
 
   return (
     <>
       {isMobile && (
-        <button
+        <m.button
+          key="settings-scrim"
           type="button"
-          className="nm-animate-fade fixed inset-0 z-40 bg-black/65"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          className="fixed inset-0 z-40 bg-black/65"
           onClick={onClose}
           aria-label={copy.settings}
         />
       )}
-      <div
+      <m.div
+        key="settings-panel"
         ref={panelRef}
         role="dialog"
         aria-label={copy.settings}
+        initial={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+        animate={isMobile ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+        exit={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : isMobile
+              ? { duration: 0.34, ease: [0.32, 0.72, 0, 1] }
+              : { duration: 0.2, ease: 'easeOut' }
+        }
         className={cn(
           'nm-card pointer-events-auto z-50 flex flex-col gap-3 text-[var(--nm-text)]',
           isMobile
-            ? 'nm-animate-sheet fixed inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[1.6rem] p-3'
-            : 'nm-animate-dropdown absolute top-12 right-0 max-h-[min(78vh,44rem)] w-80 rounded-xl p-4',
+            ? 'fixed inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[1.6rem] p-3'
+            : 'absolute top-12 right-0 max-h-[min(78vh,44rem)] w-80 rounded-xl p-4',
         )}
         style={
           isMobile
@@ -371,7 +389,7 @@ export function SettingsPanel({
                 </span>
                 <kbd
                   className={cn(
-                    'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                    'rounded-md px-2 py-0.5 type-overline',
                     isFullscreen ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
                   )}
                 >
@@ -453,7 +471,7 @@ export function SettingsPanel({
             </button>
           </div>
         </div>
-      </div>
+      </m.div>
     </>
   )
 }

@@ -20,7 +20,6 @@ export interface ExportTimeline {
   audioDurationSeconds: number
   contentEndSeconds: number
   finalFadeStartSeconds: number
-  firstNoteTimeSeconds: number
   introSettleSeconds: number
   playbackStartSeconds: number
   playbackEndSeconds: number
@@ -143,7 +142,6 @@ export function createExportTimeline(
   height: number = EXPORT_HEIGHT,
 ): ExportTimeline {
   const audioDurationSeconds = getExportAudioDurationSeconds(notes)
-  const firstNoteTimeSeconds = notes.length > 0 ? Math.max(0, notes[0].time) : 0
   const introSettleSeconds = getVisualizerIntroSettleSeconds()
   const playbackStartSeconds = Math.max(
     introSettleSeconds - EXPORT_PLAYBACK_ADVANCE_SECONDS,
@@ -167,7 +165,6 @@ export function createExportTimeline(
     audioDurationSeconds,
     contentEndSeconds,
     finalFadeStartSeconds,
-    firstNoteTimeSeconds,
     introSettleSeconds,
     playbackStartSeconds,
     playbackEndSeconds,

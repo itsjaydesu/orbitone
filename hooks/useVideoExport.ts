@@ -45,12 +45,16 @@ function downloadBlob(blob: Blob, filename: string) {
 function uploadFile(
   action: 'audio' | 'finalize' | 'frame' | 'init',
   formData: FormData,
+  signal?: AbortSignal,
 ) {
   return fetch(`/api/render/export?action=${action}`, {
     method: 'POST',
     body: formData,
+    signal,
   })
 }
+
+const RENDERER_WAIT_TIMEOUT_MS = 10_000
 
 interface ExportTrackMeta {
   enabled: boolean
@@ -275,9 +279,12 @@ export function useVideoExport({
 }: UseVideoExportOptions) {
   const [phase, setPhase] = useState<ExportPhase>('idle')
   const [progress, setProgress] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [renderState, setRenderState] = useState<ExportFrameRenderState | null>(null)
 
   const cancelledRef = useRef(false)
+  const exportBusyRef = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const compositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -304,10 +311,13 @@ export function useVideoExport({
   const resetUiState = useCallback(() => {
     setProgress(0)
     setRenderState(null)
+    setErrorMessage(null)
+    compositeCanvasRef.current = null
   }, [])
 
   const cancelExport = useCallback(() => {
     cancelledRef.current = true
+    abortControllerRef.current?.abort()
     void clearSession()
     resetUiState()
     setPhase('idle')
@@ -325,10 +335,16 @@ export function useVideoExport({
   }, [])
 
   const waitForExportRenderer = useCallback(async () => {
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      const deadline = performance.now() + RENDERER_WAIT_TIMEOUT_MS
       const poll = () => {
         if (exportFrameControllerRef.current || cancelledRef.current) {
           resolve()
+          return
+        }
+
+        if (performance.now() > deadline) {
+          reject(new Error('The export renderer never became ready.'))
           return
         }
 
@@ -434,6 +450,7 @@ export function useVideoExport({
       currentCameraView,
     )
 
+    // eslint-disable-next-line react-dom/no-flush-sync -- the offscreen rig must commit before the canvas is read
     flushSync(() => {
       setRenderState(nextRenderState)
     })
@@ -463,8 +480,16 @@ export function useVideoExport({
     cameraMode: ExportCameraMode,
     currentCameraView: CameraView,
   ) => {
+    if (exportBusyRef.current) {
+      return
+    }
+
+    exportBusyRef.current = true
     cancelledRef.current = false
+    abortControllerRef.current = new AbortController()
+    const { signal } = abortControllerRef.current
     setProgress(0)
+    setErrorMessage(null)
     setPhase('preparing')
 
     if (isPlaying) {
@@ -473,6 +498,8 @@ export function useVideoExport({
 
     const validationError = validateExportRequest(exportSource, format)
     if (validationError) {
+      exportBusyRef.current = false
+      setErrorMessage(validationError)
       setPhase('error')
       setTimeout(() => {
         setPhase(current => current === 'error' ? 'idle' : current)
@@ -522,7 +549,7 @@ export function useVideoExport({
       initData.append('totalDurationSeconds', String(timeline.totalDurationSeconds))
       initData.append('width', String(timeline.width))
 
-      const initResponse = await uploadFile('init', initData)
+      const initResponse = await uploadFile('init', initData, signal)
       if (!initResponse.ok) {
         throw new Error('Failed to initialize export session.')
       }
@@ -538,7 +565,7 @@ export function useVideoExport({
       audioUpload.append('sessionId', sessionId)
       audioUpload.append('audio', audioBlob, 'audio.wav')
 
-      const audioResponse = await uploadFile('audio', audioUpload)
+      const audioResponse = await uploadFile('audio', audioUpload, signal)
       if (!audioResponse.ok) {
         throw new Error('Failed to upload rendered audio.')
       }
@@ -556,6 +583,7 @@ export function useVideoExport({
           cameraMode,
           currentCameraView,
         )
+        // eslint-disable-next-line react-dom/no-flush-sync -- the offscreen rig must commit before the canvas is read
         flushSync(() => {
           setRenderState(nextRenderState)
         })
@@ -573,7 +601,7 @@ export function useVideoExport({
         frameUpload.append('frameIndex', String(frameIndex))
         frameUpload.append('frame', frameBlob, `frame-${frameIndex.toString().padStart(6, '0')}.png`)
 
-        const frameResponse = await uploadFile('frame', frameUpload)
+        const frameResponse = await uploadFile('frame', frameUpload, signal)
         if (!frameResponse.ok) {
           throw new Error(`Failed to upload frame ${frameIndex}.`)
         }
@@ -590,7 +618,7 @@ export function useVideoExport({
       const finalizeData = new FormData()
       finalizeData.append('sessionId', sessionId)
 
-      const finalizeResponse = await uploadFile('finalize', finalizeData)
+      const finalizeResponse = await uploadFile('finalize', finalizeData, signal)
       if (!finalizeResponse.ok) {
         throw new Error('Failed to finalize video export.')
       }
@@ -611,12 +639,20 @@ export function useVideoExport({
 
       if (!cancelledRef.current) {
         console.error('Export failed:', error)
+        setErrorMessage(
+          error instanceof Error ? error.message : 'Export failed.',
+        )
         setPhase('error')
         setTimeout(() => {
           setPhase(current => current === 'error' ? 'idle' : current)
           resetUiState()
         }, 5000)
       }
+    }
+    finally {
+      exportBusyRef.current = false
+      abortControllerRef.current = null
+      compositeCanvasRef.current = null
     }
   }, [
     captureFrame,
@@ -637,6 +673,7 @@ export function useVideoExport({
     capturePreviewFrame,
     phase,
     progress,
+    errorMessage,
     renderState,
     startExport,
     cancelExport,

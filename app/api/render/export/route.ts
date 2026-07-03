@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server'
 import { isExportFormat } from '@/lib/export'
 import {
   createExportSession,
+  EXPORT_LIMITS,
   finalizeExportSession,
+  isValidExportSessionId,
   removeExportSession,
   writeExportAudio,
   writeExportFrame,
@@ -32,6 +34,16 @@ function parseRequiredNumber(formData: FormData, fieldName: string) {
   }
 
   return value
+}
+
+function parseSessionId(formData: FormData) {
+  const sessionId = parseRequiredString(formData, 'sessionId')
+
+  if (!isValidExportSessionId(sessionId)) {
+    throw new TypeError('Invalid sessionId.')
+  }
+
+  return sessionId
 }
 
 function parseInitRequest(formData: FormData): ExportSessionInitRequest {
@@ -62,12 +74,16 @@ async function handleInit(formData: FormData) {
 }
 
 async function handleFrameUpload(formData: FormData) {
-  const sessionId = parseRequiredString(formData, 'sessionId')
+  const sessionId = parseSessionId(formData)
   const frameIndex = parseRequiredNumber(formData, 'frameIndex')
   const frame = formData.get('frame')
 
   if (!(frame instanceof File)) {
     throw new TypeError('Missing frame upload.')
+  }
+
+  if (frame.size > EXPORT_LIMITS.maxFrameBytes) {
+    throw new TypeError('Frame upload too large.')
   }
 
   await writeExportFrame(
@@ -80,11 +96,15 @@ async function handleFrameUpload(formData: FormData) {
 }
 
 async function handleAudioUpload(formData: FormData) {
-  const sessionId = parseRequiredString(formData, 'sessionId')
+  const sessionId = parseSessionId(formData)
   const audio = formData.get('audio')
 
   if (!(audio instanceof File)) {
     throw new TypeError('Missing audio upload.')
+  }
+
+  if (audio.size > EXPORT_LIMITS.maxAudioBytes) {
+    throw new TypeError('Audio upload too large.')
   }
 
   await writeExportAudio(sessionId, Buffer.from(await audio.arrayBuffer()))
@@ -93,7 +113,7 @@ async function handleAudioUpload(formData: FormData) {
 }
 
 async function handleFinalize(formData: FormData) {
-  const sessionId = parseRequiredString(formData, 'sessionId')
+  const sessionId = parseSessionId(formData)
   console.info(`[export][session:${sessionId}] route finalize request received`)
   const result = await finalizeExportSession(sessionId)
 
@@ -154,8 +174,8 @@ export async function DELETE(request: Request) {
   try {
     const sessionId = new URL(request.url).searchParams.get('sessionId')
 
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Missing sessionId.' }, { status: 400 })
+    if (!sessionId || !isValidExportSessionId(sessionId)) {
+      return NextResponse.json({ error: 'Invalid sessionId.' }, { status: 400 })
     }
 
     await removeExportSession(sessionId)

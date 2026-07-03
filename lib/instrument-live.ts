@@ -1,7 +1,12 @@
 import type { InstrumentDefinition } from '@/lib/instruments'
 import * as Tone from 'tone'
 import { midiToFrequency } from '@/lib/instruments'
-import { getRegisterRelease } from '@/lib/piano-audio'
+import {
+  fetchPianoSampleArrayBuffer,
+  getRegisterRelease,
+  midiToNoteName,
+  PIANO_SAMPLE_MIDI_VALUES,
+} from '@/lib/piano-audio'
 
 /**
  * A uniform, disposable voice used by `useMusic` for real-time playback.
@@ -24,63 +29,19 @@ export interface LiveInstrument {
   dispose: () => void
 }
 
-const SALAMANDER_BASE_URL = 'https://tonejs.github.io/audio/salamander/'
-
-const SALAMANDER_URLS: Record<string, string> = {
-  'A0': 'A0.mp3',
-  'C1': 'C1.mp3',
-  'D#1': 'Ds1.mp3',
-  'F#1': 'Fs1.mp3',
-  'A1': 'A1.mp3',
-  'C2': 'C2.mp3',
-  'D#2': 'Ds2.mp3',
-  'F#2': 'Fs2.mp3',
-  'A2': 'A2.mp3',
-  'C3': 'C3.mp3',
-  'D#3': 'Ds3.mp3',
-  'F#3': 'Fs3.mp3',
-  'A3': 'A3.mp3',
-  'C4': 'C4.mp3',
-  'D#4': 'Ds4.mp3',
-  'F#4': 'Fs4.mp3',
-  'A4': 'A4.mp3',
-  'C5': 'C5.mp3',
-  'D#5': 'Ds5.mp3',
-  'F#5': 'Fs5.mp3',
-  'A5': 'A5.mp3',
-  'C6': 'C6.mp3',
-  'D#6': 'Ds6.mp3',
-  'F#6': 'Fs6.mp3',
-  'A6': 'A6.mp3',
-  'C7': 'C7.mp3',
-  'D#7': 'Ds7.mp3',
-  'F#7': 'Fs7.mp3',
-  'A7': 'A7.mp3',
-  'C8': 'C8.mp3',
-}
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
-
-const MIDI_NOTE_NAMES = Array.from({ length: 128 }, (_, midi) => {
-  const octave = Math.floor(midi / 12) - 1
-  return `${NOTE_NAMES[midi % 12]}${octave}`
-})
-
 function createPianoInstrument(): LiveInstrument {
-  let resolveReady: () => void = () => {}
-  let rejectReady: (error: Error) => void = () => {}
-  const ready = new Promise<void>((resolve, reject) => {
-    resolveReady = resolve
-    rejectReady = reject
-  })
+  const sampler = new Tone.Sampler({ release: 1 })
 
-  const sampler = new Tone.Sampler({
-    urls: SALAMANDER_URLS,
-    release: 1,
-    baseUrl: SALAMANDER_BASE_URL,
-    onload: () => resolveReady(),
-    onerror: error => rejectReady(error),
-  })
+  // Samples come through the shared fetch cache (one download per page, also
+  // reused by offline export) and are decoded into the live context here.
+  const ready = (async () => {
+    const rawContext = Tone.getContext().rawContext
+    await Promise.all(PIANO_SAMPLE_MIDI_VALUES.map(async (midi) => {
+      const arrayBuffer = await fetchPianoSampleArrayBuffer(midi)
+      const audioBuffer = await rawContext.decodeAudioData(arrayBuffer.slice(0))
+      sampler.add(midiToNoteName(midi) as Tone.Unit.Note, audioBuffer)
+    }))
+  })()
 
   return {
     output: sampler,
@@ -94,7 +55,7 @@ function createPianoInstrument(): LiveInstrument {
       // Register-aware release mimics longer decay on the piano's bass strings.
       sampler.release = getRegisterRelease(midi, pedalSustained)
       sampler.triggerAttackRelease(
-        MIDI_NOTE_NAMES[midi] ?? MIDI_NOTE_NAMES[60],
+        midiToNoteName(midi),
         duration,
         time,
         velocity,

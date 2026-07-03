@@ -79,6 +79,7 @@ interface VideoExportDevToolsProps {
   isAudioLoading: boolean
   isPlaying: boolean
   language: AppLanguage
+  onExportActiveChange?: (active: boolean) => void
   onExportCameraModeChange: (mode: ExportCameraMode) => void
   onExportFormatChange: (format: ExportFormat) => void
   onShowBottomTrackMetaChange: (showBottomTrackMeta: boolean) => void
@@ -109,6 +110,7 @@ export function VideoExportDevTools({
   isAudioLoading,
   isPlaying,
   language,
+  onExportActiveChange,
   onExportCameraModeChange,
   onExportFormatChange,
   onShowBottomTrackMetaChange,
@@ -121,6 +123,7 @@ export function VideoExportDevTools({
   const {
     phase,
     progress,
+    errorMessage,
     renderState,
     startExport,
     cancelExport,
@@ -137,6 +140,23 @@ export function VideoExportDevTools({
     volumePercent,
   })
   const isExporting = phase !== 'idle'
+  const exportFormats = useMemo<readonly ExportFormat[]>(() => {
+    const isIOS
+      = typeof navigator !== 'undefined'
+        && (/iPhone|iPad/i.test(navigator.userAgent)
+          || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
+
+    // iOS Safari couldn't play VP9 webm before 17.4 — hide the footgun there.
+    return isIOS ? ['mp4'] : ['webm', 'mp4']
+  }, [])
+
+  useEffect(() => {
+    onExportActiveChange?.(isExporting)
+
+    return () => {
+      onExportActiveChange?.(false)
+    }
+  }, [isExporting, onExportActiveChange])
 
   const handleStartExport = useCallback(() => {
     startExport(exportFormat, exportCameraMode, currentCameraView)
@@ -259,7 +279,7 @@ export function VideoExportDevTools({
                 {copy.exportFormat}
               </span>
               <div className="grid grid-cols-2 gap-2">
-                {(['webm', 'mp4'] as const).map(format => (
+                {exportFormats.map(format => (
                   <button
                     key={format}
                     onClick={(e) => {
@@ -350,6 +370,7 @@ export function VideoExportDevTools({
         <ExportOverlay
           phase={phase}
           progress={progress}
+          errorMessage={errorMessage}
           language={language}
           onCancel={cancelExport}
         />

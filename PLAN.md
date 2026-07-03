@@ -61,23 +61,23 @@ Dev server now runs through portless (`https://orbitone.local`) — do not bind 
 - [x] Typecheck + lint + mobile & desktop browser verification + commit
 
 ## Phase 7 — Visual polish & design cohesion
-- [ ] D1: music-reactive scene — `audioLevelRef` modulates ring luminance + bloom intensity (subtle)
-- [ ] D2: exit animations for library/settings/info/hint via motion `AnimatePresence` (dep already present); reduced-motion respected
-- [ ] D3: info modal restyled into the nm design system (keep mono voice, drop the 9× border)
-- [ ] D4: typography tokens — collapse ~9 tracking/size variants into 2–3 label classes
-- [ ] D5: toast component replaces `alert()`; library load + midi parse errors use it
-- [ ] D6: metadata — metadataBase, OG/Twitter cards, `opengraph-image.tsx` + `apple-icon.tsx` via ImageResponse, manifest
-- [ ] Typecheck + browser test + commit
+- [x] D1: music-reactive scene — smoothed energy (fast attack / slow release) from `audioLevelRef` lifts ring luminance (+70% at peak) and bloom intensity (+40%); exports keep deterministic baseline. Gotcha found: React 19 passes `ref` as a prop and @react-three/postprocessing JSON.stringify()s props → circular crash; fixed by constructing `BloomEffect` directly (postprocessing added as direct dep, pinned 6.38.3) rendered via `<primitive>`
+- [x] D2: motion (`LazyMotion domAnimation strict` + `m` + `AnimatePresence`) exit/enter animations for library (sheet/dropdown), settings (sheet/dropdown), info modal, toast; `useReducedMotion` zeroes durations
+- [x] D3: info modal border white/35 → white/12 (design-system cohesion, mono voice kept)
+- [x] D4: `.type-overline` token replaces the 10-11px/0.16-0.2em micro-label variants across page + SettingsPanel
+- [x] D5: Toast component (motion, monochrome, auto-dismiss 4.2s) replaces alert(); wired: library load failure, MIDI parse failure, sampler load failure (audioLoadFailed). useMusic no longer needs `language`
+- [x] D6: metadataBase (+NEXT_PUBLIC_SITE_URL override), OG/Twitter cards, generated `opengraph-image.tsx` (rings + wordmark — verified render), `apple-icon.tsx`, `manifest.ts`; avatar `priority` dropped; eslint override for Next metadata-file exports
+- [ ] Browser verification of exits/toast/reactive bloom + commit (in progress — agent-browser daemon needed a restart)
 
-## Phase 8 — Export pipeline hardening
-- [ ] B6: route security — sessionId UUID validation + path containment, frameIndex integer bounds, metadata-exists check before writes, session TTL sweep, frame/byte caps
-- [ ] Finding 3: block settings-panel close (S/Esc/click-outside) while export phase active (phase reported up to page)
-- [ ] Finding 6: AbortController threaded through uploads/finalize; cancel aborts in-flight work
-- [ ] Finding 7: `startExport` in-flight guard (automation API safe)
-- [ ] Finding 5: stream finalize response from disk; probe ffmpeg at init
-- [ ] Finding 10: overlay shows real error message; renderer-wait timeout; composite canvas released after export; webm hidden on iOS; Content-Disposition quoting; drop dead `firstNoteTimeSeconds`
-- [ ] P4: shared piano sample cache (fetch once, live + export decode from cached ArrayBuffers)
-- [ ] Typecheck + commit
+## Phase 8 — Export pipeline hardening ✅ CODE COMPLETE
+- [x] B6: sessionId UUID validation inside `getSessionDirectory` (every path flows through it) + route-level `parseSessionId`/DELETE check; frameIndex integer + [0, frameCount) bounds; metadata-exists check before frame/audio writes; 2h stale-session sweep at init; EXPORT_LIMITS caps (36k frames, 24MB/frame, 300MB audio, 4096px, 120fps, 900s) enforced at route + session layers
+- [x] Finding 3: `onExportActiveChange` → page `isExportActive`; S/I/L/Escape, click-outside, trigger button, and mobile-scrim onClose all refuse to close settings mid-export
+- [x] Finding 6: AbortController threaded through init/audio/frame/finalize uploads; cancel aborts in-flight requests
+- [x] Finding 7: `exportBusyRef` guard — automation `startExport()` can no longer double-run
+- [x] Finding 5 (partial): ffmpeg probed at init (fail-fast before any frame uploads). Finalize response kept as a buffer rather than a disk stream — Node-web stream typing would force an `unknown` cast (banned) and outputs are tens of MB in a dev-gated feature; caps + sweep bound the memory
+- [x] Finding 10: overlay renders the real error message; renderer-wait 10s timeout; composite canvas released; webm hidden on iOS; Content-Disposition sanitized (quotes/control chars stripped); dead `firstNoteTimeSeconds` removed
+- [x] P4: shared `fetchPianoSampleArrayBuffer` cache in piano-audio.ts — live sampler now decodes from the shared bytes (no Sampler-internal downloads), export re-decodes but never re-downloads; failed fetches evicted for retry. CL2 fell out for free: the note-name Salamander map in instrument-live deleted, `midiToNoteName` + `PIANO_SAMPLE_MIDI_VALUES` centralized
+- [x] Typecheck + lint (flushSync exemptions for the render-then-capture loop)
 
 ## Phase 9 — Cleanliness & structure
 - [ ] Extract from page.tsx: `lib/i18n.ts` (copy/shortcuts/brand), `components/InfoModal.tsx`, `components/LibraryPanel.tsx`; dedupe category meta/blurbs

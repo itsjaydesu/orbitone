@@ -1,5 +1,4 @@
 import type * as ToneApi from 'tone'
-import type { AppLanguage } from '../lib/camera-presets'
 import type { LiveInstrument } from '../lib/instrument-live'
 import type { InstrumentId } from '../lib/instruments'
 import type {
@@ -39,7 +38,6 @@ declare global {
 }
 
 export interface MusicSettings {
-  language: AppLanguage
   volumePercent: number
   instrumentId: InstrumentId
 }
@@ -160,7 +158,7 @@ async function primeSilentAudioBuffer(context: AudioContext) {
 }
 
 export function useMusic(settings: MusicSettings) {
-  const { language, volumePercent, instrumentId } = settings
+  const { volumePercent, instrumentId } = settings
   const baseOutputGain = 1.25 * GLOBAL_VOLUME_BOOST
   const defaultMusic = useMemo(() => {
     const piece = generateBeautifulPianoPiece(32, 100)
@@ -887,14 +885,9 @@ export function useMusic(settings: MusicSettings) {
       return false
     }
     catch {
-      alert(
-        language === 'ja'
-          ? 'MIDIファイルを解析できませんでした。'
-          : 'Failed to parse MIDI file.',
-      )
       return false
     }
-  }, [clearPlaybackFrame, language])
+  }, [clearPlaybackFrame])
 
   const seek = useCallback((time: number) => {
     const nextTime = syncTransportTime(time)
