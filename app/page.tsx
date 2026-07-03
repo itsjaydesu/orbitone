@@ -645,12 +645,13 @@ export default function Home() {
 
     return new URLSearchParams(window.location.search).has('automation')
   })
-  const [language, setLanguage] = useState<AppLanguage>(() => {
-    if (typeof window !== 'undefined' && navigator.language.startsWith('ja')) {
-      return 'ja'
+  const [language, setLanguage] = useState<AppLanguage>('en')
+
+  useEffect(() => {
+    if (navigator.language.startsWith('ja')) {
+      setLanguage('ja')
     }
-    return 'en'
-  })
+  }, [])
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isMenuReady, setIsMenuReady] = useState(false)
   const [isMenuVisible, setIsMenuVisible] = useState(false)

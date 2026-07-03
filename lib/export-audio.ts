@@ -369,17 +369,24 @@ export async function renderOfflineAudioWav(
   masterGain.connect(compressor)
   compressor.connect(offlineContext.destination)
 
+  let pedalGainValue = 0.24
   for (const event of source.pedalEvents) {
     const eventTime = timeline.playbackStartSeconds + event.time
     if (eventTime < 0 || eventTime > timeline.totalDurationSeconds) {
       continue
     }
 
+    // Anchor each ramp at the event time; otherwise linear ramps stretch back
+    // to the previous scheduled event across arbitrarily long gaps.
+    reverbSend.gain.setValueAtTime(pedalGainValue, eventTime)
+
     if (event.value >= 64) {
-      reverbSend.gain.linearRampToValueAtTime(0.34, Math.min(eventTime + 0.1, timeline.totalDurationSeconds))
+      pedalGainValue = 0.34
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + 0.1, timeline.totalDurationSeconds))
     }
     else {
-      reverbSend.gain.linearRampToValueAtTime(0.24, Math.min(eventTime + 0.3, timeline.totalDurationSeconds))
+      pedalGainValue = 0.24
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + 0.3, timeline.totalDurationSeconds))
     }
   }
 

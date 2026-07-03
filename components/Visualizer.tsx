@@ -1809,8 +1809,8 @@ function Scene({
                   cameraPose={getEffectiveCameraPoseForView(
                     cameraPresets,
                     layer.cameraView,
-                    isMobileView,
                     exportMode,
+                    isMobileView,
                   )}
                   cameraView={layer.cameraView}
                   flatYOffset={defaultCameraFlatYOffset}
@@ -1833,8 +1833,8 @@ function Scene({
                 cameraPose={getEffectiveCameraPoseForView(
                   cameraPresets,
                   layer.cameraView,
-                  isMobileView,
                   exportMode,
+                  isMobileView,
                 )}
                 cameraView={layer.cameraView}
                 flatYOffset={defaultCameraFlatYOffset}

@@ -442,6 +442,9 @@ export function useMusic(settings: MusicSettings) {
   useEffect(() => {
     return () => {
       clearPlaybackFrame()
+      Tone.Transport.stop()
+      Tone.Transport.cancel()
+      Tone.Transport.seconds = 0
       partRef.current?.dispose()
       pedalPartRef.current?.dispose()
       instrumentsRef.current.forEach(instrument => instrument.dispose())
@@ -610,6 +613,8 @@ export function useMusic(settings: MusicSettings) {
     setPlaybackTime,
   ])
 
+  const togglePlayBusyRef = useRef(false)
+
   const togglePlay = useCallback(async () => {
     if (isPlayingRef.current) {
       clearPlaybackFrame()
@@ -620,40 +625,51 @@ export function useMusic(settings: MusicSettings) {
       return
     }
 
-    if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
-      const didUnlock = await unlockAudio()
+    if (togglePlayBusyRef.current) {
+      return
+    }
 
-      if (!didUnlock) {
-        return
+    togglePlayBusyRef.current = true
+
+    try {
+      if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
+        const didUnlock = await unlockAudio()
+
+        if (!didUnlock) {
+          return
+        }
       }
+
+      await setPlaybackAudioSessionType()
+      await ensureAudioReady()
+
+      const shouldRestartFromBeginning
+        = hasEnded
+          || (audioDurationRef.current > 0
+            && currentTimeRef.current
+            >= audioDurationRef.current - TRACK_END_EPSILON_SECONDS)
+
+      if (shouldRestartFromBeginning) {
+        syncTransportTime(0)
+      }
+
+      if (!partStartedRef.current) {
+        partRef.current?.start(0)
+        pedalPartRef.current?.start(0)
+        partStartedRef.current = true
+      }
+
+      Tone.Transport.start()
+      if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
+        isAudioUnlockedRef.current = true
+        setIsAudioUnlocked(true)
+      }
+      setHasEnded(false)
+      setIsPlaying(true)
     }
-
-    await setPlaybackAudioSessionType()
-    await ensureAudioReady()
-
-    const shouldRestartFromBeginning
-      = hasEnded
-        || (audioDurationRef.current > 0
-          && currentTimeRef.current
-          >= audioDurationRef.current - TRACK_END_EPSILON_SECONDS)
-
-    if (shouldRestartFromBeginning) {
-      syncTransportTime(0)
+    finally {
+      togglePlayBusyRef.current = false
     }
-
-    if (!partStartedRef.current) {
-      partRef.current?.start(0)
-      pedalPartRef.current?.start(0)
-      partStartedRef.current = true
-    }
-
-    Tone.Transport.start()
-    if (requiresExplicitUnlockRef.current && !isAudioUnlockedRef.current) {
-      isAudioUnlockedRef.current = true
-      setIsAudioUnlocked(true)
-    }
-    setHasEnded(false)
-    setIsPlaying(true)
   }, [
     clampAudioTime,
     clearPlaybackFrame,
