@@ -20,13 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      # write: the bot must be able to post its output — with read-only tokens the
+      # action exits 0 and the check shows green while the review/reply is silently
+      # permission-denied and discarded (fleet-wide fix, 2026-07-12).
+      pull-requests: write
+      issues: write
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
