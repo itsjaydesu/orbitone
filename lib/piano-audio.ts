@@ -1,6 +1,22 @@
 export const GLOBAL_VOLUME_BOOST = 1.75
 export const DEFAULT_REVERB_ROOM_SIZE = 0.8
 
+// Single source of truth for the piano bus levels — the live Tone chain
+// (hooks/useMusic) and the offline export mixer (lib/export-audio) must stay
+// in lockstep or exports stop sounding like playback.
+export const FX_CHAIN = {
+  masterGain: 1.25,
+  dryLevel: 0.42,
+  wetLevel: 0.18,
+  reverbSendLevel: 0.24,
+  reverbFilterFrequency: 2400,
+  reverbFilterQ: 0.7,
+  pedalDownSendLevel: 0.34,
+  pedalDownRoomSize: 0.86,
+  pedalDownRampSeconds: 0.1,
+  pedalUpRampSeconds: 0.3,
+} as const
+
 export const PIANO_SAMPLE_BASE_URL = 'https://tonejs.github.io/audio/salamander/'
 
 export const PIANO_SAMPLE_FILES = {
@@ -36,9 +52,49 @@ export const PIANO_SAMPLE_FILES = {
   108: 'C8.mp3',
 } as const
 
-const PIANO_SAMPLE_MIDI_VALUES = Object.keys(PIANO_SAMPLE_FILES)
+export const PIANO_SAMPLE_MIDI_VALUES = Object.keys(PIANO_SAMPLE_FILES)
   .map(value => Number(value))
   .sort((left, right) => left - right)
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
+
+export function midiToNoteName(midi: number) {
+  const octave = Math.floor(midi / 12) - 1
+  return `${NOTE_NAMES[((midi % 12) + 12) % 12]}${octave}`
+}
+
+// One download per sample file per page, shared by live playback and offline
+// export (each caller decodes into its own AudioContext, so decode gets a
+// copy — decodeAudioData detaches the buffer it is given). A failed fetch is
+// evicted so the next attempt retries instead of caching the rejection.
+const pianoSampleBufferCache = new Map<number, Promise<ArrayBuffer>>()
+
+export function fetchPianoSampleArrayBuffer(midi: number): Promise<ArrayBuffer> {
+  const cached = pianoSampleBufferCache.get(midi)
+  if (cached) {
+    return cached
+  }
+
+  const fileName = PIANO_SAMPLE_FILES[midi as keyof typeof PIANO_SAMPLE_FILES]
+  if (!fileName) {
+    return Promise.reject(new Error(`No piano sample for midi ${midi}.`))
+  }
+
+  const pending = fetch(`${PIANO_SAMPLE_BASE_URL}${fileName}`)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch piano sample ${fileName}: ${response.status}`)
+      }
+      return response.arrayBuffer()
+    })
+    .catch((error) => {
+      pianoSampleBufferCache.delete(midi)
+      throw error
+    })
+
+  pianoSampleBufferCache.set(midi, pending)
+  return pending
+}
 
 export function getRegisterRelease(midi: number, pedalSustained: boolean) {
   let base: number

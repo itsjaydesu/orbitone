@@ -3,6 +3,7 @@ import type { ExportFormat, ExportSessionInitRequest } from '@/lib/export'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import {
+  access,
   mkdir,
   readdir,
   readFile,
@@ -43,8 +44,85 @@ const FRAME_LOG_INTERVAL = 600
 const STREAMING_TARGET_LUFS = -14
 const STREAMING_TARGET_LRA = 11
 const STREAMING_TARGET_TRUE_PEAK_DBTP = -1.5
+const STALE_SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000
+const SESSION_ID_PATTERN
+  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+export const EXPORT_LIMITS = {
+  maxFrameCount: 36_000,
+  maxFrameBytes: 24 * 1024 * 1024,
+  maxAudioBytes: 300 * 1024 * 1024,
+  maxDimension: 4096,
+  maxFps: 120,
+  maxDurationSeconds: 900,
+} as const
+
+export function isValidExportSessionId(sessionId: string) {
+  return SESSION_ID_PATTERN.test(sessionId)
+}
+
+// Session ids land in filesystem paths; anything but a UUID we minted is
+// treated as hostile (`?sessionId=../..` would otherwise traverse out of the
+// session root and reach rm -rf / arbitrary writes).
+function assertValidSessionId(sessionId: string) {
+  if (!isValidExportSessionId(sessionId)) {
+    throw new TypeError('Invalid export session id.')
+  }
+}
+
+async function assertSessionInitialized(sessionDirectory: string) {
+  try {
+    await access(getMetadataPath(sessionDirectory))
+  }
+  catch {
+    throw new Error('Unknown export session.')
+  }
+}
+
+async function sweepStaleSessions() {
+  let entries: string[]
+  try {
+    entries = await readdir(EXPORT_SESSION_ROOT_DIRECTORY)
+  }
+  catch {
+    return
+  }
+
+  const now = Date.now()
+
+  await Promise.all(entries.map(async (entry) => {
+    if (!isValidExportSessionId(entry)) {
+      return
+    }
+
+    try {
+      const entryPath = join(EXPORT_SESSION_ROOT_DIRECTORY, entry)
+      const info = await stat(entryPath)
+
+      if (now - info.mtimeMs > STALE_SESSION_MAX_AGE_MS) {
+        await rm(entryPath, { force: true, recursive: true })
+        console.info(`[export] swept stale session ${entry}`)
+      }
+    }
+    catch {
+      // Another request may have removed it concurrently; nothing to do.
+    }
+  }))
+}
+
+async function assertFfmpegAvailable() {
+  try {
+    await execFileAsync('ffmpeg', ['-version'], { timeout: 10_000 })
+  }
+  catch {
+    throw new Error(
+      'ffmpeg is not available on this server — video export cannot run.',
+    )
+  }
+}
 
 function getSessionDirectory(sessionId: string) {
+  assertValidSessionId(sessionId)
   return join(EXPORT_SESSION_ROOT_DIRECTORY, sessionId)
 }
 
@@ -94,7 +172,15 @@ function getRequestedDownloadFileName(
   fileName: string,
   fileExtension: string,
 ) {
-  const trimmed = fileName.trim()
+  // The name lands in a Content-Disposition header — strip anything that
+  // could break quoting or smuggle header syntax.
+  const trimmed = [...fileName.replace(/["\\;]/g, '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0)
+      return code >= 0x20 && code !== 0x7F
+    })
+    .join('')
+    .trim()
   const stem = trimmed.replace(/\.[^/.]+$/u, '').trim()
 
   if (stem.length === 0) {
@@ -329,9 +415,34 @@ function getFfmpegArgs(
   ]
 }
 
+function assertInitRequestWithinLimits(request: ExportSessionInitRequest) {
+  const violations = [
+    !Number.isInteger(request.frameCount)
+    || request.frameCount <= 0
+    || request.frameCount > EXPORT_LIMITS.maxFrameCount,
+    !Number.isInteger(request.width)
+    || request.width <= 0
+    || request.width > EXPORT_LIMITS.maxDimension,
+    !Number.isInteger(request.height)
+    || request.height <= 0
+    || request.height > EXPORT_LIMITS.maxDimension,
+    request.fps <= 0 || request.fps > EXPORT_LIMITS.maxFps,
+    request.totalDurationSeconds <= 0
+    || request.totalDurationSeconds > EXPORT_LIMITS.maxDurationSeconds,
+  ]
+
+  if (violations.some(Boolean)) {
+    throw new TypeError('Export request is outside the allowed limits.')
+  }
+}
+
 export async function createExportSession(
   request: ExportSessionInitRequest,
 ) {
+  assertInitRequestWithinLimits(request)
+  await assertFfmpegAvailable()
+  await sweepStaleSessions()
+
   const sessionId = randomUUID()
   const sessionDirectory = getSessionDirectory(sessionId)
 
@@ -364,6 +475,22 @@ export async function writeExportFrame(
   frameBuffer: Buffer,
 ) {
   const sessionDirectory = getSessionDirectory(sessionId)
+  await assertSessionInitialized(sessionDirectory)
+
+  const metadata = await readMetadata(sessionDirectory)
+
+  if (
+    !Number.isInteger(frameIndex)
+    || frameIndex < 0
+    || frameIndex >= metadata.frameCount
+  ) {
+    throw new TypeError('Frame index out of range.')
+  }
+
+  if (frameBuffer.byteLength > EXPORT_LIMITS.maxFrameBytes) {
+    throw new TypeError('Frame upload too large.')
+  }
+
   await writeFile(getFramePath(sessionDirectory, frameIndex), frameBuffer)
 
   if (frameIndex === 0 || (frameIndex + 1) % FRAME_LOG_INTERVAL === 0) {
@@ -378,6 +505,12 @@ export async function writeExportAudio(
   audioBuffer: Buffer,
 ) {
   const sessionDirectory = getSessionDirectory(sessionId)
+  await assertSessionInitialized(sessionDirectory)
+
+  if (audioBuffer.byteLength > EXPORT_LIMITS.maxAudioBytes) {
+    throw new TypeError('Audio upload too large.')
+  }
+
   await writeFile(getAudioPath(sessionDirectory), audioBuffer)
 
   console.info(

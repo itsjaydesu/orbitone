@@ -171,7 +171,7 @@ export function CameraLab({
   }
 
   return (
-    <div className="nm-card nm-animate-dropdown fixed top-24 right-6 z-[135] w-[28rem] max-w-[calc(100vw-3rem)] rounded-[1.75rem] p-5 text-[var(--nm-text)]">
+    <div className="nm-card nm-animate-dropdown fixed top-24 right-6 z-[55] w-[28rem] max-w-[calc(100vw-3rem)] rounded-[1.75rem] p-5 text-[var(--nm-text)]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2">

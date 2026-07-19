@@ -1,11 +1,14 @@
 import type { ExportSourceData, ExportTimeline } from '@/lib/export'
+import type { InstrumentId, SynthVoiceParams } from '@/lib/instruments'
+import { getInstrument, midiToFrequency } from '@/lib/instruments'
 import {
   DEFAULT_REVERB_ROOM_SIZE,
-  GLOBAL_VOLUME_BOOST,
+  fetchPianoSampleArrayBuffer,
+  FX_CHAIN,
   getNearestPianoSampleMidi,
   getRegisterRelease,
-  PIANO_SAMPLE_BASE_URL,
-  PIANO_SAMPLE_FILES,
+  GLOBAL_VOLUME_BOOST,
+  PIANO_SAMPLE_MIDI_VALUES,
 } from '@/lib/piano-audio'
 
 interface LoadedPianoSample {
@@ -82,8 +85,7 @@ function encodeAudioBufferAsWav(audioBuffer: AudioBuffer) {
   writeUint32(dataSize)
 
   const channels = Array.from({ length: channelCount }, (_, index) =>
-    audioBuffer.getChannelData(index),
-  )
+    audioBuffer.getChannelData(index))
 
   for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
     for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
@@ -114,27 +116,28 @@ async function loadPianoSamples() {
       const decodeContext = new AudioContextConstructor()
 
       try {
+        // Raw sample bytes come from the shared fetch cache, so an export
+        // after live playback re-decodes but never re-downloads.
         const entries = await Promise.all(
-          Object.entries(PIANO_SAMPLE_FILES).map(async ([midi, fileName]) => {
-            const response = await fetch(`${PIANO_SAMPLE_BASE_URL}${fileName}`)
-            if (!response.ok) {
-              throw new Error(`Failed to load piano sample ${fileName}.`)
-            }
-
-            const arrayBuffer = await response.arrayBuffer()
+          PIANO_SAMPLE_MIDI_VALUES.map(async (midi) => {
+            const arrayBuffer = await fetchPianoSampleArrayBuffer(midi)
             const audioBuffer = await decodeContext.decodeAudioData(arrayBuffer.slice(0))
 
             return [
-              Number(midi),
+              midi,
               {
                 audioBuffer,
-                midi: Number(midi),
+                midi,
               },
             ] as const
           }),
         )
 
         return new Map(entries)
+      }
+      catch (error) {
+        pianoSampleMapPromise = null
+        throw error
       }
       finally {
         await decodeContext.close()
@@ -157,16 +160,172 @@ function connectWithLevel(
   gainNode.connect(destination)
 }
 
+/**
+ * Schedule a robust amplitude ADSR on an offline gain param. Times are clamped
+ * to stay strictly increasing so extremely short notes never throw.
+ */
+function applyAmplitudeEnvelope(
+  param: AudioParam,
+  startTime: number,
+  releaseStartTime: number,
+  stopTime: number,
+  peakGain: number,
+  envelope: SynthVoiceParams['amplitudeEnvelope'],
+) {
+  const floor = 0.0001
+  const attackEnd = Math.min(
+    startTime + Math.max(envelope.attack, 0.001),
+    releaseStartTime,
+  )
+  const decayEnd = Math.min(
+    attackEnd + Math.max(envelope.decay, 0.001),
+    releaseStartTime,
+  )
+  const sustainLevel = Math.max(floor, peakGain * envelope.sustain)
+
+  param.setValueAtTime(floor, Math.max(0, startTime - 0.001))
+  param.linearRampToValueAtTime(Math.max(peakGain, floor), attackEnd)
+  param.exponentialRampToValueAtTime(sustainLevel, Math.max(decayEnd, attackEnd + 0.001))
+
+  if (releaseStartTime > decayEnd) {
+    param.setValueAtTime(sustainLevel, releaseStartTime)
+  }
+
+  param.exponentialRampToValueAtTime(floor, Math.max(stopTime, releaseStartTime + 0.005))
+}
+
+/**
+ * Schedule the per-note filter-cutoff ADSR (in Hz). Mirrors Tone's
+ * FrequencyEnvelope: cutoff sweeps `baseFrequency` → `baseFrequency * 2 ** octaves`
+ * and settles at the sustained fraction. All ramps are exponential (musical for
+ * frequency) with strictly-increasing, positive values.
+ */
+function applyFilterEnvelope(
+  param: AudioParam,
+  startTime: number,
+  releaseStartTime: number,
+  stopTime: number,
+  envelope: SynthVoiceParams['filterEnvelope'],
+) {
+  const minHz = 20
+  const baseHz = Math.max(minHz, envelope.baseFrequency)
+  const peakHz = Math.max(baseHz, baseHz * 2 ** envelope.octaves)
+  const sustainHz = Math.max(minHz, baseHz * 2 ** (envelope.octaves * envelope.sustain))
+  const attackEnd = Math.min(
+    startTime + Math.max(envelope.attack, 0.001),
+    releaseStartTime,
+  )
+  const decayEnd = Math.min(
+    attackEnd + Math.max(envelope.decay, 0.001),
+    releaseStartTime,
+  )
+
+  param.setValueAtTime(baseHz, Math.max(0, startTime - 0.001))
+  param.exponentialRampToValueAtTime(peakHz, attackEnd)
+  param.exponentialRampToValueAtTime(sustainHz, Math.max(decayEnd, attackEnd + 0.001))
+
+  if (releaseStartTime > decayEnd) {
+    param.setValueAtTime(sustainHz, releaseStartTime)
+  }
+
+  param.exponentialRampToValueAtTime(baseHz, Math.max(stopTime, releaseStartTime + 0.005))
+}
+
+/**
+ * Offline mirror of the live MonoSynth voice: unison oscillators → per-note ADSR
+ * gain → a per-note low-pass with its own cutoff envelope → the dry/reverb
+ * busses. Kept in lockstep with `lib/instrument-live.ts` so exported audio
+ * matches playback.
+ */
+function scheduleSynthNotes(
+  context: OfflineAudioContext,
+  source: ExportSourceData,
+  timeline: ExportTimeline,
+  params: SynthVoiceParams,
+  dryBus: AudioNode,
+  reverbSend: AudioNode,
+) {
+  const voiceCount = Math.max(1, Math.round(params.oscillator.count))
+
+  for (const note of source.notes) {
+    const startTime = timeline.playbackStartSeconds + note.time
+    if (startTime > timeline.totalDurationSeconds) {
+      continue
+    }
+
+    const releaseStartTime = Math.min(
+      startTime + note.duration,
+      timeline.totalDurationSeconds,
+    )
+    const stopTime = Math.min(
+      releaseStartTime + params.amplitudeEnvelope.release,
+      timeline.totalDurationSeconds,
+    )
+    if (stopTime <= startTime) {
+      continue
+    }
+
+    const peakGain = Math.max(
+      0.0001,
+      Math.min(1.3, note.velocity * Math.max(source.playbackGain, 0.2) * params.gain),
+    )
+
+    const noteGain = context.createGain()
+    applyAmplitudeEnvelope(
+      noteGain.gain,
+      startTime,
+      releaseStartTime,
+      stopTime,
+      peakGain,
+      params.amplitudeEnvelope,
+    )
+
+    const noteFilter = context.createBiquadFilter()
+    noteFilter.type = 'lowpass'
+    noteFilter.Q.value = params.filterQ
+    applyFilterEnvelope(
+      noteFilter.frequency,
+      startTime,
+      releaseStartTime,
+      stopTime,
+      params.filterEnvelope,
+    )
+
+    noteGain.connect(noteFilter)
+    connectWithLevel(noteFilter, dryBus, context, 1)
+    connectWithLevel(noteFilter, reverbSend, context, 1)
+
+    const frequency = midiToFrequency(note.midi)
+    for (let voiceIndex = 0; voiceIndex < voiceCount; voiceIndex += 1) {
+      const oscillator = context.createOscillator()
+      oscillator.type = params.oscillator.type
+      const detuneOffset = voiceCount > 1
+        ? (voiceIndex / (voiceCount - 1) - 0.5) * params.oscillator.spread
+        : 0
+      oscillator.detune.value = params.detune + detuneOffset
+      oscillator.frequency.value = frequency
+
+      const voiceGain = context.createGain()
+      voiceGain.gain.value = 1 / voiceCount
+      oscillator.connect(voiceGain)
+      voiceGain.connect(noteGain)
+
+      oscillator.start(startTime)
+      oscillator.stop(stopTime)
+    }
+  }
+}
+
 export async function renderOfflineAudioWav(
   source: ExportSourceData,
   timeline: ExportTimeline,
   volumePercent: number,
+  instrumentId: InstrumentId,
 ) {
   if (typeof OfflineAudioContext === 'undefined') {
-    throw new Error('This browser cannot render export audio offline.')
+    throw new TypeError('This browser cannot render export audio offline.')
   }
 
-  const pianoSamples = await loadPianoSamples()
   const frameLength = Math.max(
     1,
     Math.ceil(timeline.totalDurationSeconds * 48_000),
@@ -181,21 +340,21 @@ export async function renderOfflineAudioWav(
   compressor.release.value = 0.12
 
   const masterGain = offlineContext.createGain()
-  masterGain.gain.value = 1.25 * GLOBAL_VOLUME_BOOST * (volumePercent / 100)
+  masterGain.gain.value = FX_CHAIN.masterGain * GLOBAL_VOLUME_BOOST * (volumePercent / 100)
 
   const dryBus = offlineContext.createGain()
-  dryBus.gain.value = 0.42
+  dryBus.gain.value = FX_CHAIN.dryLevel
 
   const wetBus = offlineContext.createGain()
-  wetBus.gain.value = 0.18
+  wetBus.gain.value = FX_CHAIN.wetLevel
 
   const reverbSend = offlineContext.createGain()
-  reverbSend.gain.value = 0.24
+  reverbSend.gain.value = FX_CHAIN.reverbSendLevel
 
   const reverbFilter = offlineContext.createBiquadFilter()
   reverbFilter.type = 'lowpass'
-  reverbFilter.frequency.value = 2400
-  reverbFilter.Q.value = 0.7
+  reverbFilter.frequency.value = FX_CHAIN.reverbFilterFrequency
+  reverbFilter.Q.value = FX_CHAIN.reverbFilterQ
 
   const convolver = offlineContext.createConvolver()
   convolver.buffer = createImpulseResponse(
@@ -212,69 +371,92 @@ export async function renderOfflineAudioWav(
   masterGain.connect(compressor)
   compressor.connect(offlineContext.destination)
 
+  let pedalGainValue: number = FX_CHAIN.reverbSendLevel
   for (const event of source.pedalEvents) {
     const eventTime = timeline.playbackStartSeconds + event.time
     if (eventTime < 0 || eventTime > timeline.totalDurationSeconds) {
       continue
     }
 
+    // Anchor each ramp at the event time; otherwise linear ramps stretch back
+    // to the previous scheduled event across arbitrarily long gaps.
+    reverbSend.gain.setValueAtTime(pedalGainValue, eventTime)
+
     if (event.value >= 64) {
-      reverbSend.gain.linearRampToValueAtTime(0.34, Math.min(eventTime + 0.1, timeline.totalDurationSeconds))
+      pedalGainValue = FX_CHAIN.pedalDownSendLevel
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + FX_CHAIN.pedalDownRampSeconds, timeline.totalDurationSeconds))
     }
     else {
-      reverbSend.gain.linearRampToValueAtTime(0.24, Math.min(eventTime + 0.3, timeline.totalDurationSeconds))
+      pedalGainValue = FX_CHAIN.reverbSendLevel
+      reverbSend.gain.linearRampToValueAtTime(pedalGainValue, Math.min(eventTime + FX_CHAIN.pedalUpRampSeconds, timeline.totalDurationSeconds))
     }
   }
 
-  for (const note of source.notes) {
-    const sampleMidi = getNearestPianoSampleMidi(note.midi)
-    const sample = pianoSamples.get(sampleMidi)
+  const instrument = getInstrument(instrumentId)
 
-    if (!sample) {
-      throw new Error(`No piano sample is available for MIDI ${note.midi}.`)
+  if (instrument.kind === 'synth' && instrument.synth) {
+    scheduleSynthNotes(
+      offlineContext,
+      source,
+      timeline,
+      instrument.synth,
+      dryBus,
+      reverbSend,
+    )
+  }
+  else {
+    const pianoSamples = await loadPianoSamples()
+
+    for (const note of source.notes) {
+      const sampleMidi = getNearestPianoSampleMidi(note.midi)
+      const sample = pianoSamples.get(sampleMidi)
+
+      if (!sample) {
+        throw new Error(`No piano sample is available for MIDI ${note.midi}.`)
+      }
+
+      const startTime = timeline.playbackStartSeconds + note.time
+      if (startTime > timeline.totalDurationSeconds) {
+        continue
+      }
+
+      const noteGain = offlineContext.createGain()
+      const sourceNode = offlineContext.createBufferSource()
+      const releaseSeconds = getRegisterRelease(note.midi, note.pedalSustained ?? false)
+      const releaseStartTime = Math.min(
+        startTime + note.duration,
+        timeline.totalDurationSeconds,
+      )
+      const stopTime = Math.min(
+        releaseStartTime + releaseSeconds,
+        timeline.totalDurationSeconds,
+      )
+      const playbackRate = 2 ** ((note.midi - sample.midi) / 12)
+      const peakGain = Math.max(
+        0.0001,
+        Math.min(
+          1.35,
+          note.velocity
+          * Math.max(source.playbackGain, 0.2)
+          * 0.9,
+        ),
+      )
+
+      sourceNode.buffer = sample.audioBuffer
+      sourceNode.playbackRate.value = playbackRate
+
+      noteGain.gain.setValueAtTime(0.0001, Math.max(0, startTime - 0.002))
+      noteGain.gain.linearRampToValueAtTime(peakGain, startTime + 0.002)
+      noteGain.gain.setValueAtTime(peakGain, releaseStartTime)
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, stopTime)
+
+      sourceNode.connect(noteGain)
+      connectWithLevel(noteGain, dryBus, offlineContext, 1)
+      connectWithLevel(noteGain, reverbSend, offlineContext, 1)
+
+      sourceNode.start(startTime)
+      sourceNode.stop(stopTime)
     }
-
-    const startTime = timeline.playbackStartSeconds + note.time
-    if (startTime > timeline.totalDurationSeconds) {
-      continue
-    }
-
-    const noteGain = offlineContext.createGain()
-    const sourceNode = offlineContext.createBufferSource()
-    const releaseSeconds = getRegisterRelease(note.midi, note.pedalSustained ?? false)
-    const releaseStartTime = Math.min(
-      startTime + note.duration,
-      timeline.totalDurationSeconds,
-    )
-    const stopTime = Math.min(
-      releaseStartTime + releaseSeconds,
-      timeline.totalDurationSeconds,
-    )
-    const playbackRate = 2 ** ((note.midi - sample.midi) / 12)
-    const peakGain = Math.max(
-      0.0001,
-      Math.min(
-        1.35,
-        note.velocity
-        * Math.max(source.playbackGain, 0.2)
-        * 0.9,
-      ),
-    )
-
-    sourceNode.buffer = sample.audioBuffer
-    sourceNode.playbackRate.value = playbackRate
-
-    noteGain.gain.setValueAtTime(0.0001, Math.max(0, startTime - 0.002))
-    noteGain.gain.linearRampToValueAtTime(peakGain, startTime + 0.002)
-    noteGain.gain.setValueAtTime(peakGain, releaseStartTime)
-    noteGain.gain.exponentialRampToValueAtTime(0.0001, stopTime)
-
-    sourceNode.connect(noteGain)
-    connectWithLevel(noteGain, dryBus, offlineContext, 1)
-    connectWithLevel(noteGain, reverbSend, offlineContext, 1)
-
-    sourceNode.start(startTime)
-    sourceNode.stop(stopTime)
   }
 
   const renderedAudio = await offlineContext.startRendering()

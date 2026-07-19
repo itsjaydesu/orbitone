@@ -1,6 +1,5 @@
 'use client'
-import type { LucideIcon } from 'lucide-react'
-import type { SVGProps } from 'react'
+import type { ToastData } from '@/components/Toast'
 import type { VisualizerSettings } from '@/components/Visualizer'
 import type {
   AppLanguage,
@@ -9,39 +8,27 @@ import type {
   CameraView,
 } from '@/lib/camera-presets'
 import type { ExportCameraMode, ExportFormat } from '@/lib/export'
+import type { InstrumentId } from '@/lib/instruments'
 import type {
   MidiLibraryCategory,
   MidiLibraryItem,
 } from '@/lib/library'
+import type { LibraryPrimaryGroup } from '@/lib/library-meta'
 import {
-  BellRing,
   Camera,
   ChevronLeft,
   ChevronRight,
-  Clapperboard,
-  Disc3,
-  Expand,
-  ExternalLink,
-  Feather,
-  Gamepad2,
   Info,
   Library,
   Loader2,
-
-  Map as MapIcon,
-  Minimize,
-  Music,
-  Piano,
   Play,
   RotateCcw,
   Settings as SettingsIcon,
   Square,
-  TrainFront,
   Upload,
-  X,
 } from 'lucide-react'
+import { AnimatePresence, domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import {
 
   startTransition,
@@ -52,10 +39,17 @@ import {
   useRef,
   useState,
 } from 'react'
+import { GitHubMark } from '@/components/BrandMarks'
 import { CameraLab } from '@/components/CameraLab'
+import { InfoModal } from '@/components/InfoModal'
+import { LibraryPanel } from '@/components/LibraryPanel'
 import { NoteCursor } from '@/components/NoteCursor'
+import { PlaybackTimeline } from '@/components/PlaybackControls'
+import { SettingsPanel } from '@/components/SettingsPanel'
+import { Toast } from '@/components/Toast'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useMidiLibrary } from '@/hooks/useMidiLibrary'
 import { useMusic } from '@/hooks/useMusic'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
@@ -68,14 +62,12 @@ import {
   mergeCameraPresetMap,
 } from '@/lib/camera-presets'
 import { EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS } from '@/lib/export'
+import { getBrandName, KEYBOARD_SHORTCUTS, LANGUAGE_OPTIONS, UI_COPY } from '@/lib/i18n'
 import {
-  MIDI_LIBRARY,
-  MIDI_LIBRARY_CATEGORIES,
-} from '@/lib/library'
-import {
-  getLocalizedTrackSubtitle,
-  getLocalizedTrackTitle,
-} from '@/lib/library-translations'
+  DEFAULT_INSTRUMENT_ID,
+
+} from '@/lib/instruments'
+import { FEATURED_LIBRARY_ORDER, getLibraryCategoryMeta, getLibraryPrimaryGroups } from '@/lib/library-meta'
 import { cn } from '@/lib/utils'
 import { isVideoExportClientEnabled } from '@/lib/video-export-env'
 
@@ -83,6 +75,7 @@ type AppSettings = VisualizerSettings & {
   autoCycleCamera: boolean
   showBottomTrackMeta: boolean
   volumePercent: number
+  instrumentId: InstrumentId
 }
 
 interface DisplayTrackMeta {
@@ -96,6 +89,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   volumePercent: 100,
   showMidiRoll: false,
   cameraView: 'default',
+  instrumentId: DEFAULT_INSTRUMENT_ID,
 }
 const DEFAULT_EXPORT_FORMAT: ExportFormat = 'mp4'
 const DEFAULT_EXPORT_CAMERA_MODE: ExportCameraMode = 'cycle'
@@ -109,484 +103,8 @@ const VideoExportDevTools = dynamic(
   () => import('@/components/VideoExportDevTools').then(module => module.VideoExportDevTools),
   { ssr: false },
 )
-const DEFAULT_LIBRARY_CATEGORY_ID = MIDI_LIBRARY_CATEGORIES[0]?.id ?? ''
-const LIBRARY_CATEGORY_INDEX = new Map(
-  MIDI_LIBRARY_CATEGORIES.map(category => [category.id, category]),
-)
-const LIBRARY_TRACK_INDEX = new Map(
-  MIDI_LIBRARY_CATEGORIES.flatMap(category =>
-    category.items.map(item => [item.id, item] as const),
-  ),
-)
-
-interface LibraryCategoryMeta {
-  blurb: string
-  icon: LucideIcon
-  label: string
-  shortLabel: string
-}
-
-interface LibraryPrimaryGroup {
-  blurb: string
-  categoryIds: string[]
-  defaultCategoryId: string
-  icon: LucideIcon
-  id: string
-  label: string
-  shortLabel: string
-}
-
-const TRAIN_LIBRARY_CATEGORY_IDS = [
-  'train-signature-system',
-  'train-stations',
-  'train-standard-chimes',
-] as const
-
-interface ShortcutItem {
-  keyLabel: string
-  description: string
-}
-
-interface UiCopy {
-  aboutTitle: string
-  bottomTrackMeta: string
-  cameraAutoCycle: string
-  cameraView: string
-  closeAbout: string
-  closeLibrary: string
-  closeSettings: string
-  creatorTitle: string
-  enableSound: string
-  enablingSound: string
-  fullScreen: string
-  fullScreenExit: string
-  fullScreenHint: string
-  infoButton: string
-  keyboardShortcutsTitle: string
-  language: string
-  languageButton: string
-  libraryButton: string
-  libraryDefaultHeading: string
-  libraryDescription: string
-  libraryLoadError: string
-  libraryTabList: string
-  libraryTitle: string
-  loaded: string
-  loadingPiano: string
-  midiRoll: string
-  nextTrack: string
-  noTracksDescription: string
-  noTracksTitle: (label: string) => string
-  previousTrack: string
-
-  resetDefaults: string
-  settings: string
-  show: string
-  hide: string
-  restartPlayback: string
-  startPlayback: string
-  stopPlayback: string
-
-  trainSubcategories: string
-  upload: string
-  videoExport: string
-  exportFormat: string
-  exportCameraMode: string
-  exportCameraCurrent: string
-  exportCameraCycle: string
-  exportButton: string
-  volume: string
-}
-
-const FEATURED_LIBRARY_ORDER = new Map([
-  ['games-internet/theme-song-to-2008', 0],
-])
-
-const LANGUAGE_OPTIONS: ReadonlyArray<{
-  value: AppLanguage
-  label: string
-}> = [
-  { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語' },
-]
-
-function getBrandName(language: AppLanguage) {
-  return language === 'ja' ? 'オービトーン' : 'orbitone'
-}
-
-function GitHubMark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M12 1.25a10.75 10.75 0 0 0-3.4 20.95c.54.1.73-.23.73-.52 0-.25-.01-1.09-.02-1.97-2.96.64-3.58-1.26-3.58-1.26-.48-1.22-1.18-1.55-1.18-1.55-.97-.66.07-.65.07-.65 1.07.08 1.64 1.1 1.64 1.1.96 1.63 2.5 1.16 3.12.89.1-.69.37-1.16.68-1.43-2.37-.27-4.86-1.18-4.86-5.27 0-1.16.41-2.1 1.09-2.84-.11-.27-.47-1.37.1-2.84 0 0 .89-.29 2.91 1.09a10.06 10.06 0 0 1 5.3 0c2.01-1.38 2.9-1.09 2.9-1.09.58 1.47.22 2.57.11 2.84.68.74 1.09 1.68 1.09 2.84 0 4.1-2.5 4.99-4.88 5.25.38.33.72.97.72 1.95 0 1.41-.01 2.55-.01 2.89 0 .29.19.63.74.52A10.75 10.75 0 0 0 12 1.25Z" />
-    </svg>
-  )
-}
-
-function XMark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M18.9 2.25h2.93l-6.4 7.33 7.52 12.17h-5.89l-4.62-7.4-6.45 7.4H3.06l6.85-7.86L2.7 2.25h6.04l4.18 6.74 5.98-6.74Zm-1.03 17.74h1.63L7.86 3.91H6.12l11.75 16.08Z" />
-    </svg>
-  )
-}
-
-const KEYBOARD_SHORTCUTS: Record<AppLanguage, ShortcutItem[]> = {
-  en: [
-    { keyLabel: 'Space', description: 'Play / Stop' },
-    { keyLabel: 'C', description: 'Cycle camera angles' },
-    { keyLabel: 'M', description: 'Toggle the MIDI roll' },
-    { keyLabel: 'L', description: 'Open the MIDI library' },
-    { keyLabel: 'U', description: 'Upload a MIDI file' },
-    { keyLabel: 'S', description: 'Toggle settings' },
-    { keyLabel: 'F', description: 'Toggle fullscreen' },
-    { keyLabel: 'I', description: 'Open the about panel' },
-    { keyLabel: 'Esc', description: 'Close any open panel' },
-  ],
-  ja: [
-    { keyLabel: 'Space', description: '再生 / 停止' },
-    { keyLabel: 'C', description: 'カメラアングルを切り替え' },
-    { keyLabel: 'M', description: 'MIDIロールを表示 / 非表示' },
-    { keyLabel: 'L', description: 'MIDIライブラリを開く' },
-    { keyLabel: 'U', description: 'MIDIファイルをアップロード' },
-    { keyLabel: 'S', description: '設定パネルを開閉' },
-    { keyLabel: 'F', description: 'フルスクリーンを切り替え' },
-    { keyLabel: 'I', description: '概要パネルを開く' },
-    { keyLabel: 'Esc', description: '開いているパネルを閉じる' },
-  ],
-}
-
-const UI_COPY: Record<AppLanguage, UiCopy> = {
-  en: {
-    aboutTitle: 'About',
-    bottomTrackMeta: 'Show Title',
-    cameraAutoCycle: 'Auto Cycle 10s',
-    cameraView: 'Camera View',
-    closeAbout: 'Close about panel',
-    closeLibrary: 'Close MIDI library',
-    closeSettings: 'Settings',
-    creatorTitle: 'itsjaydesu',
-    enableSound: 'Enable sound',
-    enablingSound: 'Enabling sound',
-    fullScreen: 'Fullscreen',
-    fullScreenExit: 'Exit fullscreen',
-    fullScreenHint: 'Press F to enter & exit fullscreen',
-    infoButton: 'Open about panel',
-    keyboardShortcutsTitle: 'Keyboard shortcuts',
-    language: 'Language',
-    languageButton: 'Change language',
-    libraryButton: 'MIDI library',
-    libraryDefaultHeading: 'MIDI Library',
-    libraryDescription:
-      'Browse the built-in collections. Japanese train melodies open a second row for stations, standards, and signature themes.',
-    libraryLoadError: 'Failed to load MIDI file from the library.',
-    libraryTabList: 'Library collections',
-    libraryTitle: 'MIDI Library',
-    loaded: 'Loaded',
-    loadingPiano: 'Loading piano',
-    midiRoll: 'MIDI Roll',
-    nextTrack: 'Next track',
-    noTracksDescription: 'Switch tabs and try another collection.',
-    noTracksTitle: label => `No tracks in ${label} yet`,
-    previousTrack: 'Previous track',
-    resetDefaults: 'Reset to Default',
-    settings: 'Settings',
-    show: 'On',
-    hide: 'Off',
-    restartPlayback: 'Restart playback',
-    startPlayback: 'Start playback',
-    stopPlayback: 'Stop playback',
-    trainSubcategories: 'Japanese train melody subsets',
-    upload: 'Upload MIDI',
-    videoExport: 'Video Export',
-    exportFormat: 'Format',
-    exportCameraMode: 'Camera',
-    exportCameraCurrent: 'Current',
-    exportCameraCycle: 'Cycle 10s',
-    exportButton: 'Export Video',
-    volume: 'Volume',
-  },
-  ja: {
-    aboutTitle: 'オービトーンについて',
-    bottomTrackMeta: 'タイトル表示',
-    cameraAutoCycle: '10秒オートサイクル',
-    cameraView: 'カメラアングル',
-    closeAbout: '概要を閉じる',
-    closeLibrary: 'MIDIライブラリを閉じる',
-    closeSettings: '設定',
-    creatorTitle: 'itsjaydesu',
-    enableSound: 'サウンドを有効化',
-    enablingSound: 'サウンドを有効化中',
-    fullScreen: 'フルスクリーン',
-    fullScreenExit: 'フルスクリーンを終了',
-    fullScreenHint: 'Fキーでフルスクリーンの切り替え',
-    infoButton: '概要を開く',
-    keyboardShortcutsTitle: 'キーボードショートカット',
-    language: '言語',
-    languageButton: '言語を変更',
-    libraryButton: 'MIDIライブラリ',
-    libraryDefaultHeading: 'MIDIライブラリ',
-    libraryDescription:
-      'コレクションごとに曲を切り替えられます。日本の発車メロディでは、駅別・定番チャイム・シグネチャー曲のサブタブも使えます。',
-    libraryLoadError: 'ライブラリのMIDIファイルを読み込めませんでした。',
-    libraryTabList: 'ライブラリのコレクション',
-    libraryTitle: 'MIDIライブラリ',
-    loaded: '読み込み済み',
-    loadingPiano: 'ピアノ音源を読み込み中',
-    midiRoll: 'MIDIロール',
-    nextTrack: '次の曲',
-    noTracksDescription:
-      '別のコレクションに切り替えて、ほかのMIDIを試してみてください。',
-    noTracksTitle: label => `${label}の曲はまだありません`,
-    previousTrack: '前の曲',
-    resetDefaults: '初期設定に戻す',
-    settings: '設定',
-    show: '表示',
-    hide: '非表示',
-    restartPlayback: '最初から再生',
-    startPlayback: '再生を開始',
-    stopPlayback: '再生を停止',
-    trainSubcategories: '日本の発車メロディのサブカテゴリ',
-    upload: 'MIDIをアップロード',
-    videoExport: '動画エクスポート',
-    exportFormat: 'フォーマット',
-    exportCameraMode: 'カメラ',
-    exportCameraCurrent: '現在のカメラ',
-    exportCameraCycle: '10秒サイクル',
-    exportButton: '動画をエクスポート',
-    volume: '音量',
-  },
-}
-
-function getLibraryCategoryMeta(categoryId: string, language: AppLanguage): LibraryCategoryMeta {
-  switch (categoryId) {
-    case 'originals':
-      return language === 'ja'
-        ? {
-            blurb: 'コミュニティから寄せられたオリジナル楽曲です。',
-            icon: Feather,
-            label: 'オリジナル',
-            shortLabel: 'オリジナル',
-          }
-        : {
-            blurb: 'Original compositions from the community.',
-            icon: Feather,
-            label: 'Originals',
-            shortLabel: 'Originals',
-          }
-    case 'classical-piano':
-      return language === 'ja'
-        ? {
-            blurb:
-              '夜想曲や協奏曲など、ピアノの表情がよく映えるクラシック作品を集めました。',
-            icon: Piano,
-            label: 'クラシック / ピアノ',
-            shortLabel: 'クラシック',
-          }
-        : {
-            blurb: 'Concert works, nocturnes, and expressive piano repertoire.',
-            icon: Piano,
-            label: 'Classical & Piano',
-            shortLabel: 'Classical',
-          }
-    case 'film-tv-anime':
-      return language === 'ja'
-        ? {
-            blurb:
-              '映画音楽、アニメ主題歌、印象的なテレビテーマを横断する映像音楽のコレクションです。',
-            icon: Clapperboard,
-            label: '映画 / テレビ / アニメ',
-            shortLabel: '映像',
-          }
-        : {
-            blurb: 'Big-screen themes, anime openings, and prestige TV motifs.',
-            icon: Clapperboard,
-            label: 'Film, TV & Anime',
-            shortLabel: 'Screen',
-          }
-    case 'games-internet':
-      return language === 'ja'
-        ? {
-            blurb:
-              'ゲームの名曲やインターネットの記憶に残るメロディを、少しノスタルジックな温度感で。',
-            icon: Gamepad2,
-            label: 'ゲーム / インターネット',
-            shortLabel: 'ゲーム',
-          }
-        : {
-            blurb:
-              'Game scores, online relics, and endlessly replayable hooks.',
-            icon: Gamepad2,
-            label: 'Games & Internet',
-            shortLabel: 'Games',
-          }
-    case 'pop-electronic':
-      return language === 'ja'
-        ? {
-            blurb:
-              'ポップスの定番やエレクトロのきらめきを、ピアノで気持ちよく聴ける曲たちです。',
-            icon: Disc3,
-            label: 'ポップ / エレクトロ',
-            shortLabel: 'ポップ',
-          }
-        : {
-            blurb: 'Anthems, club textures, and bright electronic melodies.',
-            icon: Disc3,
-            label: 'Pop & Electronic',
-            shortLabel: 'Pop',
-          }
-    case 'train-stations':
-      return language === 'ja'
-        ? {
-            blurb:
-              '駅ごとの発車メロディやご当地色のあるチャイムを中心に集めています。',
-            icon: TrainFront,
-            label: '駅別メロディ',
-            shortLabel: '駅別',
-          }
-        : {
-            blurb:
-              'Station-specific Japanese departure melodies and local favorites.',
-            icon: TrainFront,
-            label: 'Station Melodies',
-            shortLabel: 'Stations',
-          }
-    case 'train-standard-chimes':
-      return language === 'ja'
-        ? {
-            blurb:
-              'JRの定番チャイムや広く使われる標準メロディをまとめたセットです。',
-            icon: BellRing,
-            label: '定番チャイム',
-            shortLabel: '定番',
-          }
-        : {
-            blurb:
-              'Classic JR standards, shared chimes, and core platform signals.',
-            icon: BellRing,
-            label: 'Standard Chimes',
-            shortLabel: 'Chimes',
-          }
-    case 'train-signature-system':
-      return language === 'ja'
-        ? {
-            blurb:
-              '路線固有のメロディや有名な発車サウンド、印象に残るシグネチャー曲を揃えました。',
-            icon: MapIcon,
-            label: 'シグネチャー曲',
-            shortLabel: '特色',
-          }
-        : {
-            blurb:
-              'Named rail melodies, medleys, and signature network themes.',
-            icon: MapIcon,
-            label: 'Signature Themes',
-            shortLabel: 'Signature',
-          }
-    default:
-      return language === 'ja'
-        ? {
-            blurb: 'Orbitoneのために選んだMIDIコレクションです。',
-            icon: Music,
-            label: 'MIDIライブラリ',
-            shortLabel: 'ライブラリ',
-          }
-        : {
-            blurb: 'Curated MIDI selections from the Orbitone library.',
-            icon: Music,
-            label: 'MIDI Library',
-            shortLabel: 'Library',
-          }
-  }
-}
-
-function getLibraryPrimaryGroups(language: AppLanguage): LibraryPrimaryGroup[] {
-  return [
-    {
-      id: 'originals',
-      label: language === 'ja' ? 'オリジナル' : 'Originals',
-      shortLabel: language === 'ja' ? 'オリジナル' : 'Originals',
-      icon: Feather,
-      blurb:
-      language === 'ja'
-        ? 'コミュニティから寄せられたオリジナル楽曲です。'
-        : 'Original compositions from the community.',
-      categoryIds: ['originals'],
-      defaultCategoryId: 'originals',
-    },
-    {
-      id: 'classical-piano',
-      label: language === 'ja' ? 'クラシック / ピアノ' : 'Classical & Piano',
-      shortLabel: language === 'ja' ? 'クラシック' : 'Classical',
-      icon: Piano,
-      blurb:
-      language === 'ja'
-        ? '夜想曲や協奏曲など、ピアノの響きが美しく映えるクラシック作品をまとめています。'
-        : 'Concert works, nocturnes, and expressive piano repertoire.',
-      categoryIds: ['classical-piano'],
-      defaultCategoryId: 'classical-piano',
-    },
-    {
-      id: 'film-tv-anime',
-      label: language === 'ja' ? '映画 / テレビ / アニメ' : 'Film, TV & Anime',
-      shortLabel: language === 'ja' ? '映像' : 'Screen',
-      icon: Clapperboard,
-      blurb:
-      language === 'ja'
-        ? '映画音楽、アニメ主題歌、ドラマや番組テーマまで、映像の記憶に残る曲たちです。'
-        : 'Big-screen themes, anime openings, and prestige TV motifs.',
-      categoryIds: ['film-tv-anime'],
-      defaultCategoryId: 'film-tv-anime',
-    },
-    {
-      id: 'games-internet',
-      label: language === 'ja' ? 'ゲーム / インターネット' : 'Games & Internet',
-      shortLabel: language === 'ja' ? 'ゲーム' : 'Games',
-      icon: Gamepad2,
-      blurb:
-      language === 'ja'
-        ? 'ゲームの名曲やネット文化の懐かしいメロディを、耳に残る順に並べたくなる棚です。'
-        : 'Game scores, online relics, and endlessly replayable hooks.',
-      categoryIds: ['games-internet'],
-      defaultCategoryId: 'games-internet',
-    },
-    {
-      id: 'pop-electronic',
-      label: language === 'ja' ? 'ポップ / エレクトロ' : 'Pop & Electronic',
-      shortLabel: language === 'ja' ? 'ポップ' : 'Pop',
-      icon: Disc3,
-      blurb:
-      language === 'ja'
-        ? 'ポップスの定番から電子音のきらめきまで、軽やかに聴けるメロディを集めています。'
-        : 'Anthems, club textures, and bright electronic melodies.',
-      categoryIds: ['pop-electronic'],
-      defaultCategoryId: 'pop-electronic',
-    },
-    {
-      id: 'japanese-train-melodies',
-      label: language === 'ja' ? '日本の発車メロディ' : 'Japanese Train Melodies',
-      shortLabel: language === 'ja' ? '鉄道' : 'Trains',
-      icon: TrainFront,
-      blurb:
-      language === 'ja'
-        ? '駅別の発車メロディ、JRの定番チャイム、路線のシグネチャー曲まで、日本の鉄道音を横断できます。'
-        : 'Station jingles, JR standards, and signature departure themes from across Japan\'s rail network.',
-      categoryIds: [...TRAIN_LIBRARY_CATEGORY_IDS],
-      defaultCategoryId: 'train-stations',
-    },
-  ]
-}
-
 function stripMidiExtension(fileName: string) {
   return fileName.replace(/\.(mid|midi)$/i, '')
-}
-
-function getRandomLibraryTrack(): MidiLibraryItem | null {
-  if (MIDI_LIBRARY.length === 0) {
-    return null
-  }
-
-  const randomIndex = Math.floor(Math.random() * MIDI_LIBRARY.length)
-  return MIDI_LIBRARY[randomIndex] ?? null
 }
 
 function formatLoadedTitle(fileName: string, language: AppLanguage) {
@@ -624,12 +142,13 @@ export default function Home() {
 
     return new URLSearchParams(window.location.search).has('automation')
   })
-  const [language, setLanguage] = useState<AppLanguage>(() => {
-    if (typeof window !== 'undefined' && navigator.language.startsWith('ja')) {
-      return 'ja'
+  const [language, setLanguage] = useState<AppLanguage>('en')
+
+  useEffect(() => {
+    if (navigator.language.startsWith('ja')) {
+      setLanguage('ja')
     }
-    return 'en'
-  })
+  }, [])
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isMenuReady, setIsMenuReady] = useState(false)
   const [isMenuVisible, setIsMenuVisible] = useState(false)
@@ -642,9 +161,7 @@ export default function Home() {
   const [showInfo, setShowInfo] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
-  const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState(
-    DEFAULT_LIBRARY_CATEGORY_ID,
-  )
+  const [activeLibraryCategoryId, setActiveLibraryCategoryId] = useState('')
   const [currentTrackTitle, setCurrentTrackTitle] = useState<string | null>(
     null,
   )
@@ -660,19 +177,26 @@ export default function Home() {
   const [cameraDraftPresets, setCameraDraftPresets] = useState<CameraPresetMap>(
     () => cloneCameraPresetMap(DEFAULT_CAMERA_PRESETS),
   )
-  const [initialLibraryTrack] = useState<MidiLibraryItem | null>(() =>
-    getRandomLibraryTrack(),
-  )
+  const library = useMidiLibrary()
+  const [initialLibraryTrack, setInitialLibraryTrack]
+    = useState<MidiLibraryItem | null>(null)
+  const [initialTrackFailed, setInitialTrackFailed] = useState(false)
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>(DEFAULT_EXPORT_FORMAT)
   const [exportCameraMode, setExportCameraMode] = useState<ExportCameraMode>(
     DEFAULT_EXPORT_CAMERA_MODE,
   )
+  // While an export runs inside the settings panel, closing the panel would
+  // unmount the capture rig and silently kill the export — closes are held.
+  const [isExportActive, setIsExportActive] = useState(false)
 
   const {
     isPlaying,
     isAudioLoading,
-    currentTime,
+    isStartingPlayback,
+    audioLoadFailed,
+    audioLevelRef,
+    getPlaybackTime,
     hasEnded,
     requiresExplicitAudioUnlock,
     isAudioUnlocked,
@@ -689,11 +213,37 @@ export default function Home() {
     playbackGain,
     trackSource,
   } = useMusic({
-    language,
     volumePercent: settings.volumePercent,
+    instrumentId: settings.instrumentId,
   })
   const playbackChromeManaged = isPlaying && !hasEnded
   const shouldPersistChrome = !playbackChromeManaged
+  const reduceMotion = useReducedMotion() ?? false
+
+  const [toast, setToast] = useState<ToastData | null>(null)
+  const showToast = useCallback((message: string) => {
+    setToast({ id: Date.now(), message })
+  }, [])
+
+  useEffect(() => {
+    if (!toast) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(current => (current?.id === toast.id ? null : current))
+    }, 4200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (audioLoadFailed) {
+      showToast(UI_COPY[language].audioLoadError)
+    }
+  }, [audioLoadFailed, language, showToast])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
@@ -750,10 +300,12 @@ export default function Home() {
 
   const activeLibraryCategory = useMemo<MidiLibraryCategory | null>(
     () =>
-      LIBRARY_CATEGORY_INDEX.get(activeLibraryCategoryId)
-      ?? MIDI_LIBRARY_CATEGORIES[0]
-      ?? null,
-    [activeLibraryCategoryId],
+      library
+        ? (library.categoryIndex.get(activeLibraryCategoryId)
+          ?? library.categories[0]
+          ?? null)
+        : null,
+    [activeLibraryCategoryId, library],
   )
   const activeLibraryGroup = useMemo<LibraryPrimaryGroup | null>(
     () =>
@@ -770,14 +322,14 @@ export default function Home() {
     = activeLibraryGroup?.icon ?? ActiveLibraryCategoryIcon
   const activeTrainSubcategories = useMemo(
     () =>
-      (activeLibraryGroup?.categoryIds.length ?? 0) > 1
+      library && (activeLibraryGroup?.categoryIds.length ?? 0) > 1
         ? (activeLibraryGroup?.categoryIds
-            .map(categoryId => LIBRARY_CATEGORY_INDEX.get(categoryId))
+            .map(categoryId => library.categoryIndex.get(categoryId))
             .filter((category): category is MidiLibraryCategory =>
               Boolean(category),
             ) ?? [])
         : [],
-    [activeLibraryGroup],
+    [activeLibraryGroup, library],
   )
   const activeLibraryHeading
     = activeLibraryGroup?.label
@@ -792,18 +344,20 @@ export default function Home() {
     : activeLibraryCategoryMeta.blurb
   const currentLibraryTrack = useMemo<MidiLibraryItem | null>(
     () =>
-      currentLibraryTrackId
-        ? (LIBRARY_TRACK_INDEX.get(currentLibraryTrackId) ?? null)
+      currentLibraryTrackId && library
+        ? (library.trackIndex.get(currentLibraryTrackId) ?? null)
         : null,
-    [currentLibraryTrackId],
+    [currentLibraryTrackId, library],
   )
-  const localizedTrackTitle = currentLibraryTrack
-    ? getLocalizedTrackTitle(currentLibraryTrack, language)
+  const localizedTrackTitle = currentLibraryTrack && library
+    ? library.getLocalizedTrackTitle(currentLibraryTrack, language)
     : currentTrackTitle
-  const localizedTrackSubtitle = getLocalizedTrackSubtitle(
-    currentLibraryTrack?.subtitle ?? null,
-    language,
-  )
+  const localizedTrackSubtitle = library
+    ? library.getLocalizedTrackSubtitle(
+        currentLibraryTrack?.subtitle ?? null,
+        language,
+      )
+    : currentLibraryTrack?.subtitle ?? null
   const [displayTrackMeta, setDisplayTrackMeta] = useState<DisplayTrackMeta>(
     () => ({
       title: localizedTrackTitle,
@@ -1027,7 +581,9 @@ export default function Home() {
 
       setShowInfo(false)
       setShowLibrary(false)
-      setShowSettings(false)
+      if (!isExportActive) {
+        setShowSettings(false)
+      }
       setShowCameraLab(false)
     }
 
@@ -1036,7 +592,7 @@ export default function Home() {
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
     }
-  }, [showCameraLab, showInfo, showLibrary, showSettings])
+  }, [isExportActive, showCameraLab, showInfo, showLibrary, showSettings])
 
   useEffect(() => {
     try {
@@ -1091,6 +647,7 @@ export default function Home() {
       const didLoad = await loadMidi(file)
 
       if (!didLoad) {
+        showToast(UI_COPY[language].midiParseError)
         return false
       }
 
@@ -1102,7 +659,7 @@ export default function Home() {
 
       return true
     },
-    [language, loadMidi],
+    [language, loadMidi, showToast],
   )
 
   const fetchLibraryMidiFile = useCallback(async (item: MidiLibraryItem) => {
@@ -1175,29 +732,29 @@ export default function Home() {
       }
     }
     catch {
-      alert(copy.libraryLoadError)
+      showToast(copy.libraryLoadError)
     }
     finally {
       setIsLoadingLibrary(false)
     }
-  }, [closeLibrary, copy.libraryLoadError, fetchLibraryMidiFile, loadMidiFile])
+  }, [closeLibrary, copy.libraryLoadError, fetchLibraryMidiFile, loadMidiFile, showToast])
 
   const loadAdjacentTrack = useCallback((direction: -1 | 1) => {
-    if (isLoadingLibrary)
+    if (isLoadingLibrary || !library || library.tracks.length === 0)
       return
     const currentIndex = currentLibraryTrackId
-      ? MIDI_LIBRARY.findIndex(item => item.id === currentLibraryTrackId)
+      ? library.tracks.findIndex(item => item.id === currentLibraryTrackId)
       : -1
     const nextIndex
       = currentIndex === -1
         ? 0
-        : (currentIndex + direction + MIDI_LIBRARY.length)
-          % MIDI_LIBRARY.length
-    const nextItem = MIDI_LIBRARY[nextIndex]
+        : (currentIndex + direction + library.tracks.length)
+          % library.tracks.length
+    const nextItem = library.tracks[nextIndex]
     if (nextItem) {
       loadLibraryMidi(nextItem)
     }
-  }, [currentLibraryTrackId, isLoadingLibrary, loadLibraryMidi])
+  }, [currentLibraryTrackId, isLoadingLibrary, library, loadLibraryMidi])
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== undefined) {
@@ -1257,6 +814,9 @@ export default function Home() {
         case 's':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           setShowSettings(v => !v)
           setShowInfo(false)
 
@@ -1270,6 +830,9 @@ export default function Home() {
         case 'i':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           setShowInfo(v => !v)
 
           setShowSettings(false)
@@ -1278,6 +841,9 @@ export default function Home() {
         case 'l':
           e.preventDefault()
           shouldRevealChrome = true
+          if (isExportActive) {
+            break
+          }
           toggleLibrary()
           break
         case 'u':
@@ -1302,7 +868,9 @@ export default function Home() {
           break
         case 'escape':
           shouldRevealChrome = true
-          setShowSettings(false)
+          if (!isExportActive) {
+            setShowSettings(false)
+          }
           setShowInfo(false)
 
           closeLibrary()
@@ -1322,6 +890,7 @@ export default function Home() {
     closeLibrary,
     cycleCameraView,
     handlePlaybackToggle,
+    isExportActive,
     loadAdjacentTrack,
     scheduleIdleHide,
     toggleFullscreen,
@@ -1420,21 +989,6 @@ export default function Home() {
     showSettings,
   ])
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number.parseFloat(e.target.value)
-    seek(time)
-  }
-
-  const formatTime = (secs: number) => {
-    if (!Number.isFinite(secs) || secs < 0) {
-      return '0:00'
-    }
-
-    const m = Math.floor(secs / 60)
-    const s = Math.floor(secs % 60)
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -1477,6 +1031,35 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!library) {
+      return
+    }
+
+    if (!activeLibraryCategoryId) {
+      setActiveLibraryCategoryId(library.categories[0]?.id ?? '')
+    }
+  }, [activeLibraryCategoryId, library])
+
+  useEffect(() => {
+    if (
+      !library
+      || isAutomationMode
+      || initialLibraryTrack !== null
+      || initialTrackRequestedRef.current
+    ) {
+      return
+    }
+
+    if (library.tracks.length === 0) {
+      setInitialTrackFailed(true)
+      return
+    }
+
+    const randomIndex = Math.floor(Math.random() * library.tracks.length)
+    setInitialLibraryTrack(library.tracks[randomIndex] ?? null)
+  }, [initialLibraryTrack, isAutomationMode, library])
+
+  useEffect(() => {
     if (
       isAutomationMode
       || !initialLibraryTrack
@@ -1503,8 +1086,10 @@ export default function Home() {
           title: initialLibraryTrack.title,
         })
       }
-      catch (error) {
-        void error
+      catch {
+        if (!isCancelled) {
+          setInitialTrackFailed(true)
+        }
       }
       finally {
         if (!isCancelled) {
@@ -1608,11 +1193,14 @@ export default function Home() {
   }, [activeCameraView, updateCameraDraft])
 
   const chromeVisible = shouldPersistChrome || (isMenuReady && isMenuVisible)
+  // Hold the visualizer empty until the initial library track has loaded so
+  // the intro sweep plays on the real track, not the generated default piece.
   const shouldHoldInitialVisualizerNotes
-    = Boolean(initialLibraryTrack) && trackSource !== 'loaded'
+    = !isAutomationMode && trackSource !== 'loaded' && !initialTrackFailed
   const needsExplicitAudioUnlock
     = requiresExplicitAudioUnlock && !isAudioUnlocked
-  const playbackButtonBusy = isAudioLoading || isAudioUnlocking
+  const playbackButtonBusy
+    = isAudioLoading || isAudioUnlocking || isStartingPlayback
   const playbackButtonLabel = playbackButtonBusy
     ? isAudioUnlocking
       ? copy.enablingSound
@@ -1664,1243 +1252,453 @@ export default function Home() {
     : undefined
   const timelineChromeStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 42dvh)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7.75rem)',
       }
     : undefined
   const playChromeStyle = isMobile
     ? {
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 34dvh)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)',
       }
     : undefined
-  const infoOverlayStyle = {
-    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
-    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
-  } as const
-  const infoModalStyle = {
-    maxHeight:
-      'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem)',
-  } as const
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-black font-sans">
-      <input
-        type="file"
-        accept=".mid,.midi"
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-      />
+    <main className="relative h-dvh w-full overflow-hidden overscroll-none bg-black font-sans">
+      <LazyMotion features={domAnimation} strict>
+        <input
+          type="file"
+          accept=".mid,.midi"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+        />
 
-      <div
-        className={cn('pointer-events-none', topChromeClass)}
-        inert={!chromeVisible}
-        style={topChromeStyle}
-      >
-        <div className="pointer-events-auto flex items-center gap-1.5">
-          <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
-            <span
-              className={cn(
-                'inline-block transition-opacity duration-150 ease-out motion-reduce:transition-none',
-                isHeaderBrandVisible ? 'opacity-100' : 'opacity-0',
-              )}
+        <div
+          className={cn('pointer-events-none', topChromeClass)}
+          inert={!chromeVisible}
+          style={topChromeStyle}
+        >
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <h1 className="text-xl font-semibold tracking-[0.18em] text-[var(--nm-text)] sm:text-2xl">
+              <span
+                className={cn(
+                  'inline-block transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                  isHeaderBrandVisible ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                {headerBrandName}
+              </span>
+            </h1>
+            <a
+              href="https://github.com/itsjaydesu/orbitone"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="-m-3 p-3 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
+              aria-label="GitHub"
             >
-              {headerBrandName}
-            </span>
-          </h1>
-          <a
-            href="https://github.com/itsjaydesu/orbitone"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-            aria-label="GitHub"
-          >
-            <GitHubMark className="h-[0.9rem] w-[0.9rem] translate-y-[2px]" />
-          </a>
-        </div>
+              <GitHubMark className="h-[0.9rem] w-[0.9rem] translate-y-[2px]" />
+            </a>
+          </div>
 
-        <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 min-[840px]:absolute min-[840px]:left-1/2 min-[840px]:top-0 min-[840px]:w-full min-[840px]:max-w-[min(46rem,calc(100%-32rem))] min-[840px]:-translate-x-1/2 min-[840px]:px-6 min-[840px]:pt-1">
-          {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => loadAdjacentTrack(-1)}
-                disabled={isLoadingLibrary}
-                className="pointer-events-auto rounded-full p-1.5 text-white/30 transition-colors hover:text-white/70 disabled:opacity-40 sm:p-1"
-                aria-label={copy.previousTrack}
-              >
-                <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-              </button>
-              <div className="max-w-[min(42rem,100%)] px-4 py-2.5 text-center sm:px-5 sm:py-3">
-                <div
-                  className={cn(
-                    'transition-opacity duration-150 ease-out motion-reduce:transition-none',
-                    isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
-                  )}
+          <div className="pointer-events-none order-3 col-span-2 flex min-w-0 justify-center pt-0 min-[840px]:absolute min-[840px]:left-1/2 min-[840px]:top-0 min-[840px]:w-full min-[840px]:max-w-[min(46rem,calc(100%-32rem))] min-[840px]:-translate-x-1/2 min-[840px]:px-6 min-[840px]:pt-1">
+            {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => loadAdjacentTrack(-1)}
+                  disabled={isLoadingLibrary}
+                  className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
+                  aria-label={copy.previousTrack}
                 >
-                  {displayTrackMeta.title && (
-                    <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                      {displayTrackMeta.title}
-                    </div>
-                  )}
-                  {displayTrackMeta.subtitle && (
-                    <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
-                      {displayTrackMeta.subtitle}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => loadAdjacentTrack(1)}
-                disabled={isLoadingLibrary}
-                className="pointer-events-auto rounded-full p-1.5 text-white/30 transition-colors hover:text-white/70 disabled:opacity-40 sm:p-1"
-                aria-label={copy.nextTrack}
-              >
-                <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="relative justify-self-end">
-          <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            {!isMobile && (
-              <button
-                onClick={(e) => {
-                  fileInputRef.current?.click()
-                  e.currentTarget.blur()
-                }}
-                onDragEnter={handleUploadDragEnter}
-                onDragOver={handleUploadDragOver}
-                onDragLeave={handleUploadDragLeave}
-                onDrop={handleUploadDrop}
-                className={cn(
-                  'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  isUploadDragActive ? 'nm-drag-active' : 'nm-raised',
-                )}
-                aria-label={copy.upload}
-              >
-                <Upload className="h-6 w-6 sm:h-5 sm:w-5" />
-              </button>
-            )}
-
-            <div ref={libraryRef} className="relative">
-              <button
-                onClick={(e) => {
-                  toggleLibrary()
-                  e.currentTarget.blur()
-                }}
-                className={cn(
-                  'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  showLibrary ? 'nm-pressed' : 'nm-raised',
-                )}
-                aria-label={copy.libraryButton}
-              >
-                {isLoadingLibrary
-                  ? (
-                      <Loader2 className="h-6 w-6 animate-spin sm:h-5 sm:w-5" />
-                    )
-                  : (
-                      <Library className="h-6 w-6 sm:h-5 sm:w-5" />
-                    )}
-              </button>
-
-              {showLibrary && (
-                <>
-                  <button
-                    type="button"
-                    className="nm-animate-fade fixed inset-0 z-40 bg-black/60 backdrop-blur-[6px] sm:bg-black/20"
-                    onClick={closeLibrary}
-                    aria-label={copy.closeLibrary}
-                  />
-
+                  <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                </button>
+                <div className="max-w-[min(42rem,100%)] px-4 py-2.5 text-center sm:px-5 sm:py-3">
                   <div
-                    role="dialog"
-                    aria-modal="true"
                     className={cn(
-                      'nm-card pointer-events-auto fixed z-50 flex min-h-0 flex-col overflow-hidden text-[var(--nm-text)]',
-                      isMobile
-                        ? 'nm-animate-sheet inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[1.6rem] p-3'
-                        : 'nm-animate-dropdown absolute top-12 right-0 bottom-auto left-auto h-[min(74vh,46rem)] w-[min(38rem,calc(100vw-3rem))] rounded-[1.75rem] p-4',
+                      'transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                      isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
                     )}
-                    style={
-                      isMobile
-                        ? {
-                            paddingBottom:
-                              'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-                          }
-                        : undefined
-                    }
                   >
-                    {isMobile && <div className="nm-sheet-handle" />}
-                    <div className="nm-well rounded-[1.2rem] p-3 sm:p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <h3 className="text-base font-semibold tracking-[0.06em] text-[var(--nm-text)] sm:text-lg">
-                          {copy.libraryTitle}
-                        </h3>
-
-                        <button
-                          type="button"
-                          onClick={closeLibrary}
-                          className="nm-raised rounded-full p-2 text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                          aria-label={copy.closeLibrary}
-                        >
-                          <X className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      className="mt-3 grid grid-cols-6 gap-1.5"
-                      role="tablist"
-                      aria-label={copy.libraryTabList}
-                    >
-                      {libraryPrimaryGroups.map((group) => {
-                        const isTabActive = activeLibraryGroup?.id === group.id
-                        const GroupIcon = group.icon
-
-                        return (
-                          <button
-                            key={group.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={isTabActive}
-                            aria-label={group.label}
-                            onClick={() =>
-                              setActiveLibraryCategoryId(
-                                group.defaultCategoryId,
-                              )}
-                            title={group.label}
-                            className={cn(
-                              'flex min-h-10 min-w-0 items-center justify-center rounded-xl p-1.5 transition-all',
-                              isTabActive
-                                ? 'nm-toggle-active'
-                                : 'nm-raised text-[var(--nm-text-dim)]',
-                            )}
-                          >
-                            <GroupIcon
-                              className={cn(
-                                'h-[1.125rem] w-[1.125rem] shrink-0',
-                                isTabActive
-                                  ? 'text-[var(--nm-bg)]'
-                                  : 'text-[var(--nm-text)]',
-                              )}
-                            />
-                            <span className="sr-only">{group.shortLabel}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-
-                    {activeTrainSubcategories.length > 0 && (
-                      <div
-                        className="mt-2 flex gap-2"
-                        role="tablist"
-                        aria-label={copy.trainSubcategories}
-                      >
-                        {activeTrainSubcategories.map((category) => {
-                          const isSubtabActive
-                            = category.id === activeLibraryCategoryId
-                          const categoryMeta = getLibraryCategoryMeta(
-                            category.id,
-                            language,
-                          )
-                          const SubIcon = categoryMeta.icon
-
-                          return (
-                            <button
-                              key={category.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={isSubtabActive}
-                              aria-label={categoryMeta.shortLabel}
-                              title={categoryMeta.shortLabel}
-                              onClick={() =>
-                                setActiveLibraryCategoryId(category.id)}
-                              className={cn(
-                                'flex h-10 w-14 shrink-0 items-center justify-center rounded-full transition-all',
-                                isSubtabActive
-                                  ? 'nm-toggle-active'
-                                  : 'nm-raised text-[var(--nm-text-dim)]',
-                              )}
-                            >
-                              <SubIcon className="h-4 w-4" />
-                            </button>
-                          )
-                        })}
+                    {displayTrackMeta.title && (
+                      <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                        {displayTrackMeta.title}
                       </div>
                     )}
-
-                    {activeLibraryCategory && (
-                      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-2 sm:p-3">
-                        <div className="px-2 py-1 sm:px-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--nm-text)]">
-                              <ActiveLibraryGroupIcon className="h-4 w-4 shrink-0" />
-                              <span className="truncate">
-                                {activeLibraryHeading}
-                              </span>
-                              {activeLibraryGroup
-                                && activeLibraryGroup.categoryIds.length > 1 && (
-                                <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
-                                  {activeLibraryCategoryMeta.shortLabel}
-                                </span>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                              {activeLibraryDescription}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div
-                          ref={libraryListRef}
-                          className="nm-scrollbar mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-1 sm:pr-2"
-                        >
-                          {visibleLibraryItems.length > 0
-                            ? (
-                                visibleLibraryItems.map((item) => {
-                                  const isActive
-                                    = currentLibraryTrackId === item.id
-
-                                  return (
-                                    <button
-                                      key={item.id}
-                                      type="button"
-                                      onClick={() => loadLibraryMidi(item)}
-                                      disabled={isLoadingLibrary}
-                                      className={cn(
-                                        'nm-library-track flex w-full items-start gap-3 rounded-[1rem] px-3 py-3 text-left transition-all',
-                                        isActive
-                                          ? 'nm-library-track-active'
-                                          : 'nm-list-item text-[var(--nm-text-dim)]',
-                                        isLoadingLibrary && 'opacity-70',
-                                      )}
-                                    >
-                                      <span
-                                        className={cn(
-                                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border',
-                                          isActive
-                                            ? 'border-white/8 bg-white text-[var(--nm-bg)] shadow-[0_10px_24px_rgba(0,0,0,0.35)]'
-                                            : 'border-white/6 bg-white/[0.03] text-[var(--nm-text-dim)]',
-                                        )}
-                                      >
-                                        <ActiveLibraryCategoryIcon className="h-4 w-4" />
-                                      </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="flex flex-wrap items-start justify-between gap-2">
-                                          <span className="min-w-0">
-                                            <span className="block truncate text-sm font-semibold text-[var(--nm-text)]">
-                                              {getLocalizedTrackTitle(
-                                                item,
-                                                language,
-                                              )}
-                                            </span>
-                                            <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--nm-text-faint)]">
-                                              {getLocalizedTrackSubtitle(
-                                                item.subtitle,
-                                                language,
-                                              )}
-                                              {item.sourceUrl && (
-                                                <a
-                                                  href={item.sourceUrl}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  onClick={e =>
-                                                    e.stopPropagation()}
-                                                  className="inline-flex shrink-0 text-white/70 transition-colors hover:text-white"
-                                                  aria-label="Source"
-                                                >
-                                                  <ExternalLink className="h-3 w-3" />
-                                                </a>
-                                              )}
-                                            </span>
-                                          </span>
-                                          <span className="flex shrink-0 items-center gap-2">
-                                            {isActive && (
-                                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text)]">
-                                                {copy.loaded}
-                                              </span>
-                                            )}
-                                            <span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--nm-text-faint)]">
-                                              {item.durationLabel}
-                                            </span>
-                                          </span>
-                                        </span>
-                                      </span>
-                                    </button>
-                                  )
-                                })
-                              )
-                            : (
-                                <div className="flex flex-1 flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-white/10 bg-black/10 px-6 text-center">
-                                  <ActiveLibraryCategoryIcon className="mb-3 h-6 w-6 text-[var(--nm-text-faint)]" />
-                                  <h4 className="text-sm font-semibold text-[var(--nm-text)]">
-                                    {copy.noTracksTitle(
-                                      activeLibraryCategoryMeta.label,
-                                    )}
-                                  </h4>
-                                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-[var(--nm-text-dim)]">
-                                    {copy.noTracksDescription}
-                                  </p>
-                                </div>
-                              )}
-                          {activeLibraryCategory?.id === 'originals' && (
-                            <p className="mt-3 px-3 text-xs leading-relaxed text-[var(--nm-text-faint)]">
-                              {language === 'ja'
-                                ? (
-                                    <>
-                                      作曲していますか？あなたのMIDIファイルを
-                                      <a
-                                        href="https://x.com/itsjaydesu"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
-                                      >
-                                        Xでお送りください
-                                      </a>
-                                      。確認のうえ追加いたします。
-                                    </>
-                                  )
-                                : (
-                                    <>
-                                      Are you a composer? If you&#39;d like to add
-                                      your MIDI file here, please
-                                      {' '}
-                                      <a
-                                        href="https://x.com/itsjaydesu"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline text-[var(--nm-text-dim)] hover:text-[var(--nm-text)] transition-colors"
-                                      >
-                                        message me on X
-                                      </a>
-                                      {' '}
-                                      with your MIDI, and I&#39;ll review and add
-                                      when I can.
-                                    </>
-                                  )}
-                            </p>
-                          )}
-                        </div>
+                    {displayTrackMeta.subtitle && (
+                      <div className="mt-1 type-overline whitespace-normal break-words leading-tight text-[var(--nm-text-faint)] sm:text-xs">
+                        {displayTrackMeta.subtitle}
                       </div>
                     )}
                   </div>
-                </>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadAdjacentTrack(1)}
+                  disabled={isLoadingLibrary}
+                  className="pointer-events-auto flex min-h-11 min-w-11 items-center justify-center rounded-full text-white/45 transition-colors hover:text-white/80 disabled:opacity-40"
+                  aria-label={copy.nextTrack}
+                >
+                  <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="relative justify-self-end">
+            <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+              {!isMobile && (
+                <button
+                  onClick={(e) => {
+                    fileInputRef.current?.click()
+                    e.currentTarget.blur()
+                  }}
+                  onDragEnter={handleUploadDragEnter}
+                  onDragOver={handleUploadDragOver}
+                  onDragLeave={handleUploadDragLeave}
+                  onDrop={handleUploadDrop}
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    isUploadDragActive ? 'nm-drag-active' : 'nm-raised',
+                  )}
+                  aria-label={copy.upload}
+                >
+                  <Upload className="h-6 w-6 sm:h-5 sm:w-5" />
+                </button>
               )}
-            </div>
 
-            <button
-              onClick={(e) => {
-                setShowInfo(true)
+              <div ref={libraryRef} className="relative">
+                <button
+                  onClick={(e) => {
+                    toggleLibrary()
+                    e.currentTarget.blur()
+                  }}
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    showLibrary ? 'nm-pressed' : 'nm-raised',
+                  )}
+                  aria-label={copy.libraryButton}
+                >
+                  {isLoadingLibrary
+                    ? (
+                        <Loader2 className="h-6 w-6 animate-spin sm:h-5 sm:w-5" />
+                      )
+                    : (
+                        <Library className="h-6 w-6 sm:h-5 sm:w-5" />
+                      )}
+                </button>
 
-                setShowSettings(false)
-                closeLibrary()
-                e.currentTarget.blur()
-              }}
-              className={cn(
-                'rounded-xl p-2.5 text-[var(--nm-text)]',
-                showInfo ? 'nm-pressed' : 'nm-raised',
-              )}
-              aria-label={copy.infoButton}
-            >
-              <Info className="h-6 w-6 sm:h-5 sm:w-5" />
-            </button>
+                <LibraryPanel
+                  show={showLibrary}
+                  isMobile={isMobile}
+                  reduceMotion={reduceMotion}
+                  language={language}
+                  copy={copy}
+                  library={library}
+                  libraryPrimaryGroups={libraryPrimaryGroups}
+                  activeLibraryGroup={activeLibraryGroup}
+                  activeLibraryCategory={activeLibraryCategory}
+                  activeLibraryCategoryId={activeLibraryCategoryId}
+                  activeLibraryCategoryShortLabel={activeLibraryCategoryMeta.shortLabel}
+                  activeLibraryHeading={activeLibraryHeading}
+                  activeLibraryDescription={activeLibraryDescription}
+                  ActiveLibraryGroupIcon={ActiveLibraryGroupIcon}
+                  ActiveLibraryCategoryIcon={ActiveLibraryCategoryIcon}
+                  activeTrainSubcategories={activeTrainSubcategories}
+                  getSubcategoryMeta={(categoryId: string) => getLibraryCategoryMeta(categoryId, language)}
+                  visibleLibraryItems={visibleLibraryItems}
+                  currentLibraryTrackId={currentLibraryTrackId}
+                  isLoadingLibrary={isLoadingLibrary}
+                  listRef={libraryListRef}
+                  onSelectCategory={setActiveLibraryCategoryId}
+                  onSelectTrack={loadLibraryMidi}
+                  onClose={closeLibrary}
+                />
+              </div>
 
-            <div className="flex items-center gap-2">
               <button
-                ref={settingsTriggerRef}
                 onClick={(e) => {
-                  setShowSettings(current => !current)
-                  setShowInfo(false)
+                  setShowInfo(true)
+
+                  setShowSettings(false)
                   closeLibrary()
                   e.currentTarget.blur()
                 }}
                 className={cn(
                   'rounded-xl p-2.5 text-[var(--nm-text)]',
-                  showSettings ? 'nm-pressed' : 'nm-raised',
+                  showInfo ? 'nm-pressed' : 'nm-raised',
                 )}
-                aria-label={copy.closeSettings}
+                aria-label={copy.infoButton}
               >
-                <SettingsIcon className="h-6 w-6 sm:h-5 sm:w-5" />
+                <Info className="h-6 w-6 sm:h-5 sm:w-5" />
               </button>
-            </div>
 
-            {isMobile && (
-              <button
-                onClick={(e) => {
-                  e.currentTarget.blur()
-                  cycleCameraView()
-                }}
-                className="nm-raised rounded-xl p-2.5 text-[var(--nm-text)]"
-                aria-label={cameraViewLabels[settings.cameraView]}
-              >
-                <Camera className="h-6 w-6 sm:h-5 sm:w-5" />
-              </button>
-            )}
-          </div>
-
-          {showSettings && (
-            <div
-              ref={settingsRef}
-              role="dialog"
-              aria-label={copy.settings}
-              className="nm-card nm-animate-dropdown pointer-events-auto absolute top-12 right-0 z-50 flex w-80 flex-col gap-3 rounded-xl p-4 text-[var(--nm-text)]"
-            >
-              <div className="flex flex-col gap-3">
-                {!isMobile && (
-                  <button
-                    onClick={(e) => {
-                      toggleFullscreen()
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                      isFullscreen
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      {isFullscreen
-                        ? (
-                            <Minimize className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                          )
-                        : (
-                            <Expand className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
-                          )}
-                      {copy.fullScreen}
-                    </span>
-                    <kbd
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        isFullscreen
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      F
-                    </kbd>
-                  </button>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={(e) => {
-                      updateSetting('showMidiRoll', !settings.showMidiRoll)
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.showMidiRoll
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.midiRoll}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.showMidiRoll
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.showMidiRoll ? copy.show : copy.hide}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      updateSetting(
-                        'showBottomTrackMeta',
-                        !settings.showBottomTrackMeta,
-                      )
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.showBottomTrackMeta
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.bottomTrackMeta}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.showBottomTrackMeta
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.showBottomTrackMeta ? copy.show : copy.hide}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
-                    <span>BPM</span>
-                    <span>{bpm}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={30}
-                    max={300}
-                    step={1}
-                    value={bpm}
-                    onChange={e => setBpm(Number.parseInt(e.target.value, 10))}
-                    className="nm-range"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
-                    <span>{copy.volume}</span>
-                    <span>
-                      {settings.volumePercent}
-                      %
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={150}
-                    step={1}
-                    value={settings.volumePercent}
-                    onChange={e =>
-                      updateSetting(
-                        'volumePercent',
-                        Number.parseInt(e.target.value, 10),
-                      )}
-                    className="nm-range"
-                  />
-                </div>
-
-                <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-[var(--nm-text-dim)]">
-                    {copy.cameraView}
-                  </span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CAMERA_VIEWS.map(view => (
-                      <button
-                        key={view}
-                        onClick={(e) => {
-                          updateSetting('cameraView', view)
-                          e.currentTarget.blur()
-                        }}
-                        className={cn(
-                          'rounded-xl px-2 py-1.5 text-xs font-medium',
-                          settings.cameraView === view
-                            ? 'nm-toggle-active'
-                            : 'nm-raised text-[var(--nm-text-dim)]',
-                        )}
-                      >
-                        {cameraViewLabels[view]}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      updateSetting('autoCycleCamera', !settings.autoCycleCamera)
-                      e.currentTarget.blur()
-                    }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
-                      settings.autoCycleCamera
-                        ? 'nm-toggle-active'
-                        : 'nm-raised text-[var(--nm-text)]',
-                    )}
-                  >
-                    <span>{copy.cameraAutoCycle}</span>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                        settings.autoCycleCamera
-                          ? 'text-[var(--nm-bg)]'
-                          : 'text-[var(--nm-text-dim)]',
-                      )}
-                    >
-                      {settings.autoCycleCamera ? copy.show : copy.hide}
-                    </span>
-                  </button>
-                </div>
-
-                {isVideoExportClientEnabled && (
-                  <VideoExportDevTools
-                    cameraPresets={cameraDraftPresets}
-                    copy={{
-                      exportButton: copy.exportButton,
-                      exportCameraCurrent: copy.exportCameraCurrent,
-                      exportCameraCycle: copy.exportCameraCycle,
-                      exportCameraMode: copy.exportCameraMode,
-                      exportFormat: copy.exportFormat,
-                      videoExport: copy.videoExport,
-                    }}
-                    currentCameraView={settings.cameraView}
-                    currentTrackTitle={currentTrackTitle}
-                    displayTrackSubtitle={displayTrackMeta.subtitle}
-                    displayTrackTitle={displayTrackMeta.title}
-                    exportCameraMode={exportCameraMode}
-                    exportFormat={exportFormat}
-                    exportSource={{
-                      notes,
-                      pedalEvents,
-                      playbackGain,
-                    }}
-                    exportSourceFileName={currentTrackFileName}
-                    exportTrackMeta={{
-                      enabled: settings.showBottomTrackMeta,
-                      subtitle: displayTrackMeta.subtitle,
-                      title: displayTrackMeta.title,
-                    }}
-                    isAudioLoading={isAudioLoading}
-                    isPlaying={isPlaying}
-                    language={language}
-                    onExportCameraModeChange={setExportCameraMode}
-                    onExportFormatChange={setExportFormat}
-                    onShowBottomTrackMetaChange={showBottomTrackMeta => setSettings(current => ({
-                      ...current,
-                      showBottomTrackMeta,
-                    }))}
-                    showBottomTrackMeta={settings.showBottomTrackMeta}
-                    togglePlay={togglePlay}
-                    volumePercent={settings.volumePercent}
-                  />
-                )}
-
-                <div className="mt-2 flex flex-col gap-2">
-                  <span className="text-sm text-[var(--nm-text-dim)]">
-                    {copy.language}
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LANGUAGE_OPTIONS.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={(e) => {
-                          startTransition(() => {
-                            setLanguage(option.value)
-                          })
-                          e.currentTarget.blur()
-                        }}
-                        className={cn(
-                          'rounded-xl px-2 py-1.5 text-xs font-medium',
-                          language === option.value
-                            ? 'nm-toggle-active'
-                            : 'nm-raised text-[var(--nm-text-dim)]',
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+              <div className="flex items-center gap-2">
                 <button
+                  ref={settingsTriggerRef}
                   onClick={(e) => {
-                    resetSettings()
+                    setShowSettings(current =>
+                      current && isExportActive ? current : !current,
+                    )
+                    setShowInfo(false)
+                    closeLibrary()
                     e.currentTarget.blur()
                   }}
-                  className="nm-destructive mt-2 w-full rounded-xl py-2 text-sm font-medium"
+                  className={cn(
+                    'rounded-xl p-2.5 text-[var(--nm-text)]',
+                    showSettings ? 'nm-pressed' : 'nm-raised',
+                  )}
+                  aria-label={copy.closeSettings}
                 >
-                  {copy.resetDefaults}
+                  <SettingsIcon className="h-6 w-6 sm:h-5 sm:w-5" />
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {showInfo && (
-        <div
-          className="nm-animate-fade fixed inset-0 z-[20000000] overflow-y-auto bg-black/70 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          tabIndex={-1}
-          style={infoOverlayStyle}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowInfo(false)
-            }
-          }}
-        >
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-          >
-            <div
-              ref={infoRef}
-              className={cn(
-                'nm-animate-modal w-full overflow-y-auto rounded-[1.5rem] border border-white/35 bg-[#070707] font-mono text-[var(--nm-text)] shadow-[0_28px_80px_rgba(0,0,0,0.6)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                isMobile ? 'max-w-full px-5 py-5' : 'max-w-[42rem] px-7 py-6',
+              {isMobile && (
+                <button
+                  onClick={(e) => {
+                    e.currentTarget.blur()
+                    cycleCameraView()
+                  }}
+                  className="nm-raised rounded-xl p-2.5 text-[var(--nm-text)]"
+                  aria-label={cameraViewLabels[settings.cameraView]}
+                >
+                  <Camera className="h-6 w-6 sm:h-5 sm:w-5" />
+                </button>
               )}
-              style={infoModalStyle}
-            >
-              <div className="space-y-7 text-sm leading-[1.9] text-[var(--nm-text-dim)]">
-                <section className="space-y-5">
-                  <p className="text-[1.8rem] leading-none tracking-[0.04em] text-[var(--nm-text)]">
-                    {displayBrandName}
-                    {' '}
-                    <a
-                      href="https://github.com/itsjaydesu/orbitone"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex translate-y-[0.1em] align-baseline text-[var(--nm-text-dim)] transition-colors hover:text-[var(--nm-text)]"
-                      aria-label="GitHub"
-                    >
-                      <GitHubMark className="h-[1.5625rem] w-[1.5625rem]" />
-                    </a>
-                    {' '}
-                    <span className="text-[var(--nm-text-dim)]">
-                      by
-                      {' '}
-                      <a
-                        href="https://x.com/itsjaydesu"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                      >
-                        @itsjaydesu
-                      </a>
-                    </span>
-                  </p>
-
-                  <div className="p-4 sm:p-5">
-                    <div className="space-y-4">
-                      {language === 'ja'
-                        ? (
-                            <>
-                              <p>
-                                <strong className="font-semibold text-[var(--nm-text)]">
-                                  {displayBrandName}
-                                </strong>
-                                は私の初めてのオープンソースプロジェクトです。MIDIファイルを、ミニマルで心地よいビジュアルのミュージックボックスに変えることを目指しています。
-                              </p>
-
-                              <p>
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  C
-                                </span>
-                                でカメラアングルの切り替え、
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  M
-                                </span>
-                                でMIDIロールを表示できます。
-                              </p>
-
-                              <p>
-                                MIDIファイルにはちょっとした懐かしさがあります。楽しんでもらえたらうれしいです。
-                              </p>
-
-                              <p>
-                                このプロジェクトは自由に使ってください。何か作ったら、ぜひ見せてください。改善のアイデアがあれば、プルリクエストを送ってもらえるとうれしいです！
-                              </p>
-                            </>
-                          )
-                        : (
-                            <>
-                              <p>
-                                <strong className="font-semibold text-[var(--nm-text)]">
-                                  {displayBrandName}
-                                </strong>
-                                {' '}
-                                is my first open source project. The goal is turning
-                                a MIDI file into a minimal and pleasantly visualized
-                                music box.
-                              </p>
-
-                              <p>
-                                Try pressing
-                                {' '}
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  C
-                                </span>
-                                {' '}
-                                for different camera angles and
-                                {' '}
-                                <span className="mx-1 inline-flex min-w-7 items-center justify-center rounded-sm border border-white/20 px-1.5 py-0 text-[11px] font-semibold tracking-[0.16em] text-[var(--nm-text)] uppercase">
-                                  M
-                                </span>
-                                {' '}
-                                for a MIDI roll.
-                              </p>
-
-                              <p>
-                                There&apos;s some nice nostalgia in the MIDI files,
-                                hope you enjoy.
-                              </p>
-
-                              <p>
-                                Please use this project for anything you like. If you
-                                make something with it, I&apos;d love to see it. If
-                                you have ideas on how to improve it, shoot me a pull
-                                request!
-                              </p>
-                            </>
-                          )}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {copy.keyboardShortcutsTitle}
-                  </h3>
-                  <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-                    {keyboardShortcuts.map(shortcut => (
-                      <div
-                        key={shortcut.keyLabel}
-                        className="flex items-baseline gap-4"
-                      >
-                        <span className="min-w-[4.75rem] shrink-0 text-[var(--nm-text)]">
-                          [
-                          {shortcut.keyLabel}
-                          ]
-                        </span>
-                        <span className="text-[13px] text-[var(--nm-text-dim)]">
-                          {shortcut.description}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {language === 'ja' ? 'クレジット' : 'Credits'}
-                  </h3>
-                  <div className="space-y-4 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
-                    {language === 'ja'
-                      ? (
-                          <>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://shtr-m.net/"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  shtr-m.net
-                                </a>
-                              </p>
-                              <p>
-                                日本の鉄道駅の発車メロディ（発メロ）のアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://bitmidi.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  BitMidi
-                                </a>
-                              </p>
-                              <p>
-                                ゲーム、映画、テレビなどのクラシックMIDIファイルのコミュニティアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://www.vgmusic.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  VGMusic
-                                </a>
-                              </p>
-                              <p>
-                                1996年から続くビデオゲーム音楽のMIDIアーカイブです。
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://magenta.tensorflow.org/datasets/maestro"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  MAESTRO Dataset
-                                </a>
-                              </p>
-                              <p>
-                                Google Magentaによる「MIDI and Audio Edited for
-                                Synchronous TRacks and
-                                Organization」データセットです。国際ピアノeコンペティションの演奏から収録された、ベロシティやペダル情報を含む高品質なピアノMIDI録音です。
-                              </p>
-                            </div>
-                          </>
-                        )
-                      : (
-                          <>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://shtr-m.net/"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  shtr-m.net
-                                </a>
-                              </p>
-                              <p>
-                                Japanese train station departure melodies (hassha
-                                melody) sourced from this railfan archive.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://bitmidi.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  BitMidi
-                                </a>
-                              </p>
-                              <p>
-                                A community archive of classic MIDI files spanning
-                                games, film, and television.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://www.vgmusic.com"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  VGMusic
-                                </a>
-                              </p>
-                              <p>
-                                A video game music MIDI archive running since 1996.
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[var(--nm-text)]">
-                                <a
-                                  href="https://magenta.tensorflow.org/datasets/maestro"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white"
-                                >
-                                  MAESTRO Dataset
-                                </a>
-                              </p>
-                              <p>
-                                The &quot;MIDI and Audio Edited for Synchronous TRacks
-                                and Organization&quot; dataset by Google Magenta.
-                                High-fidelity piano MIDI recordings captured from
-                                International Piano-e-Competition performances, with
-                                velocity and pedal data intact.
-                              </p>
-                            </div>
-                          </>
-                        )}
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-white/12 pt-5">
-                  <h3 className="text-base tracking-[0.08em] text-[var(--nm-text)]">
-                    {language === 'ja' ? '今後やりたいこと' : 'Things That Might Be Next'}
-                  </h3>
-                  <div className="space-y-2 text-xs leading-[1.8] text-[var(--nm-text-dim)]">
-                    {language === 'ja'
-                      ? (
-                          <ul className="list-inside list-disc space-y-1">
-                            <li>散らかっている部分のリファクタリング</li>
-                            <li>
-                              ピアノ以外の楽器を追加する（シンセ、ストリングスなど）
-                            </li>
-                            <li>
-                              本物のアコースティックピアノの音源を使った、よりオーガニックなサウンド
-                            </li>
-                            <li>マルチトラックMIDIのサポートとトラック別の可視化</li>
-                            <li>プレイリスト・キュー機能</li>
-                          </ul>
-                        )
-                      : (
-                          <ul className="list-inside list-disc space-y-1">
-                            <li>Some refactors to clean up some messy parts</li>
-                            <li>
-                              Additional instruments (synth, strings, etc.)
-                            </li>
-                            <li>
-                              Authentic organic piano using real acoustic samples
-                            </li>
-                            <li>
-                              Multi-track MIDI support with per-track visualization
-                            </li>
-                            <li>Playlist queue for continuous playback</li>
-                          </ul>
-                        )}
-                  </div>
-                </section>
-
-                <section className="flex items-center justify-center gap-5 border-t border-white/12 pt-5">
-                  <a
-                    href="https://github.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
-                    aria-label="GitHub"
-                    title="GitHub"
-                  >
-                    <GitHubMark className="h-8 w-8" />
-                  </a>
-                  <a
-                    href="https://itsjaydesu.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 overflow-hidden rounded-full border-2 border-white/20 bg-black/40 shadow-[0_8px_24px_rgba(0,0,0,0.4)] transition-opacity hover:opacity-80"
-                    aria-label={language === 'ja' ? 'サイト' : 'Website'}
-                    title={language === 'ja' ? 'サイト' : 'Website'}
-                  >
-                    <Image
-                      src="/jay-avatar.PNG"
-                      alt="Portrait of itsjaydesu"
-                      width={128}
-                      height={128}
-                      className="h-12 w-12 object-cover"
-                      priority
-                    />
-                  </a>
-                  <a
-                    href="https://x.com/itsjaydesu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--nm-text-dim)] transition-colors hover:text-white"
-                    aria-label="X"
-                    title="X"
-                  >
-                    <XMark className="h-8 w-8" />
-                  </a>
-                </section>
-              </div>
             </div>
+
+            <AnimatePresence>
+              {showSettings && (
+                <SettingsPanel
+                  panelRef={settingsRef}
+                  language={language}
+                  copy={{
+                    settings: copy.settings,
+                    tabSound: copy.tabSound,
+                    tabScene: copy.tabScene,
+                    tabExport: copy.tabExport,
+                    tabGeneral: copy.tabGeneral,
+                    instrument: copy.instrument,
+                    volume: copy.volume,
+                    cameraView: copy.cameraView,
+                    cameraAutoCycle: copy.cameraAutoCycle,
+                    midiRoll: copy.midiRoll,
+                    bottomTrackMeta: copy.bottomTrackMeta,
+                    fullScreen: copy.fullScreen,
+                    language: copy.language,
+                    resetDefaults: copy.resetDefaults,
+                    on: copy.show,
+                    off: copy.hide,
+                  }}
+                  isMobile={isMobile}
+                  isFullscreen={isFullscreen}
+                  onClose={() => {
+                    if (!isExportActive) {
+                      setShowSettings(false)
+                    }
+                  }}
+                  onToggleFullscreen={toggleFullscreen}
+                  instrumentId={settings.instrumentId}
+                  onInstrumentChange={id => updateSetting('instrumentId', id)}
+                  bpm={bpm}
+                  onBpmChange={setBpm}
+                  volumePercent={settings.volumePercent}
+                  onVolumeChange={value => updateSetting('volumePercent', value)}
+                  showMidiRoll={settings.showMidiRoll}
+                  onToggleMidiRoll={() =>
+                    updateSetting('showMidiRoll', !settings.showMidiRoll)}
+                  showBottomTrackMeta={settings.showBottomTrackMeta}
+                  onToggleBottomTrackMeta={() =>
+                    updateSetting(
+                      'showBottomTrackMeta',
+                      !settings.showBottomTrackMeta,
+                    )}
+                  cameraView={settings.cameraView}
+                  cameraViews={CAMERA_VIEWS}
+                  cameraViewLabels={cameraViewLabels}
+                  onCameraViewChange={view => updateSetting('cameraView', view)}
+                  autoCycleCamera={settings.autoCycleCamera}
+                  onToggleAutoCycle={() =>
+                    updateSetting('autoCycleCamera', !settings.autoCycleCamera)}
+                  languageOptions={LANGUAGE_OPTIONS}
+                  onLanguageChange={value =>
+                    startTransition(() => {
+                      setLanguage(value)
+                    })}
+                  onReset={resetSettings}
+                  showExportTab={isVideoExportClientEnabled}
+                  renderVideoExport={
+                    isVideoExportClientEnabled
+                      ? visible => (
+                        <VideoExportDevTools
+                          visible={visible}
+                          cameraPresets={cameraDraftPresets}
+                          copy={{
+                            exportButton: copy.exportButton,
+                            exportCameraCurrent: copy.exportCameraCurrent,
+                            exportCameraCycle: copy.exportCameraCycle,
+                            exportCameraMode: copy.exportCameraMode,
+                            exportFormat: copy.exportFormat,
+                            videoExport: copy.videoExport,
+                          }}
+                          currentCameraView={settings.cameraView}
+                          currentTrackTitle={currentTrackTitle}
+                          displayTrackSubtitle={displayTrackMeta.subtitle}
+                          displayTrackTitle={displayTrackMeta.title}
+                          exportCameraMode={exportCameraMode}
+                          exportFormat={exportFormat}
+                          exportSource={{
+                            notes,
+                            pedalEvents,
+                            playbackGain,
+                          }}
+                          exportSourceFileName={currentTrackFileName}
+                          exportTrackMeta={{
+                            enabled: settings.showBottomTrackMeta,
+                            subtitle: displayTrackMeta.subtitle,
+                            title: displayTrackMeta.title,
+                          }}
+                          instrumentId={settings.instrumentId}
+                          isAudioLoading={isAudioLoading}
+                          isPlaying={isPlaying}
+                          language={language}
+                          onExportActiveChange={setIsExportActive}
+                          onExportCameraModeChange={setExportCameraMode}
+                          onExportFormatChange={setExportFormat}
+                          onShowBottomTrackMetaChange={showBottomTrackMeta =>
+                            setSettings(current => ({
+                              ...current,
+                              showBottomTrackMeta,
+                            }))}
+                          showBottomTrackMeta={settings.showBottomTrackMeta}
+                          togglePlay={togglePlay}
+                          volumePercent={settings.volumePercent}
+                        />
+                      )
+                      : undefined
+                  }
+                />
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      )}
 
-      {showCameraLab && (
-        <div ref={cameraLabRef}>
-          <CameraLab
-            activeView={activeCameraView}
-            draftPose={activeCameraDraft}
-            isDirty={isActiveCameraDirty}
-            language={language}
-            onClose={() => setShowCameraLab(false)}
-            onPoseChange={pose => updateCameraDraft(activeCameraView, pose)}
-            onResetToDefault={resetActiveCameraView}
-            onRevert={revertActiveCameraView}
-            onSave={saveActiveCameraView}
-            onSelectView={view => updateSetting('cameraView', view)}
-          />
-        </div>
-      )}
-
-      <div
-        className={cn(
-          bottomChromeClass,
-          chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
-          'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
-        )}
-        inert={!chromeVisible}
-        style={timelineChromeStyle}
-      >
-        <input
-          type="range"
-          min={0}
-          max={duration || 100}
-          step={0.1}
-          value={currentTime}
-          onChange={handleSeek}
-          className="nm-seekbar"
+        <InfoModal
+          show={showInfo}
+          language={language}
+          copy={copy}
+          displayBrandName={displayBrandName}
+          keyboardShortcuts={keyboardShortcuts}
+          isMobile={isMobile}
+          reduceMotion={reduceMotion}
+          panelRef={infoRef}
+          onClose={() => setShowInfo(false)}
         />
-        <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-      </div>
 
-      <div
-        className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
-        inert={!chromeVisible}
-        style={playChromeStyle}
-      >
-        <button
-          onClick={(e) => {
-            handlePlaybackToggle()
-            e.currentTarget.blur()
-          }}
-          disabled={playbackButtonBusy}
-          aria-label={playbackButtonLabel}
-          className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
-        >
-          {playbackButtonIcon}
-        </button>
-      </div>
+        {showCameraLab && (
+          <div ref={cameraLabRef}>
+            <CameraLab
+              activeView={activeCameraView}
+              draftPose={activeCameraDraft}
+              isDirty={isActiveCameraDirty}
+              language={language}
+              onClose={() => setShowCameraLab(false)}
+              onPoseChange={pose => updateCameraDraft(activeCameraView, pose)}
+              onResetToDefault={resetActiveCameraView}
+              onRevert={revertActiveCameraView}
+              onSave={saveActiveCameraView}
+              onSelectView={view => updateSetting('cameraView', view)}
+            />
+          </div>
+        )}
 
-      {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
         <div
           className={cn(
-            'pointer-events-none absolute left-1/2 z-10 w-full max-w-[min(42rem,calc(100%-2rem))] -translate-x-1/2 px-4 text-center',
-            isMenuReady && 'transition-opacity duration-700 ease-out',
-            bottomTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+            bottomChromeClass,
+            chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
+            'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
           )}
-          aria-hidden={!bottomTrackMetaVisible}
-          style={bottomTrackMetaStyle}
+          inert={!chromeVisible}
+          style={timelineChromeStyle}
         >
+          <PlaybackTimeline
+            duration={duration}
+            getPlaybackTime={getPlaybackTime}
+            onSeek={seek}
+          />
+        </div>
+
+        <div
+          className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
+          inert={!chromeVisible}
+          style={playChromeStyle}
+        >
+          <button
+            onClick={(e) => {
+              handlePlaybackToggle()
+              e.currentTarget.blur()
+            }}
+            disabled={playbackButtonBusy}
+            aria-label={playbackButtonLabel}
+            className="nm-play pointer-events-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full text-[var(--nm-text)] disabled:opacity-50"
+          >
+            {playbackButtonIcon}
+          </button>
+        </div>
+
+        {(displayTrackMeta.title || displayTrackMeta.subtitle) && (
           <div
             className={cn(
-              'transition-opacity duration-150 ease-out motion-reduce:transition-none',
-              isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+              'pointer-events-none absolute left-1/2 z-10 w-full max-w-[min(42rem,calc(100%-2rem))] -translate-x-1/2 px-4 text-center',
+              isMenuReady && 'transition-opacity duration-700 ease-out',
+              bottomTrackMetaVisible ? 'opacity-100' : 'opacity-0',
             )}
+            aria-hidden={!bottomTrackMetaVisible}
+            style={bottomTrackMetaStyle}
           >
-            {displayTrackMeta.title && (
-              <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
-                {displayTrackMeta.title}
-              </div>
-            )}
-            {displayTrackMeta.subtitle && (
-              <div className="mt-1 text-[11px] font-medium whitespace-normal break-words leading-tight uppercase tracking-[0.2em] text-[var(--nm-text-faint)] sm:text-xs">
-                {displayTrackMeta.subtitle}
-              </div>
-            )}
+            <div
+              className={cn(
+                'transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                isTrackMetaVisible ? 'opacity-100' : 'opacity-0',
+              )}
+            >
+              {displayTrackMeta.title && (
+                <div className="text-sm font-medium whitespace-normal break-words leading-tight tracking-[0.08em] text-[var(--nm-text)] sm:text-base">
+                  {displayTrackMeta.title}
+                </div>
+              )}
+              {displayTrackMeta.subtitle && (
+                <div className="mt-1 type-overline whitespace-normal break-words leading-tight text-[var(--nm-text-faint)] sm:text-xs">
+                  {displayTrackMeta.subtitle}
+                </div>
+              )}
+            </div>
           </div>
+        )}
+
+        <div className="h-full w-full">
+          <Visualizer
+            cameraPresets={cameraDraftPresets}
+            isMobileView={isMobile}
+            isCameraEditing={showCameraLab}
+            notes={shouldHoldInitialVisualizerNotes ? [] : notes}
+            onCameraPoseChange={handleVisualizerCameraPoseChange}
+            settings={settings}
+            audioLevelRef={audioLevelRef}
+          />
         </div>
-      )}
 
-      <div className="visualizer-intro h-full w-full">
-        <Visualizer
-          cameraPresets={cameraDraftPresets}
-          isMobileView={isMobile}
-          isCameraEditing={showCameraLab}
-          notes={shouldHoldInitialVisualizerNotes ? [] : notes}
-          onCameraPoseChange={handleVisualizerCameraPoseChange}
-          settings={settings}
-        />
-      </div>
+        <Toast toast={toast} />
 
-      <NoteCursor />
+        <NoteCursor />
 
-      {showFullscreenHint && !isMobile && (
-        <div className="pointer-events-none fixed inset-0 z-[99999] flex items-center justify-center">
-          <div className="nm-fullscreen-hint rounded-2xl border border-white/10 bg-black/60 px-8 py-5 text-lg font-medium tracking-wide text-white/80 shadow-lg backdrop-blur-md">
-            {copy.fullScreenHint}
+        {showFullscreenHint && !isMobile && (
+          <div className="pointer-events-none fixed inset-0 z-[75] flex items-center justify-center">
+            <div className="nm-fullscreen-hint rounded-2xl border border-white/10 bg-black/60 px-8 py-5 text-lg font-medium tracking-wide text-white/80 shadow-lg backdrop-blur-md">
+              {copy.fullScreenHint}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </LazyMotion>
     </main>
   )
 }

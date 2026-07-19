@@ -1,0 +1,485 @@
+'use client'
+
+import type { LucideIcon } from 'lucide-react'
+import type { ReactNode, Ref } from 'react'
+import type { AppLanguage, CameraView } from '@/lib/camera-presets'
+import type { InstrumentId } from '@/lib/instruments'
+import { AudioWaveform, Expand, Minimize, Piano, Sparkles, Zap } from 'lucide-react'
+import { m, useReducedMotion } from 'motion/react'
+import { useState } from 'react'
+import { getInstrument, INSTRUMENT_LIST } from '@/lib/instruments'
+import { cn } from '@/lib/utils'
+
+export interface SettingsPanelCopy {
+  settings: string
+  tabSound: string
+  tabScene: string
+  tabExport: string
+  tabGeneral: string
+  instrument: string
+  volume: string
+  cameraView: string
+  cameraAutoCycle: string
+  midiRoll: string
+  bottomTrackMeta: string
+  fullScreen: string
+  language: string
+  resetDefaults: string
+  on: string
+  off: string
+}
+
+type SettingsTab = 'sound' | 'scene' | 'export' | 'general'
+
+const INSTRUMENT_ICONS: Record<InstrumentId, LucideIcon> = {
+  'grand-piano': Piano,
+  'analog-pad': AudioWaveform,
+  'square-lead': Zap,
+  'glass-bells': Sparkles,
+}
+
+interface SettingsPanelProps {
+  panelRef: Ref<HTMLDivElement>
+  language: AppLanguage
+  copy: SettingsPanelCopy
+  isMobile: boolean
+  isFullscreen: boolean
+  onClose: () => void
+  onToggleFullscreen: () => void
+  // Sound
+  instrumentId: InstrumentId
+  onInstrumentChange: (id: InstrumentId) => void
+  bpm: number
+  onBpmChange: (value: number) => void
+  volumePercent: number
+  onVolumeChange: (value: number) => void
+  // Scene
+  showMidiRoll: boolean
+  onToggleMidiRoll: () => void
+  showBottomTrackMeta: boolean
+  onToggleBottomTrackMeta: () => void
+  cameraView: CameraView
+  cameraViews: readonly CameraView[]
+  cameraViewLabels: Record<CameraView, string>
+  onCameraViewChange: (view: CameraView) => void
+  autoCycleCamera: boolean
+  onToggleAutoCycle: () => void
+  // General
+  languageOptions: ReadonlyArray<{ value: AppLanguage, label: string }>
+  onLanguageChange: (language: AppLanguage) => void
+  onReset: () => void
+  // Export
+  showExportTab: boolean
+  renderVideoExport?: (visible: boolean) => ReactNode
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="type-overline text-[var(--nm-text-faint)]">
+      {children}
+    </span>
+  )
+}
+
+function ToggleRow({
+  label,
+  active,
+  onToggle,
+  onLabel,
+  offLabel,
+}: {
+  label: string
+  active: boolean
+  onToggle: () => void
+  onLabel: string
+  offLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        onToggle()
+        e.currentTarget.blur()
+      }}
+      className={cn(
+        'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all',
+        active ? 'nm-toggle-active' : 'nm-raised text-[var(--nm-text)]',
+      )}
+    >
+      <span>{label}</span>
+      <span
+        className={cn(
+          'rounded-md px-2 py-0.5 type-overline',
+          active ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
+        )}
+      >
+        {active ? onLabel : offLabel}
+      </span>
+    </button>
+  )
+}
+
+function SliderRow({
+  label,
+  value,
+  valueLabel,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string
+  value: number
+  valueLabel: string
+  min: number
+  max: number
+  step: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between text-xs text-[var(--nm-text-dim)]">
+        <span>{label}</span>
+        <span>{valueLabel}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number.parseInt(e.target.value, 10))}
+        className="nm-range"
+      />
+    </div>
+  )
+}
+
+function SegmentedControl<T extends string>({
+  options,
+  value,
+  columns,
+  onChange,
+}: {
+  options: ReadonlyArray<{ value: T, label: string }>
+  value: T
+  columns: 2 | 3
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className={cn('grid gap-2', columns === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+      {options.map(option => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={(e) => {
+            onChange(option.value)
+            e.currentTarget.blur()
+          }}
+          className={cn(
+            'rounded-xl px-2 py-1.5 text-xs font-medium transition-all',
+            value === option.value
+              ? 'nm-toggle-active'
+              : 'nm-raised text-[var(--nm-text-dim)]',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function InstrumentPicker({
+  instrumentId,
+  language,
+  onChange,
+}: {
+  instrumentId: InstrumentId
+  language: AppLanguage
+  onChange: (id: InstrumentId) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {INSTRUMENT_LIST.map((instrument) => {
+        const Icon = INSTRUMENT_ICONS[instrument.id]
+        const active = instrument.id === instrumentId
+
+        return (
+          <button
+            key={instrument.id}
+            type="button"
+            title={instrument.blurb[language]}
+            onClick={(e) => {
+              onChange(instrument.id)
+              e.currentTarget.blur()
+            }}
+            className={cn(
+              'flex flex-col items-start gap-1.5 rounded-xl px-3 py-2.5 text-left transition-all',
+              active ? 'nm-toggle-active' : 'nm-raised text-[var(--nm-text)]',
+            )}
+          >
+            <Icon className="h-[1.15rem] w-[1.15rem]" />
+            <span className="text-xs font-medium leading-tight">
+              {instrument.label[language]}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function SettingsPanel({
+  panelRef,
+  language,
+  copy,
+  isMobile,
+  isFullscreen,
+  onClose,
+  onToggleFullscreen,
+  instrumentId,
+  onInstrumentChange,
+  bpm,
+  onBpmChange,
+  volumePercent,
+  onVolumeChange,
+  showMidiRoll,
+  onToggleMidiRoll,
+  showBottomTrackMeta,
+  onToggleBottomTrackMeta,
+  cameraView,
+  cameraViews,
+  cameraViewLabels,
+  onCameraViewChange,
+  autoCycleCamera,
+  onToggleAutoCycle,
+  languageOptions,
+  onLanguageChange,
+  onReset,
+  showExportTab,
+  renderVideoExport,
+}: SettingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('sound')
+
+  const tabs: ReadonlyArray<{ id: SettingsTab, label: string }> = [
+    { id: 'sound', label: copy.tabSound },
+    { id: 'scene', label: copy.tabScene },
+    ...(showExportTab ? [{ id: 'export' as const, label: copy.tabExport }] : []),
+    { id: 'general', label: copy.tabGeneral },
+  ]
+
+  const activeInstrument = getInstrument(instrumentId)
+  const reduceMotion = useReducedMotion() ?? false
+
+  return (
+    <>
+      {isMobile && (
+        <m.button
+          key="settings-scrim"
+          type="button"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          className="fixed inset-0 z-40 bg-black/65"
+          onClick={onClose}
+          aria-label={copy.settings}
+        />
+      )}
+      <m.div
+        key="settings-panel"
+        ref={panelRef}
+        role="dialog"
+        aria-label={copy.settings}
+        initial={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+        animate={isMobile ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+        exit={isMobile ? { y: '104%' } : { opacity: 0, y: -6, scale: 0.97 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : isMobile
+              ? { duration: 0.34, ease: [0.32, 0.72, 0, 1] }
+              : { duration: 0.2, ease: 'easeOut' }
+        }
+        className={cn(
+          'nm-card pointer-events-auto z-50 flex flex-col gap-3 text-[var(--nm-text)]',
+          isMobile
+            ? 'fixed inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[1.6rem] p-3'
+            : 'absolute top-12 right-0 max-h-[min(78vh,44rem)] w-80 rounded-xl p-4',
+        )}
+        style={
+          isMobile
+            ? {
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              }
+            : undefined
+        }
+      >
+        {isMobile && <div className="nm-sheet-handle" />}
+        <div className="nm-well nm-tabs-rail flex gap-1 rounded-xl p-1">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={(e) => {
+                setActiveTab(tab.id)
+                e.currentTarget.blur()
+              }}
+              aria-pressed={activeTab === tab.id}
+              className={cn(
+                'min-h-10 flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
+                activeTab === tab.id
+                  ? 'nm-toggle-active'
+                  : 'text-[var(--nm-text-dim)] hover:text-[var(--nm-text)]',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="nm-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+          {/* ── Sound ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'sound' ? 'flex' : 'hidden')}>
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.instrument}</FieldLabel>
+              <InstrumentPicker
+                instrumentId={instrumentId}
+                language={language}
+                onChange={onInstrumentChange}
+              />
+              <p className="text-[11px] leading-snug text-[var(--nm-text-faint)]">
+                {activeInstrument.blurb[language]}
+              </p>
+            </div>
+
+            <SliderRow
+              label="BPM"
+              value={bpm}
+              valueLabel={String(bpm)}
+              min={30}
+              max={300}
+              step={1}
+              onChange={onBpmChange}
+            />
+
+            <SliderRow
+              label={copy.volume}
+              value={volumePercent}
+              valueLabel={`${volumePercent}%`}
+              min={0}
+              max={150}
+              step={1}
+              onChange={onVolumeChange}
+            />
+          </div>
+
+          {/* ── Scene ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'scene' ? 'flex' : 'hidden')}>
+            {!isMobile && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  onToggleFullscreen()
+                  e.currentTarget.blur()
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                  isFullscreen ? 'nm-toggle-active' : 'nm-raised text-[var(--nm-text)]',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {isFullscreen
+                    ? <Minimize className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />
+                    : <Expand className="h-[1.2rem] w-[1.2rem] sm:h-4 sm:w-4" />}
+                  {copy.fullScreen}
+                </span>
+                <kbd
+                  className={cn(
+                    'rounded-md px-2 py-0.5 type-overline',
+                    isFullscreen ? 'text-[var(--nm-bg)]' : 'text-[var(--nm-text-dim)]',
+                  )}
+                >
+                  F
+                </kbd>
+              </button>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <ToggleRow
+                label={copy.midiRoll}
+                active={showMidiRoll}
+                onToggle={onToggleMidiRoll}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+              <ToggleRow
+                label={copy.bottomTrackMeta}
+                active={showBottomTrackMeta}
+                onToggle={onToggleBottomTrackMeta}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.cameraView}</FieldLabel>
+              <SegmentedControl
+                options={cameraViews.map(view => ({
+                  value: view,
+                  label: cameraViewLabels[view],
+                }))}
+                value={cameraView}
+                columns={3}
+                onChange={onCameraViewChange}
+              />
+              <ToggleRow
+                label={copy.cameraAutoCycle}
+                active={autoCycleCamera}
+                onToggle={onToggleAutoCycle}
+                onLabel={copy.on}
+                offLabel={copy.off}
+              />
+            </div>
+          </div>
+
+          {/*
+        Export tab: rendered as a direct flex child so its controls line up with
+        the panel's gaps when active. VideoExportDevTools hides only its own
+        controls off-tab (via `visible`), keeping the offscreen capture rig and
+        overlay mounted so exports are never interrupted by a tab switch.
+      */}
+          {showExportTab && renderVideoExport?.(activeTab === 'export')}
+
+          {/* ── General ── */}
+          <div className={cn('flex-col gap-3', activeTab === 'general' ? 'flex' : 'hidden')}>
+            <div className="flex flex-col gap-2">
+              <FieldLabel>{copy.language}</FieldLabel>
+              <SegmentedControl
+                options={languageOptions.map(option => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                value={language}
+                columns={2}
+                onChange={onLanguageChange}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                onReset()
+                e.currentTarget.blur()
+              }}
+              className="nm-destructive min-h-10 w-full rounded-xl py-2 text-sm font-medium"
+            >
+              {copy.resetDefaults}
+            </button>
+          </div>
+        </div>
+      </m.div>
+    </>
+  )
+}

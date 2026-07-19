@@ -7,7 +7,6 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises'
-import process from 'node:process'
 import {
   basename,
   dirname,
@@ -15,6 +14,7 @@ import {
   relative,
   resolve,
 } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
@@ -130,7 +130,7 @@ async function collectMidiFiles(rootDirectory) {
       continue
     }
 
-    if (!/\.(mid|midi)$/i.test(entry.name)) {
+    if (!/\.(?:mid|midi)$/i.test(entry.name)) {
       continue
     }
 
@@ -141,7 +141,7 @@ async function collectMidiFiles(rootDirectory) {
 }
 
 function formatLoadedTitle(fileName) {
-  const stem = fileName.replace(/\.(mid|midi)$/i, '').trim()
+  const stem = fileName.replace(/\.(?:mid|midi)$/i, '').trim()
 
   if (stem.length === 0) {
     return 'Untitled MIDI'
@@ -190,7 +190,7 @@ function formatBytes(byteCount) {
 
 function resolveOutputPath(outputRoot, midiRoot, midiPath) {
   const relativePath = relative(midiRoot, midiPath)
-  return join(outputRoot, relativePath.replace(/\.(mid|midi)$/i, '.mp4'))
+  return join(outputRoot, relativePath.replace(/\.(?:mid|midi)$/i, '.mp4'))
 }
 
 function resolveChromeExecutable(explicitPath) {
@@ -277,7 +277,7 @@ async function waitForAutomationReady(page) {
 }
 
 async function waitForMidiLoaded(page, expectedTitle) {
-  await page.waitForFunction(title => {
+  await page.waitForFunction((title) => {
     const state = window.__orbitoneAutomation?.getState()
 
     return Boolean(
@@ -318,7 +318,11 @@ async function waitForDownload(page, downloadPromise, relativeMidiPath) {
       resolvedError = error
     })
 
-  while (!completed) {
+  for (;;) {
+    if (completed) {
+      break
+    }
+
     await delay(DEFAULT_PROGRESS_POLL_MS)
 
     if (completed) {

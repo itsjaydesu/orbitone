@@ -20,7 +20,6 @@ export interface ExportTimeline {
   audioDurationSeconds: number
   contentEndSeconds: number
   finalFadeStartSeconds: number
-  firstNoteTimeSeconds: number
   introSettleSeconds: number
   playbackStartSeconds: number
   playbackEndSeconds: number
@@ -123,7 +122,7 @@ function getTransitionSafeFadeStartSeconds(
   const cycleOffset
     = ((contentEndSeconds % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
       + EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS)
-      % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
+    % EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS
 
   if (cycleOffset <= latestFadeStartOffset + EXPORT_FLOAT_EPSILON) {
     return contentEndSeconds
@@ -143,7 +142,6 @@ export function createExportTimeline(
   height: number = EXPORT_HEIGHT,
 ): ExportTimeline {
   const audioDurationSeconds = getExportAudioDurationSeconds(notes)
-  const firstNoteTimeSeconds = notes.length > 0 ? Math.max(0, notes[0].time) : 0
   const introSettleSeconds = getVisualizerIntroSettleSeconds()
   const playbackStartSeconds = Math.max(
     introSettleSeconds - EXPORT_PLAYBACK_ADVANCE_SECONDS,
@@ -167,7 +165,6 @@ export function createExportTimeline(
     audioDurationSeconds,
     contentEndSeconds,
     finalFadeStartSeconds,
-    firstNoteTimeSeconds,
     introSettleSeconds,
     playbackStartSeconds,
     playbackEndSeconds,
@@ -300,7 +297,7 @@ function slugifyExportFileStem(fileName: string) {
   const stem = fileName
     .replace(/\.[^/.]+$/u, '')
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replace(/[\u0300-\u036F]/gu, '')
     .replace(/['’]/gu, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, '-')

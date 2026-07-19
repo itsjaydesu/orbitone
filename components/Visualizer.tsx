@@ -11,8 +11,10 @@ import type { ExportCameraMode } from '@/lib/export'
 import type { NoteEvent } from '@/lib/music'
 import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
+import { BloomEffect } from 'postprocessing'
 import {
+  memo,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -20,8 +22,8 @@ import {
   useState,
 } from 'react'
 import * as THREE from 'three'
-import * as Tone from 'tone'
 import { getExportCameraTransitionState } from '@/lib/export'
+import { readTransportSeconds } from '@/lib/transport-time'
 import {
   INTRO_CAMERA_DELAY,
   INTRO_CAMERA_DURATION,
@@ -113,21 +115,19 @@ const MOBILE_CAMERA_FOV_OFFSETS: Record<CameraView, number> = {
   orbit: 3,
   zenith: 2,
 }
+// Small positive values raise the composition just enough to clear the
+// bottom-anchored transport controls without stranding dead space below.
 const MOBILE_CAMERA_TARGET_Y_SHIFTS: Record<CameraView, number> = {
-  default: 3.0,
-  front: -3,
-  side: -3,
-  vortex: 3.0,
-  orbit: -3,
-  zenith: 3.0,
+  default: 1.2,
+  front: -1,
+  side: -1,
+  vortex: 1.2,
+  orbit: -1,
+  zenith: 1.0,
 }
 
 const noteGeo = new THREE.CircleGeometry(0.15, 32)
 const boxGeo = new THREE.BoxGeometry(1, 1, 1)
-const MIDI_ROLL_ACTIVE_COLOR = new THREE.Color(0xFFFFFF)
-const MIDI_ROLL_IDLE_COLOR = new THREE.Color(0x888888)
-const MIDI_ROLL_ACTIVE_EMISSIVE = new THREE.Color(0xFFFFFF)
-const MIDI_ROLL_IDLE_EMISSIVE = new THREE.Color(0x444444)
 
 type IntroClockRef = MutableRefObject<number | null>
 type OrbitControlsRef = RefObject<ComponentRef<typeof OrbitControls> | null>
@@ -233,7 +233,7 @@ function getResolvedTransportTime(
     return frozenTime
   }
 
-  return timeline?.transportTime ?? Tone.Transport.seconds
+  return timeline?.transportTime ?? readTransportSeconds()
 }
 
 function getIntroProgress(clockTime: number, introStartRef: IntroClockRef, delay: number, duration: number) {
@@ -575,11 +575,13 @@ function StaffRing({
   radius,
   index,
   introStartRef,
+  energyRef,
   timeline,
 }: {
   radius: number
   index: number
   introStartRef: IntroClockRef
+  energyRef: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   const geometry = useMemo(() => createCircularLineGeometry(radius), [radius])
@@ -626,8 +628,10 @@ function StaffRing({
     geometry.setDrawRange(0, drawCount)
     ringRef.current.scale.setScalar(0.965 + progress * 0.035)
     ringRef.current.position.z = (1 - progress) * -0.75;
+    // Rings breathe with the music: the smoothed master level lifts their
+    // luminance so the whole staff glows on loud passages.
     (ringRef.current.material as THREE.LineBasicMaterial).opacity
-      = 0.08 + progress * 0.18
+      = (0.08 + progress * 0.18) * (1 + energyRef.current * 0.7)
   })
 
   return <primitive object={line} ref={ringRef} />
@@ -635,9 +639,11 @@ function StaffRing({
 
 function Staff({
   introStartRef,
+  energyRef,
   timeline,
 }: {
   introStartRef: IntroClockRef
+  energyRef: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   return (
@@ -648,6 +654,7 @@ function Staff({
           radius={radius}
           index={index}
           introStartRef={introStartRef}
+          energyRef={energyRef}
           timeline={timeline}
         />
       ))}
@@ -833,13 +840,23 @@ function InstancedNotes({
   )
 }
 
-function MidiRollNote({
+// ── Instanced MIDI roll ──
+// Mirrors the InstancedNotes approach: every roll note in a layer is one
+// instance of a single box mesh with brightness (lighting + emissive glow +
+// opacity) composited into the per-instance grayscale color over additive
+// blending — one draw call and one useFrame per layer instead of a mesh,
+// a MeshStandardMaterial, and a frame callback per note.
+const MIDI_ROLL_INSTANCE_CAPACITY = 640
+const MIDI_ROLL_ACTIVE_BASE = 0.5
+const MIDI_ROLL_IDLE_BASE = 0.27
+const MIDI_ROLL_ACTIVE_EMISSIVE_LUMA = 1
+const MIDI_ROLL_IDLE_EMISSIVE_LUMA = 0.27
+
+function InstancedMidiRoll({
   isFlatView,
-  note,
+  notes,
   speed,
   introStartRef,
-  introDelay,
-  introDuration = INTRO_NOTE_DURATION,
   fadePhase = 'steady',
   crossfadeStartClock = 0,
   frozenTime,
@@ -850,11 +867,9 @@ function MidiRollNote({
   timeline,
 }: {
   isFlatView: boolean
-  note: NoteEvent
+  notes: NoteEvent[]
   speed: number
   introStartRef: IntroClockRef
-  introDelay: number
-  introDuration?: number
   fadePhase?: FadePhase
   crossfadeStartClock?: number
   frozenTime?: number
@@ -864,71 +879,51 @@ function MidiRollNote({
   layerFadeStartClock?: number
   timeline?: VisualizerRenderTimeline
 }) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const matRef = useRef<THREE.MeshStandardMaterial>(null)
+  const meshRef = useRef<THREE.InstancedMesh>(null)
+  const material = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: 0xFFFFFF,
+        transparent: true,
+        depthWrite: false,
+        depthTest: !isFlatView,
+        blending: THREE.AdditiveBlending,
+      }),
+    [isFlatView],
+  )
+  const scratch = useMemo(
+    () => ({
+      matrix: new THREE.Matrix4(),
+      position: new THREE.Vector3(),
+      quaternion: new THREE.Quaternion(),
+      scale: new THREE.Vector3(),
+      color: new THREE.Color(),
+    }),
+    [],
+  )
 
-  const x = ((note.midi - 60) / 20) * 6
-  const length = note.duration * speed
+  useEffect(() => {
+    return () => {
+      material.dispose()
+    }
+  }, [material])
+
+  useLayoutEffect(() => {
+    if (meshRef.current) {
+      meshRef.current.count = 0
+    }
+  }, [])
 
   useFrame(({ clock }) => {
-    if (!meshRef.current || !matRef.current) {
+    const mesh = meshRef.current
+    if (!mesh) {
       return
     }
 
     const currentTime = getResolvedTransportTime(timeline, frozenTime)
     const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
+    const count = Math.min(notes.length, MIDI_ROLL_INSTANCE_CAPACITY)
 
-    let displayProgress: number
-    if (fadePhase === 'exiting') {
-      displayProgress
-        = 1
-          - smootherStep(
-            clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
-          )
-    }
-    else if (fadePhase === 'entering') {
-      displayProgress = smootherStep(
-        clamp01(
-          (elapsed - crossfadeStartClock - introDelay)
-          / CROSSFADE_ENTER_DURATION,
-        ),
-      )
-    }
-    else {
-      displayProgress = getIntroProgress(
-        elapsed,
-        introStartRef,
-        introDelay,
-        introDuration,
-      )
-    }
-
-    const timeDiff = note.time - currentTime
-    const z = -(timeDiff + note.duration / 2) * speed
-    const transitionBackShift = (1 - displayProgress) * -0.55
-
-    if (isFlatView) {
-      meshRef.current.position.set(x, -z + transitionBackShift, 0)
-      meshRef.current.renderOrder = 5
-      meshRef.current.scale.set(
-        0.2 + displayProgress * 0.1,
-        length * (0.42 + displayProgress * 0.58),
-        0.1,
-      )
-    }
-    else {
-      meshRef.current.position.set(x, transitionBackShift, z)
-      meshRef.current.renderOrder = 6
-      meshRef.current.scale.set(
-        0.15 + displayProgress * 0.15,
-        0.04 + displayProgress * 0.06,
-        length * (0.42 + displayProgress * 0.58),
-      )
-    }
-
-    const distance = Math.abs(z)
-    const hasPlayed = currentTime >= note.time
-    const playedFadeOpacity = getPlayedMidiRollFadeOpacity(currentTime, note)
     let resolvedLayerOpacity = layerOpacity
     if (layerFadePhase === 'exiting' && layerFadeDuration) {
       resolvedLayerOpacity *= 1
@@ -942,43 +937,107 @@ function MidiRollNote({
       )
     }
 
-    const opacity
-      = Math.max(0, 1 - distance / 60)
-        * playedFadeOpacity
-        * displayProgress
-        * resolvedLayerOpacity
+    for (let i = 0; i < count; i += 1) {
+      const note = notes[i]
+      const introDelay
+        = fadePhase === 'entering'
+          ? getCrossfadeEnterDelay(i)
+          : INTRO_NOTE_APPEAR_DELAY
+            + INTRO_NOTE_BASE_DELAY
+            + Math.min(i, 18) * 0.016
 
-    matRef.current.opacity = opacity
+      let displayProgress: number
+      if (fadePhase === 'exiting') {
+        displayProgress
+          = 1
+            - smootherStep(
+              clamp01((elapsed - crossfadeStartClock) / CROSSFADE_EXIT_DURATION),
+            )
+      }
+      else if (fadePhase === 'entering') {
+        displayProgress = smootherStep(
+          clamp01(
+            (elapsed - crossfadeStartClock - introDelay)
+            / CROSSFADE_ENTER_DURATION,
+          ),
+        )
+      }
+      else {
+        displayProgress = getIntroProgress(
+          elapsed,
+          introStartRef,
+          introDelay,
+          0.72,
+        )
+      }
 
-    matRef.current.color.copy(
-      hasPlayed ? MIDI_ROLL_ACTIVE_COLOR : MIDI_ROLL_IDLE_COLOR,
-    )
-    matRef.current.emissive.copy(
-      hasPlayed ? MIDI_ROLL_ACTIVE_EMISSIVE : MIDI_ROLL_IDLE_EMISSIVE,
-    )
+      const x = ((note.midi - 60) / 20) * 6
+      const length = note.duration * speed
+      const timeDiff = note.time - currentTime
+      const z = -(timeDiff + note.duration / 2) * speed
+      const transitionBackShift = (1 - displayProgress) * -0.55
 
-    matRef.current.emissiveIntensity = getPlayedGlowIntensity({
-      duration: note.duration,
-      idleGlow: 0.22,
-      opacity,
-      peakGlow: 1.25 + note.velocity * 0.9,
-      sustainGlow: 0.42 + note.velocity * 0.28,
-      timeDiff: currentTime - note.time,
-    })
+      if (isFlatView) {
+        scratch.position.set(x, -z + transitionBackShift, 0)
+        scratch.scale.set(
+          0.2 + displayProgress * 0.1,
+          Math.max(length * (0.42 + displayProgress * 0.58), 0.0001),
+          0.1,
+        )
+      }
+      else {
+        scratch.position.set(x, transitionBackShift, z)
+        scratch.scale.set(
+          0.15 + displayProgress * 0.15,
+          0.04 + displayProgress * 0.06,
+          Math.max(length * (0.42 + displayProgress * 0.58), 0.0001),
+        )
+      }
+
+      const distance = Math.abs(z)
+      const hasPlayed = currentTime >= note.time
+      const playedFadeOpacity = getPlayedMidiRollFadeOpacity(currentTime, note)
+      const opacity
+        = Math.max(0, 1 - distance / 60)
+          * playedFadeOpacity
+          * displayProgress
+          * resolvedLayerOpacity
+
+      const emissiveIntensity = getPlayedGlowIntensity({
+        duration: note.duration,
+        idleGlow: 0.22,
+        opacity: 1,
+        peakGlow: 1.25 + note.velocity * 0.9,
+        sustainGlow: 0.42 + note.velocity * 0.28,
+        timeDiff: currentTime - note.time,
+      })
+      const base = hasPlayed ? MIDI_ROLL_ACTIVE_BASE : MIDI_ROLL_IDLE_BASE
+      const emissiveLuma = hasPlayed
+        ? MIDI_ROLL_ACTIVE_EMISSIVE_LUMA
+        : MIDI_ROLL_IDLE_EMISSIVE_LUMA
+      const brightness
+        = (base + emissiveLuma * emissiveIntensity) * opacity
+
+      scratch.matrix.compose(scratch.position, scratch.quaternion, scratch.scale)
+      mesh.setMatrixAt(i, scratch.matrix)
+      scratch.color.setScalar(Math.max(brightness, 0))
+      mesh.setColorAt(i, scratch.color)
+    }
+
+    mesh.count = count
+    mesh.instanceMatrix.needsUpdate = true
+    if (mesh.instanceColor) {
+      mesh.instanceColor.needsUpdate = true
+    }
   })
 
   return (
-    <mesh ref={meshRef} geometry={boxGeo}>
-      <meshStandardMaterial
-        ref={matRef}
-        depthTest={!isFlatView}
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-1}
-        transparent
-        opacity={0}
-      />
-    </mesh>
+    <instancedMesh
+      ref={meshRef}
+      args={[boxGeo, material, MIDI_ROLL_INSTANCE_CAPACITY]}
+      frustumCulled={false}
+      renderOrder={isFlatView ? 5 : 6}
+    />
   )
 }
 
@@ -1044,31 +1103,20 @@ function MidiRoll({
       rotation={rotation}
       scale={isFlatView ? [MIDI_ROLL_FLAT_VIEW_SCALE, MIDI_ROLL_FLAT_VIEW_SCALE, 1] : undefined}
     >
-      {rollNotes.map((note, index) => (
-        <MidiRollNote
-          key={`roll-${note.id}`}
-          isFlatView={isFlatView}
-          note={note}
-          speed={speed}
-          introStartRef={introStartRef}
-          introDelay={
-            fadePhase === 'entering'
-              ? getCrossfadeEnterDelay(index)
-              : INTRO_NOTE_APPEAR_DELAY
-                + INTRO_NOTE_BASE_DELAY
-                + Math.min(index, 18) * 0.016
-          }
-          introDuration={fadePhase === 'steady' ? 0.72 : undefined}
-          fadePhase={fadePhase}
-          crossfadeStartClock={crossfadeStartClock}
-          frozenTime={frozenTime}
-          layerOpacity={layerOpacity}
-          layerFadeDuration={layerFadeDuration}
-          layerFadePhase={layerFadePhase}
-          layerFadeStartClock={layerFadeStartClock}
-          timeline={timeline}
-        />
-      ))}
+      <InstancedMidiRoll
+        isFlatView={isFlatView}
+        notes={rollNotes}
+        speed={speed}
+        introStartRef={introStartRef}
+        fadePhase={fadePhase}
+        crossfadeStartClock={crossfadeStartClock}
+        frozenTime={frozenTime}
+        layerOpacity={layerOpacity}
+        layerFadeDuration={layerFadeDuration}
+        layerFadePhase={layerFadePhase}
+        layerFadeStartClock={layerFadeStartClock}
+        timeline={timeline}
+      />
     </group>
   )
 }
@@ -1225,6 +1273,7 @@ function CameraController({
   const lookAtTarget = useRef(new THREE.Vector3(0, 0, 0))
   const targetPos = useRef(new THREE.Vector3())
   const targetLookAt = useRef(new THREE.Vector3())
+  const orbitScratch = useRef(new THREE.Vector3())
   const orbitStartTime = useRef<number | null>(null)
   const prevCameraView = useRef(cameraView)
   const activePose = cameraPresets[cameraView]
@@ -1235,6 +1284,10 @@ function CameraController({
         ? activePose
         : getResponsiveCameraPose(activePose, cameraView, isMobileView)
   const activePoseSignature = poseToSignature(activePose)
+  const introFrontPose = useMemo(
+    () => getResponsiveCameraPose(cameraPresets.front, 'front', isMobileView),
+    [cameraPresets.front, isMobileView],
+  )
 
   useEffect(() => {
     cameraRef.current = rawCamera as THREE.PerspectiveCamera
@@ -1326,18 +1379,18 @@ function CameraController({
       return
     }
 
-    const basePosition = vectorFromCameraVector(effectivePose.position)
-    const baseTarget = vectorFromCameraVector(effectivePose.target)
-
-    targetPos.current.copy(basePosition)
-    targetLookAt.current.copy(baseTarget)
+    targetPos.current.set(
+      effectivePose.position.x,
+      effectivePose.position.y,
+      effectivePose.position.z,
+    )
+    targetLookAt.current.set(
+      effectivePose.target.x,
+      effectivePose.target.y,
+      effectivePose.target.z,
+    )
 
     if (cameraView === 'default') {
-      const frontPose = getResponsiveCameraPose(
-        cameraPresets.front,
-        'front',
-        isMobileView,
-      )
       const progress = getIntroProgress(
         globalTime,
         introStartRef,
@@ -1345,22 +1398,26 @@ function CameraController({
         INTRO_CAMERA_DURATION,
       )
 
-      targetPos.current.lerpVectors(
-        vectorFromCameraVector(frontPose.position),
-        basePosition,
-        progress,
+      targetPos.current.set(
+        THREE.MathUtils.lerp(introFrontPose.position.x, effectivePose.position.x, progress),
+        THREE.MathUtils.lerp(introFrontPose.position.y, effectivePose.position.y, progress),
+        THREE.MathUtils.lerp(introFrontPose.position.z, effectivePose.position.z, progress),
       )
-      targetLookAt.current.lerpVectors(
-        vectorFromCameraVector(frontPose.target),
-        baseTarget,
-        progress,
+      targetLookAt.current.set(
+        THREE.MathUtils.lerp(introFrontPose.target.x, effectivePose.target.x, progress),
+        THREE.MathUtils.lerp(introFrontPose.target.y, effectivePose.target.y, progress),
+        THREE.MathUtils.lerp(introFrontPose.target.z, effectivePose.target.z, progress),
       )
     }
     else if (cameraView === 'orbit') {
       if (orbitStartTime.current === null) {
         orbitStartTime.current = globalTime
       }
-      const orbitOffset = basePosition.clone().sub(baseTarget)
+      const orbitOffset = orbitScratch.current.set(
+        effectivePose.position.x - effectivePose.target.x,
+        effectivePose.position.y - effectivePose.target.y,
+        effectivePose.position.z - effectivePose.target.z,
+      )
       const orbitRadius = Math.max(
         0.001,
         Math.hypot(orbitOffset.x, orbitOffset.z),
@@ -1370,9 +1427,9 @@ function CameraController({
         = (globalTime - orbitStartTime.current) * 0.3
 
       targetPos.current.set(
-        baseTarget.x + Math.sin(orbitAngle + orbitTime) * orbitRadius,
-        baseTarget.y + orbitOffset.y,
-        baseTarget.z + Math.cos(orbitAngle + orbitTime) * orbitRadius,
+        effectivePose.target.x + Math.sin(orbitAngle + orbitTime) * orbitRadius,
+        effectivePose.target.y + orbitOffset.y,
+        effectivePose.target.z + Math.cos(orbitAngle + orbitTime) * orbitRadius,
       )
     }
     else {
@@ -1408,6 +1465,7 @@ function Scene({
   onCameraPoseChange,
   settings,
   isMobileView,
+  audioLevelRef,
   timeline,
 }: {
   cameraPresets: CameraPresetMap
@@ -1418,6 +1476,7 @@ function Scene({
   notes: NoteEvent[]
   onCameraPoseChange?: (pose: CameraPose) => void
   settings: VisualizerSettings
+  audioLevelRef?: MutableRefObject<number>
   timeline?: VisualizerRenderTimeline
 }) {
   const { showMidiRoll, cameraView } = settings
@@ -1447,11 +1506,32 @@ function Scene({
     toView: cameraView,
   })
   const lastClockRef = useRef(0)
+  const smoothedEnergyRef = useRef(0)
+  // Constructed directly (not via the <Bloom> wrapper): React 19 passes `ref`
+  // through props and @react-three/postprocessing JSON.stringify()s its props,
+  // which throws on the circular effect instance a ref would carry.
+  const bloomEffect = useMemo(
+    () =>
+      new BloomEffect({
+        intensity: DEFAULT_BLOOM_INTENSITY,
+        luminanceThreshold: 0.24,
+        luminanceSmoothing: 0.9,
+        mipmapBlur: true,
+        radius: 0.72,
+      }),
+    [],
+  )
   const displaySignatureRef = useRef(getNotesSignature(notes))
+
+  useEffect(() => {
+    return () => {
+      bloomEffect.dispose()
+    }
+  }, [bloomEffect])
   const prevMidiRollPlaneRef = useRef(activePose.flatLock)
   const prevMidiRollCameraViewRef = useRef(cameraView)
   const timeWindow = DEFAULT_TIME_WINDOW
-  const activeNoteSignature = getNotesSignature(notes)
+  const activeNoteSignature = useMemo(() => getNotesSignature(notes), [notes])
   const displayNoteSignature = useMemo(
     () => getNotesSignature(displayNotes),
     [displayNotes],
@@ -1668,9 +1748,20 @@ function Scene({
 
   useFrame(({ clock }) => {
     const globalTime = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
-    const transportTime = timeline?.transportTime ?? Tone.Transport.seconds
+    const transportTime = timeline?.transportTime ?? readTransportSeconds()
 
     lastClockRef.current = globalTime
+
+    // Fast attack, slow release — reads as the scene "breathing" with the
+    // music rather than flickering per note. Exports have no live level, so
+    // the offline render keeps the deterministic baseline look.
+    const targetEnergy = audioLevelRef?.current ?? 0
+    const smoothing = targetEnergy > smoothedEnergyRef.current ? 0.28 : 0.045
+    smoothedEnergyRef.current
+      += (targetEnergy - smoothedEnergyRef.current) * smoothing
+
+    bloomEffect.intensity
+      = DEFAULT_BLOOM_INTENSITY * (1 + smoothedEnergyRef.current * 0.4)
 
     if (!timeline && Math.abs(transportTime - filterTime) > 0.5) {
       setFilterTime(transportTime)
@@ -1809,8 +1900,8 @@ function Scene({
                   cameraPose={getEffectiveCameraPoseForView(
                     cameraPresets,
                     layer.cameraView,
-                    isMobileView,
                     exportMode,
+                    isMobileView,
                   )}
                   cameraView={layer.cameraView}
                   flatYOffset={defaultCameraFlatYOffset}
@@ -1833,8 +1924,8 @@ function Scene({
                 cameraPose={getEffectiveCameraPoseForView(
                   cameraPresets,
                   layer.cameraView,
-                  isMobileView,
                   exportMode,
+                  isMobileView,
                 )}
                 cameraView={layer.cameraView}
                 flatYOffset={defaultCameraFlatYOffset}
@@ -1857,7 +1948,11 @@ function Scene({
       )}
 
       <group rotation={[0, 0, 0]}>
-        <Staff introStartRef={introStartRef} timeline={timeline} />
+        <Staff
+          introStartRef={introStartRef}
+          energyRef={smoothedEnergyRef}
+          timeline={timeline}
+        />
         <InstancedNotes
           items={noteItems}
           timeWindow={timeWindow}
@@ -1904,13 +1999,7 @@ function Scene({
       />
 
       <EffectComposer>
-        <Bloom
-          luminanceThreshold={0.24}
-          luminanceSmoothing={0.9}
-          intensity={DEFAULT_BLOOM_INTENSITY}
-          mipmapBlur
-          radius={0.72}
-        />
+        <primitive object={bloomEffect} />
         {/* Filmic depth: darken the edges so the frame reads as a lit stage
             rather than a flat void. Kept subtle to stay minimal. */}
         <Vignette offset={0.28} darkness={0.62} eskil={false} />
@@ -1948,7 +2037,7 @@ function CanvasElementBridge({
   return null
 }
 
-export function Visualizer({
+function VisualizerComponent({
   cameraPresets,
   exportMode = false,
   exportCameraMode,
@@ -1960,6 +2049,7 @@ export function Visualizer({
   onExportFrameController,
   renderTimeline,
   settings,
+  audioLevelRef,
 }: {
   cameraPresets: CameraPresetMap
   exportMode?: boolean
@@ -1972,6 +2062,7 @@ export function Visualizer({
   onExportFrameController?: (controller: ExportFrameController | null) => void
   renderTimeline?: VisualizerRenderTimeline
   settings: VisualizerSettings
+  audioLevelRef?: MutableRefObject<number>
 }) {
   const activePose = cameraPresets[settings.cameraView]
   const initialPose
@@ -2000,13 +2091,25 @@ export function Visualizer({
   const glProps = exportMode
     ? { preserveDrawingBuffer: true, alpha: false }
     : undefined
+  // Mobile browsers drop WebGL contexts under memory pressure; remounting the
+  // Canvas rebuilds the renderer instead of leaving a permanently black scene.
+  const [canvasEpoch, setCanvasEpoch] = useState(0)
 
   return (
     <Canvas
+      key={canvasEpoch}
       camera={cameraConfig}
       dpr={exportMode ? 1 : isMobileView ? [1, 1.5] : [1, 2]}
       frameloop={exportMode ? 'never' : 'always'}
       gl={glProps}
+      onCreated={(state) => {
+        state.gl.domElement.addEventListener('webglcontextlost', (event) => {
+          event.preventDefault()
+          window.setTimeout(() => {
+            setCanvasEpoch(current => current + 1)
+          }, 150)
+        })
+      }}
     >
       {(onCanvasElement || onExportFrameController) && (
         <CanvasElementBridge
@@ -2024,7 +2127,10 @@ export function Visualizer({
         onCameraPoseChange={onCameraPoseChange}
         timeline={renderTimeline}
         settings={settings}
+        audioLevelRef={audioLevelRef}
       />
     </Canvas>
   )
 }
+
+export const Visualizer = memo(VisualizerComponent)

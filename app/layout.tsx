@@ -17,12 +17,31 @@ const fontMono = Space_Mono({
   display: 'swap',
 })
 
+const siteUrl
+  = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orbitone.vercel.app'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: 'orbitone',
   description:
     'A nostalgic 3D MIDI visualizer that turns MIDI files into a playable music box.',
   icons: {
     icon: '/icon.svg',
+  },
+  openGraph: {
+    title: 'orbitone',
+    description:
+      'A nostalgic 3D MIDI visualizer that turns MIDI files into a playable music box.',
+    url: '/',
+    siteName: 'orbitone',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'orbitone',
+    description:
+      'A nostalgic 3D MIDI visualizer that turns MIDI files into a playable music box.',
+    creator: '@itsjaydesu',
   },
 }
 

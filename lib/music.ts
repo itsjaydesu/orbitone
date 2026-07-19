@@ -1,5 +1,3 @@
-import { Midi } from '@tonejs/midi'
-
 export interface NoteEvent {
   id: string
   midi: number
@@ -172,7 +170,10 @@ function getVelocityNormalizationProfile(
 }
 
 export async function parseMidiFile(file: File): Promise<MusicData> {
-  const arrayBuffer = await file.arrayBuffer()
+  const [{ Midi }, arrayBuffer] = await Promise.all([
+    import('@tonejs/midi'),
+    file.arrayBuffer(),
+  ])
   const midi = new Midi(arrayBuffer)
   const notes: NoteEvent[] = []
   const pedalEvents: PedalEvent[] = []
@@ -261,7 +262,6 @@ export async function parseMidiFile(file: File): Promise<MusicData> {
   }
 
   const bpm = Math.round(midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120)
-
 
   return {
     notes,

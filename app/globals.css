@@ -3,10 +3,21 @@
 /* Wire self-hosted next/font families into Tailwind's font utilities.
    Latin display faces with graceful system fallbacks (incl. Japanese). */
 @theme inline {
-  --font-sans: var(--font-sans-custom), ui-sans-serif, system-ui,
-    'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
-  --font-mono: var(--font-mono-custom), ui-monospace, SFMono-Regular, Menlo,
-    monospace;
+  --font-sans:
+    var(--font-sans-custom), ui-sans-serif, system-ui, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic',
+    Meiryo, sans-serif;
+  --font-mono: var(--font-mono-custom), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Type Tokens ──
+   One shared overline voice for every micro-label (badges, field labels,
+   subtitles, kbd chips); the wordmark keeps its own wider tracking. */
+
+.type-overline {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 /* ── Neuromorphic Design System ── */
@@ -45,10 +56,7 @@ body {
 
 @media (pointer: fine) {
   html.nm-system-cursor-hidden,
-  html.nm-system-cursor-hidden body,
-  html.nm-system-cursor-hidden body *,
-  html.nm-system-cursor-hidden body *::before,
-  html.nm-system-cursor-hidden body *::after {
+  html.nm-system-cursor-hidden * {
     cursor: none !important;
   }
 }
@@ -204,11 +212,13 @@ body {
     background 0.2s ease;
 }
 
-.nm-raised:hover {
-  box-shadow:
-    6px 6px 18px var(--nm-shadow-dark),
-    -6px -6px 18px var(--nm-shadow-light);
-  background: var(--nm-surface-2);
+@media (hover: hover) {
+  .nm-raised:hover {
+    box-shadow:
+      6px 6px 18px var(--nm-shadow-dark),
+      -6px -6px 18px var(--nm-shadow-light);
+    background: var(--nm-surface-2);
+  }
 }
 
 .nm-raised:active {
@@ -232,10 +242,12 @@ body {
     background 0.2s ease;
 }
 
-.nm-pressed:hover {
-  box-shadow:
-    inset 4px 4px 12px var(--nm-shadow-dark),
-    inset -4px -4px 12px var(--nm-shadow-light);
+@media (hover: hover) {
+  .nm-pressed:hover {
+    box-shadow:
+      inset 4px 4px 12px var(--nm-shadow-dark),
+      inset -4px -4px 12px var(--nm-shadow-light);
+  }
 }
 
 /* ── Card / Panel ── */
@@ -300,11 +312,13 @@ body {
     transform 0.15s ease;
 }
 
-.nm-accent-raised:hover {
-  box-shadow:
-    5px 5px 16px var(--nm-shadow-dark),
-    -5px -5px 16px var(--nm-shadow-light),
-    0 0 28px rgba(255, 255, 255, 0.08);
+@media (hover: hover) {
+  .nm-accent-raised:hover {
+    box-shadow:
+      5px 5px 16px var(--nm-shadow-dark),
+      -5px -5px 16px var(--nm-shadow-light),
+      0 0 28px rgba(255, 255, 255, 0.08);
+  }
 }
 
 .nm-accent-raised:active {
@@ -329,12 +343,14 @@ body {
     background 0.2s ease;
 }
 
-.nm-destructive:hover {
-  background: var(--nm-surface-2);
-  color: var(--nm-text);
-  box-shadow:
-    5px 5px 16px var(--nm-shadow-dark),
-    -5px -5px 16px var(--nm-shadow-light);
+@media (hover: hover) {
+  .nm-destructive:hover {
+    background: var(--nm-surface-2);
+    color: var(--nm-text);
+    box-shadow:
+      5px 5px 16px var(--nm-shadow-dark),
+      -5px -5px 16px var(--nm-shadow-light);
+  }
 }
 
 .nm-destructive:active {
@@ -374,11 +390,13 @@ body {
     transform 0.15s ease;
 }
 
-.nm-play:hover {
-  box-shadow:
-    10px 10px 30px var(--nm-shadow-dark),
-    -10px -10px 30px var(--nm-shadow-light),
-    0 0 24px rgba(255, 255, 255, 0.04);
+@media (hover: hover) {
+  .nm-play:hover {
+    box-shadow:
+      10px 10px 30px var(--nm-shadow-dark),
+      -10px -10px 30px var(--nm-shadow-light),
+      0 0 24px rgba(255, 255, 255, 0.04);
+  }
 }
 
 .nm-play:active {
@@ -386,14 +404,6 @@ body {
     inset 5px 5px 14px var(--nm-shadow-dark),
     inset -5px -5px 14px var(--nm-shadow-light);
   transform: scale(0.95);
-}
-
-/* ── Title Surface ── */
-
-.nm-title {
-  background: transparent;
-  border: none;
-  box-shadow: none;
 }
 
 /* ── Range Slider ── */
@@ -425,11 +435,13 @@ body {
   transition: box-shadow 0.15s ease;
 }
 
-.nm-range::-webkit-slider-thumb:hover {
-  box-shadow:
-    4px 4px 12px var(--nm-shadow-dark),
-    -4px -4px 12px var(--nm-shadow-light),
-    0 0 8px rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+  .nm-range::-webkit-slider-thumb:hover {
+    box-shadow:
+      4px 4px 12px var(--nm-shadow-dark),
+      -4px -4px 12px var(--nm-shadow-light),
+      0 0 8px rgba(255, 255, 255, 0.06);
+  }
 }
 
 .nm-range::-webkit-slider-thumb:active {
@@ -498,44 +510,6 @@ body {
   border: none;
 }
 
-/* ── Checkbox ── */
-
-.nm-checkbox {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  border-radius: 6px;
-  background: var(--nm-bg);
-  border: 1px solid var(--nm-border);
-  box-shadow:
-    inset 2px 2px 4px var(--nm-shadow-dark),
-    inset -2px -2px 4px var(--nm-shadow-light);
-  position: relative;
-  transition: all 0.2s ease;
-}
-
-.nm-checkbox:checked {
-  background: var(--nm-accent);
-  box-shadow:
-    2px 2px 6px var(--nm-shadow-dark),
-    -2px -2px 6px var(--nm-shadow-light),
-    0 0 10px rgba(255, 255, 255, 0.06);
-}
-
-.nm-checkbox:checked::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 7px;
-  width: 5px;
-  height: 10px;
-  border: solid var(--nm-bg);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
 /* ── Badge Variants ── */
 
 .nm-badge {
@@ -574,14 +548,18 @@ body {
 
 .nm-list-item {
   border-radius: 12px;
-  transition: all 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.nm-list-item:hover {
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow:
-    inset 2px 2px 5px var(--nm-shadow-dark),
-    inset -2px -2px 5px var(--nm-shadow-light);
+@media (hover: hover) {
+  .nm-list-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow:
+      inset 2px 2px 5px var(--nm-shadow-dark),
+      inset -2px -2px 5px var(--nm-shadow-light);
+  }
 }
 
 /* ── Library Scrolling ── */
@@ -634,13 +612,14 @@ body {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)), rgba(0, 0, 0, 0.14);
 }
 
-.nm-library-track:hover {
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 2px 2px 5px rgba(0, 0, 0, 0.45),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.04),
-    0 14px 32px rgba(0, 0, 0, 0.2);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .nm-library-track:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.45),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.04);
+    transform: translateY(-1px);
+  }
 }
 
 .nm-library-track-active {
@@ -651,25 +630,6 @@ body {
     inset 2px 2px 6px rgba(0, 0, 0, 0.5),
     inset -2px -2px 6px rgba(255, 255, 255, 0.04),
     0 16px 34px rgba(0, 0, 0, 0.22);
-}
-
-/* ── Link Button ── */
-
-.nm-link {
-  background: var(--nm-surface);
-  border: 1px solid var(--nm-border);
-  box-shadow:
-    3px 3px 8px var(--nm-shadow-dark),
-    -3px -3px 8px var(--nm-shadow-light);
-  transition: all 0.2s ease;
-}
-
-.nm-link:hover {
-  box-shadow:
-    4px 4px 12px var(--nm-shadow-dark),
-    -4px -4px 12px var(--nm-shadow-light);
-  color: white;
-  background: var(--nm-surface-2);
 }
 
 /* ── Upload Drag Active ── */

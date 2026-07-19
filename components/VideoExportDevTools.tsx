@@ -3,6 +3,7 @@
 import type { VisualizerSettings } from '@/components/Visualizer'
 import type { AppLanguage, CameraPresetMap, CameraView } from '@/lib/camera-presets'
 import type { ExportCameraMode, ExportFormat, ExportSourceData } from '@/lib/export'
+import type { InstrumentId } from '@/lib/instruments'
 import { ChevronRight } from 'lucide-react'
 import {
   useCallback,
@@ -74,14 +75,22 @@ interface VideoExportDevToolsProps {
     subtitle: string | null
     title: string | null
   }
+  instrumentId: InstrumentId
   isAudioLoading: boolean
   isPlaying: boolean
   language: AppLanguage
+  onExportActiveChange?: (active: boolean) => void
   onExportCameraModeChange: (mode: ExportCameraMode) => void
   onExportFormatChange: (format: ExportFormat) => void
   onShowBottomTrackMetaChange: (showBottomTrackMeta: boolean) => void
   showBottomTrackMeta: boolean
   togglePlay: () => Promise<void>
+  /**
+   * Hides only the visible controls (e.g. when its settings tab is inactive).
+   * The offscreen capture rig and export overlay stay mounted so an in-progress
+   * or automation-triggered export is never interrupted by a tab switch.
+   */
+  visible?: boolean
   volumePercent: number
 }
 
@@ -97,20 +106,24 @@ export function VideoExportDevTools({
   exportSource,
   exportSourceFileName,
   exportTrackMeta,
+  instrumentId,
   isAudioLoading,
   isPlaying,
   language,
+  onExportActiveChange,
   onExportCameraModeChange,
   onExportFormatChange,
   onShowBottomTrackMetaChange,
   showBottomTrackMeta,
   togglePlay,
+  visible = true,
   volumePercent,
 }: VideoExportDevToolsProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const {
     phase,
     progress,
+    errorMessage,
     renderState,
     startExport,
     cancelExport,
@@ -121,11 +134,29 @@ export function VideoExportDevTools({
     exportSource,
     exportSourceFileName,
     exportTrackMeta,
+    instrumentId,
     isPlaying,
     togglePlay,
     volumePercent,
   })
   const isExporting = phase !== 'idle'
+  const exportFormats = useMemo<readonly ExportFormat[]>(() => {
+    const isIOS
+      = typeof navigator !== 'undefined'
+        && (/iPhone|iPad/i.test(navigator.userAgent)
+          || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
+
+    // iOS Safari couldn't play VP9 webm before 17.4 — hide the footgun there.
+    return isIOS ? ['mp4'] : ['webm', 'mp4']
+  }, [])
+
+  useEffect(() => {
+    onExportActiveChange?.(isExporting)
+
+    return () => {
+      onExportActiveChange?.(false)
+    }
+  }, [isExporting, onExportActiveChange])
 
   const handleStartExport = useCallback(() => {
     startExport(exportFormat, exportCameraMode, currentCameraView)
@@ -222,7 +253,7 @@ export function VideoExportDevTools({
 
   return (
     <>
-      <div className="mt-2 flex flex-col gap-2">
+      <div className={cn('flex flex-col gap-2', !visible && 'hidden')}>
         <button
           type="button"
           onClick={(e) => {
@@ -248,7 +279,7 @@ export function VideoExportDevTools({
                 {copy.exportFormat}
               </span>
               <div className="grid grid-cols-2 gap-2">
-                {(['webm', 'mp4'] as const).map(format => (
+                {exportFormats.map(format => (
                   <button
                     key={format}
                     onClick={(e) => {
@@ -339,6 +370,7 @@ export function VideoExportDevTools({
         <ExportOverlay
           phase={phase}
           progress={progress}
+          errorMessage={errorMessage}
           language={language}
           onCancel={cancelExport}
         />
