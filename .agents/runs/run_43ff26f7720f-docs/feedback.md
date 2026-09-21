@@ -1,0 +1,2 @@
+- The accepted report summary made the target-reach versus first-frame distinction clear.
+- Relative links depend on ORCH staging the accepted QA and performance evidence.

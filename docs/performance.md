@@ -2,8 +2,9 @@
 
 The repaired harness measures seek target reach and uses deterministic startup.
 Both entry points reject uncommitted build inputs through one shared pathspec.
-Fresh paired measurements remain pending independent QA.
-Historical results below use superseded seek semantics and cannot satisfy the repaired gates.
+Independent QA recorded **QA_PASS** for the accepted paired reports below.
+All four repaired numeric gates pass on Chrome 153 and Apple M3 Max Metal.
+First-frame timing remains diagnostic and does not drive the seek gate.
 Full lint retains known debt in DIG-3939.
 
 ## Setup
@@ -217,14 +218,60 @@ Inspect every run as well as medians. Disclose unstable measurements.
 ORCH must authorize C1 after `MEASURE_BASELINE_OK`. This document does not authorize C1.
 Allow at most two measured C1 attempts. Revert C1 if both fail.
 
-## Historical results pending remeasurement
+## Accepted repaired paired results
+
+Independent QA recorded **QA_PASS** in the [QA report][current-qa-report].
+The accepted reports use baseline source `e160e11` and candidate source `e456081`.
+Both sides use Chrome **153.0.8010.48**, hardware ANGLE Metal on Apple M3 Max, and CDP `threadTicks`.
+The scenario is `DIG-3937-upload-01` with **1280×720**, **DPR 1**, default camera, and MIDI roll disabled.
+Each side has three runs with ten seconds of warmup, 30 seconds playing, and ten seconds paused.
+The real Piano Man upload uses `automation=1`. The fixture hash is `4d3a338a97f7bcb1d6cf3f7f5a88477e72f02d41f2728889e50f1617a68d5e4b`.
+The harness and configuration hashes match across both sides. Build IDs are `GMWOu80n6BAT2Vr7FmV4R` and `TUIzWFOJBexqOZmnl0Tz4`.
+
+| Evidence                        |                                   Baseline |                                    Candidate |
+| ------------------------------- | -----------------------------------------: | -------------------------------------------: |
+| Raw report                      | [baseline report][current-baseline-report] | [candidate report][current-candidate-report] |
+| Application SHA                 | `e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a` |   `e456081266ad58928e09963dbae56e3141f3c38b` |
+| Playback CPU median             |                         0.3828687623613073 |                          0.16797053156765743 |
+| Playback rAF p95                |                                     9.2 ms |                                       9.2 ms |
+| Target-reach active seek median |                                     3.1 ms |                                       6.8 ms |
+| Paused CPU median               |                        0.10215570056482984 |                          0.09375272975235918 |
+| Paused seek median              |                                     5.2 ms |                                       4.9 ms |
+
+The playback CPU median decreases **56.1284%**. The rAF p95 remains unchanged.
+The active seek increase is 3.7 ms. The paused CPU change is -0.00840297081247066.
+The paused seek median decreases by 0.3 ms. All four numeric gates pass in the [gate summary][current-gate-summary].
+
+CPU spread is **34.55%**, **38.29%**, and **45.26%** for baseline runs.
+Candidate playback CPU values are **16.797%**, **17.913%**, and **16.748%**.
+Every candidate playback CPU value is below every baseline value in this sample.
+Three runs do not support a significance claim or a longer-term stability claim.
+These results make no whole-machine CPU, GPU, battery, memory-leak, or general-device claim.
+
+Candidate run 1 reached the target in **12.4 ms**. Its first frame arrived at **5.2 ms**.
+The target requested by the active seek was **175 s**. Its first-frame position was **85.5 s**.
+The target-reach value is the gate metric; the first-frame value is diagnostic only.
+
+### Repaired gate results
+
+| Gate                     | Baseline median | Candidate median |             Change |                  Limit | Result |
+| ------------------------ | --------------: | ---------------: | -----------------: | ---------------------: | ------ |
+| Playback CPU             |          0.3829 |           0.1680 | 56.1284% reduction | At least 10% reduction | PASS   |
+| Playback rAF p95         |          9.2 ms |           9.2 ms |             0.0 ms |        At most +1.0 ms | PASS   |
+| Active target-reach seek |          3.1 ms |           6.8 ms |            +3.7 ms |       At most +16.7 ms | PASS   |
+| Paused CPU               |          0.1022 |           0.0938 |            -0.0084 |          At most +0.01 | PASS   |
+
+The paired reports preserve individual runs and raw diagnostics. They do not prove audible continuity.
+Independent QA observed WebAudio analyser output and transport progress, without hardware listening.
+
+## Historical superseded results
 
 The following tables and links preserve earlier evidence. They do not satisfy the repaired target-reach gates.
-Independent QA must capture three fresh runs per side with identical repaired harness, dependency, and configuration bytes.
+The accepted repaired evidence is recorded above. The earlier tables use superseded first-frame semantics.
 Baseline application source remains `3ee74f3`; the candidate contains PR7 application changes.
 Record application SHA, harness file hashes, production `BUILD_ID` and SHA, fixture hash, and every run for each side.
 The fixture is `public/midi/pop-electronic/piano-man.mid`. Include `perf/build-inputs.mjs` in the harness identity record.
-Preserve old report files. Update the result tables and gate-summary pointer only after independent QA provides new paired evidence.
+Preserve the old report files. Do not replace this historical evidence.
 
 Earlier independent QA recorded **QA_PASS** for measured C1 attempt 1 in the [final M2 report][qa-report].
 C1 isolates frequent playback updates. Those paired runs used the same earlier harness.
@@ -334,6 +381,10 @@ The controlled-input race remains an unproven hypothesis. Preserve this failure 
 The historical paired runs above both **PASS** with the same earlier harness.
 Those passes do not establish the original failure's cause or reliability beyond this sample.
 
+[current-qa-report]: ../.agents/runs/run_43ff26f7720f/qa/report.md
+[current-baseline-report]: ../.agents/runs/run_43ff26f7720f/perf/baseline/baseline-pr7-2026-09-21T05-32-24.482Z.json
+[current-candidate-report]: ../.agents/runs/run_43ff26f7720f/perf/candidate/candidate-pr7-2026-09-21T05-36-26.661Z.json
+[current-gate-summary]: ../.agents/runs/run_43ff26f7720f/perf/comparison/gate-summary.json
 [qa-report]: ../.agents/runs/run_64692bd290f7/qa/m2.md
 [harness-identity]: ../.agents/runs/run_64692bd290f7/qa/m2/mech-seek-repair/harness-identity.txt
 [baseline-report]: ../.agents/runs/run_64692bd290f7/perf/comparison/baseline-attempt1/baseline-c1a-2026-09-21T03-49-23.128Z.json
