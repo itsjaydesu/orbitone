@@ -80,6 +80,8 @@ The harness verifies the remote production build manifest against the local buil
 It rejects stale build metadata and uncommitted application or harness inputs.
 Exit `0` means three measurements were captured. Exit `1` means failure. Exit `2` means blocked measurement.
 Failure reports retain completed runs but provide no median summary.
+Seek failures also retain `failedSeek`, including state, target, input count, geometry, positions, and timing when available.
+Unavailable numeric readings remain null or absent. Failure codes distinguish `PLAYBACK_SEEK_*` from `PAUSED_SEEK_*`.
 No harness exit replaces independent QA or authorizes C1.
 
 Stop only this task service after QA:
@@ -99,7 +101,8 @@ pm2 stop orbitone-perf-3937
 | Long tasks            | Count and clipped duration of tasks overlapping the explicit window, in milliseconds                                   |
 | Active seek latency   | Pointer input to the next rAF callback during playback, in milliseconds; `playbackSeekLatencyMs` drives the comparison |
 | Paused seek latency   | Pointer input to the next rAF callback while paused, in milliseconds; `pausedSeekLatencyMs` remains separate           |
-| Seek position         | Native range value at that callback and observed position afterward, in seconds, reported separately for each state    |
+| Seek position         | Requested native input value, next-rAF range value, and completed observed range value, in seconds                     |
+| Seek observation time | Pointerdown to the successful completion observation, in milliseconds; separate from the frozen latency metric         |
 | Heap after pause      | CDP `JSHeapUsedSize` at the end of the pause window, in bytes                                                          |
 | Audio-ready time      | Time from the play action until nonzero audio output and playback progress, in milliseconds                            |
 | Playback progress     | Observed transport display positions at each window boundary, in seconds                                               |
@@ -125,6 +128,35 @@ Missing renderer detail stays unavailable; it does not establish hardware accele
 Frame intervals do not measure GPU time. Heap points do not prove freedom from memory leaks.
 The harness makes no React component commit-count claims.
 
+### Seek measurement limits
+
+The harness preserves pointerdown-to-next-rAF latency and its frozen comparison gate.
+The continuous frame loop makes this a frame-phase sample. It does not measure seek completion or visible rendering latency.
+`latencyMs` and `nextFramePositionSeconds` retain that first callback's readings, even when completion occurs later.
+`requestedPositionSeconds` captures the first native input event before delegated application handlers can change the controlled value.
+The completion observer reads the range on each rAF for at most 2,000 milliseconds from pointerdown.
+It records `observedPositionSeconds` and `observationElapsedMs` separately. The latter includes polling delay and is not exact completion latency.
+The existing 3% track-duration tolerance stays unchanged for the requested fraction and observed position.
+The observer also requires the captured input and observed position to agree within that tolerance.
+Missing native input, repeated input, missing frames, and incomplete seeks fail the run.
+This wait adds no click retry. Each seek sends one locator click after Playwright's trial actionability check.
+The trial checks control stability before geometry capture. The actual click repeats actionability checks without `force`.
+Failure codes identify action, state, pointer, input, frame, or position failure.
+
+Observed completion proves the displayed range reached the target within the stated tolerance and time bound.
+It does not independently read Tone transport, audio seek timing, or GPU draw completion.
+The two-second observation bound does not permit delayed controls under the frozen behavior acceptance criterion.
+Independent browser QA must still check immediate controls, smooth seeking, and audible continuity.
+
+The requested fraction selects a point on the control's outer box, preserving the original scenario.
+Native thumbs shorten the usable track. The source defines a 14-pixel thumb and a 0.1-second range step.
+For a 544-pixel control, the thumb center travels 530 pixels, starting seven pixels inside the box.
+A 25% outer-box click therefore selects about 24.34% of the range, while a 50% click stays centered.
+For the 350.082-second fixture, this predicts approximately 85.2 seconds, compared with the nominal 87.52-second quarter point.
+Reports preserve both the nominal target and actual input value; they do not relabel this geometry bias as latency.
+Pointerdown diagnostics capture the actual control box and pointer coordinates without storing DOM text.
+This instrumentation adds overhead. Use the identical repaired harness for both builds.
+
 Network access permits the local app and the existing piano sample host.
 The installed analytics package requests `/_vercel/insights/script.js`.
 The harness intercepts that script and the same-origin `/_vercel/insights/` namespace with empty local responses.
@@ -132,7 +164,8 @@ Reports count intercepted scripts and events. They omit request bodies.
 Unexpected requests, browser errors, missing audio, and failed upload cause failure.
 Reports omit MIDI data, uploaded filenames, cookies, tokens, and raw error messages.
 Guarded failures retain the original error as a non-enumerable `cause` in memory for debugging.
-Reports and terminal output expose only failure codes. They never serialize or log the original cause.
+Reports expose failure codes and numeric seek diagnostics. Terminal output exposes failure codes and the report path.
+Neither serializes or logs the original cause.
 
 ## Independent acceptance
 
@@ -157,6 +190,7 @@ Allow at most two measured C1 attempts. Revert C1 if both fail.
 - Regression baseline: **29 passing tests**, committed as `3a1fa5bd3f5ec35dadc6311570778116233d190b`.
 - Original M1 development checks: **38 passing tests** across seven files at `14e608e`.
 - M1 repair development checks: **42 passing tests** across seven files; independent QA remains separate.
+- M1 seek repair development checks: **48 passing tests** across eight files; independent browser reruns remain pending.
 - Original production baseline: independent QA recorded a passing report at `14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9`.
 - Revised harness baseline and candidate comparison: **PENDING independent QA**. Active seek measurements require fresh runs of both builds.
 - C1 implementation and performance gains: **not implemented or claimed**.
@@ -189,3 +223,13 @@ Three runs do not characterize longer-term variation. Inspect individual runs be
 Original median rAF p95 was 9.2 ms. Median paused CPU fraction was 0.0953147.
 The original 2.2 ms seek median covers paused playback only. Do not compare it against active seek latency.
 Independent QA must rerun the revised harness for both baseline and candidate before applying the active-seek gate.
+
+### Failed revised baseline
+
+The revised baseline at `70332ae` failed with `SEEK_POSITION_FAILED` in run 2.
+Source: `.agents/runs/run_64692bd290f7/perf/comparison/baseline/baseline-c1-2026-09-21T03-26-21.967Z.json` in the coordinator checkout.
+That report does not identify the failed seek's playback state or retain its readings.
+The bounded follow-up diagnostic did not reproduce the failure. The cause remains unknown.
+The controlled-input race remains an unproven hypothesis.
+The seek repair adds actionability checks, independent input capture, bounded observation, and failure diagnostics.
+Development checks cannot establish browser reliability. Independent QA must rerun both builds with the same repaired harness.

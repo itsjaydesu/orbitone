@@ -34,21 +34,82 @@ function installProbe() {
     return { peak, contextSeconds, running }
   }
 
+  let removeSeekListeners = () => {}
+  const emptySeekInput = (): OrbitonePerfSeekInput => ({ pointerDownMs: null, pointerDownCount: 0, inputCount: 0, requestedPositionSeconds: null, pointerX: null, pointerY: null, controlX: null, controlY: null, controlWidth: null, controlHeight: null })
+  const finite = (value: number | undefined) => value !== undefined && Number.isFinite(value) ? value : null
   const probe: OrbitonePerfProbe = {
     audio,
     position,
     seek: null,
+    seekInput: null,
     armSeek() {
+      this.disarmSeek()
       this.seek = null
+      const attempt = emptySeekInput()
+      this.seekInput = attempt
       const input = document.querySelector<HTMLInputElement>('input.nm-seekbar')
       if (!input)
         throw new Error('SEEK_CONTROL_MISSING')
-      input.addEventListener('pointerdown', () => {
+      let frame = 0
+      const onPointerDown = (event: PointerEvent) => {
+        attempt.pointerDownCount++
+        if (attempt.pointerDownCount !== 1)
+          return
         const start = performance.now()
-        requestAnimationFrame(() => {
+        attempt.pointerDownMs = start
+        const box = input.getBoundingClientRect()
+        attempt.pointerX = finite(event.clientX)
+        attempt.pointerY = finite(event.clientY)
+        attempt.controlX = box.x
+        attempt.controlY = box.y
+        attempt.controlWidth = box.width
+        attempt.controlHeight = box.height
+        frame = requestAnimationFrame(() => {
           probe.seek = { latencyMs: performance.now() - start, nextFramePositionSeconds: position() }
         })
-      }, { once: true })
+      }
+      const onInput = (event: Event) => {
+        if (event.target !== input || attempt.pointerDownMs === null)
+          return
+        attempt.inputCount++
+        if (attempt.inputCount === 1)
+          attempt.requestedPositionSeconds = finite(Number(input.value))
+      }
+      input.addEventListener('pointerdown', onPointerDown)
+      // Capture before delegated application handlers can restore the controlled value.
+      document.addEventListener('input', onInput, { capture: true })
+      removeSeekListeners = () => {
+        input.removeEventListener('pointerdown', onPointerDown)
+        document.removeEventListener('input', onInput, { capture: true })
+        cancelAnimationFrame(frame)
+      }
+    },
+    disarmSeek() {
+      removeSeekListeners()
+      removeSeekListeners = () => {}
+    },
+    seekSnapshot() {
+      const input = this.seekInput ?? emptySeekInput()
+      return {
+        ...input,
+        latencyMs: finite(this.seek?.latencyMs),
+        nextFramePositionSeconds: finite(this.seek?.nextFramePositionSeconds),
+        observedPositionSeconds: finite(position()),
+        observationElapsedMs: input.pointerDownMs === null ? null : performance.now() - input.pointerDownMs,
+      }
+    },
+    observeSeek(expectedPositionSeconds, toleranceSeconds, timeoutMs) {
+      const snapshot = this.seekSnapshot()
+      const { requestedPositionSeconds, observedPositionSeconds, observationElapsedMs } = snapshot
+      if (snapshot.pointerDownCount !== 1 || snapshot.inputCount !== 1 || snapshot.latencyMs === null
+        || requestedPositionSeconds === null || observedPositionSeconds === null || observationElapsedMs === null
+        || observationElapsedMs > timeoutMs
+        || Math.abs(requestedPositionSeconds - expectedPositionSeconds) > toleranceSeconds
+        || Math.abs(observedPositionSeconds - expectedPositionSeconds) > toleranceSeconds
+        || Math.abs(observedPositionSeconds - requestedPositionSeconds) > toleranceSeconds) {
+        return null
+      }
+      return snapshot
     },
     async measure(durationMs) {
       if (!PerformanceObserver.supportedEntryTypes.includes('longtask'))

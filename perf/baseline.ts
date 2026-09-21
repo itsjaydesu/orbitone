@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import ts from 'typescript'
 import { assertHealthy, cpuWindow, frameSummary, HarnessFailure, median, metric, networkAction, parseOptions } from './contracts'
+import { measureSeek, SeekFailure } from './seek'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const scenario = {
@@ -84,31 +85,6 @@ async function captureWindow(page: Page, cdp: CDPSession, seconds: number) {
   }
 }
 
-async function measureSeek(page: Page, duration: number, state: 'playing' | 'paused', requestedFraction: number) {
-  const transportButton = page.getByRole('button', { name: state === 'playing' ? 'Stop playback' : 'Start playback', exact: true })
-  await page.mouse.move(620, 340)
-  await page.mouse.move(640, 360)
-  const bar = page.locator('input.nm-seekbar')
-  await bar.waitFor({ state: 'visible' })
-  await transportButton.waitFor({ state: 'visible' })
-  const box = await bar.boundingBox()
-  if (!box)
-    throw new HarnessFailure('FAIL', 'SEEK_CONTROL_MISSING')
-  await page.evaluate(() => {
-    if (!window.__orbitonePerf)
-      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
-    window.__orbitonePerf.armSeek()
-  })
-  await page.mouse.click(box.x + box.width * requestedFraction, box.y + box.height / 2)
-  await page.waitForFunction(() => window.__orbitonePerf?.seek != null)
-  const reading = await page.evaluate(() => window.__orbitonePerf?.seek)
-  const observedPositionSeconds = await position(page)
-  await transportButton.waitFor({ state: 'visible' })
-  if (!reading || !Number.isFinite(observedPositionSeconds) || Math.abs(observedPositionSeconds - duration * requestedFraction) > duration * 0.03)
-    throw new HarnessFailure('FAIL', 'SEEK_POSITION_FAILED')
-  return { ...reading, state, requestedFraction, observedPositionSeconds }
-}
-
 async function runMeasurement(page: Page, cdp: CDPSession, browserErrors: () => number, run: number) {
   const startedAt = new Date().toISOString()
   await page.locator('input[type="file"]').setInputFiles([])
@@ -146,13 +122,13 @@ async function runMeasurement(page: Page, cdp: CDPSession, browserErrors: () => 
   const paused = await captureWindow(page, cdp, scenario.pauseSeconds)
   if (Math.abs(paused.positionEndSeconds - paused.positionStartSeconds) > 0.1)
     throw new HarnessFailure('FAIL', 'PAUSE_PROGRESS_FAILED')
-  const pausedSeek = await guard('PAUSED_SEEK_FAILED', () => measureSeek(page, duration, 'paused', scenario.seek.pausedFraction))
+  const pausedSeek = await measureSeek(page, duration, 'paused', scenario.seek.pausedFraction)
   const resumePositionSeconds = await position(page)
   await guard('AUDIO_MISSING', () => clickTransport(page, 'Start playback'))
   await guard('PLAYBACK_PROGRESS_FAILED', () => page.waitForFunction((start) => {
     return window.__orbitonePerf !== undefined && window.__orbitonePerf.position() > start + 0.25
   }, resumePositionSeconds))
-  const playbackSeek = await guard('PLAYBACK_SEEK_FAILED', () => measureSeek(page, duration, 'playing', scenario.seek.playbackFraction))
+  const playbackSeek = await measureSeek(page, duration, 'playing', scenario.seek.playbackFraction)
   await clickTransport(page, 'Stop playback')
   assertHealthy({ uploaded, audioPeak: playback.audio.peak, progressSeconds: playback.positionEndSeconds - playback.positionStartSeconds, expectedProgressSeconds: 30, browserErrors: browserErrors() })
   return { run, startedAt, endedAt: new Date().toISOString(), audioReadyMs, durationSeconds: duration, warmupProgressSeconds, playback, paused, playbackSeek, pausedSeek, browserErrors: browserErrors() }
@@ -201,6 +177,7 @@ async function main() {
   const analyticsIntercepts = { scripts: 0, events: 0 }
   let status: 'PASS' | 'FAIL' | 'BLOCKED' = 'FAIL'
   let failureCode: string | null = null
+  let failedSeek: SeekFailure['diagnostics'] | null = null
   try {
     const dirty = execFileSync('git', ['status', '--porcelain', '--', 'app', 'components', 'hooks', 'lib', 'package.json', 'pnpm-lock.yaml', 'next.config.ts', 'perf', 'ecosystem.config.js'], { cwd: root, encoding: 'utf8' })
     if (dirty.trim())
@@ -293,6 +270,7 @@ async function main() {
   catch (error) {
     status = error instanceof HarnessFailure ? error.status : 'FAIL'
     failureCode = error instanceof HarnessFailure ? error.code : 'UNEXPECTED_FAILURE'
+    failedSeek = error instanceof SeekFailure ? error.diagnostics : null
   }
   finally {
     await browser?.close().catch(() => {
@@ -306,6 +284,7 @@ async function main() {
     const report = {
       status,
       failureCode,
+      failedSeek,
       stage,
       label: options.label,
       sha,

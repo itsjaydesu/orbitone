@@ -21,15 +21,22 @@ it('fails before browser launch when the explicit base URL is absent', () => {
   expect(result.stdout).toBe('')
 })
 
-it('reports a guarded failure without writing or logging its private cause', async () => {
+it.each(['setup', 'seek'] as const)('reports a %s failure without writing or logging its private cause', async (stage) => {
+  vi.resetModules()
+  vi.clearAllMocks()
   const originalArgv = process.argv
   const originalExitCode = process.exitCode
   const cause = new Error('Private file unavailable: confidential-score.mid')
+  const { SeekFailure } = await import('../perf/seek')
+  const failedSeek = { state: 'playing' as const, requestedFraction: 0.5, expectedPositionSeconds: 175, toleranceSeconds: 10.5, completionTimeoutMs: 2000, controlBox: null, requestedPositionSeconds: 175, observedPositionSeconds: 87, latencyMs: 7 }
+  const failure = stage === 'seek' ? new SeekFailure('POSITION_FAILED', failedSeek, { cause }) : cause
+  const status = stage === 'seek' ? 'FAIL' : 'BLOCKED'
+  const failureCode = stage === 'seek' ? 'PLAYBACK_SEEK_POSITION_FAILED' : 'PRODUCTION_BUILD_UNAVAILABLE'
   const output = vi.spyOn(console, 'log').mockImplementation(() => {})
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
   const launch = vi.spyOn(chromium, 'launch').mockRejectedValue(new Error('Unexpected browser launch'))
   vi.mocked(execFileSync).mockReturnValueOnce('test-commit').mockReturnValueOnce('')
-  vi.mocked(readFile).mockRejectedValue(cause)
+  vi.mocked(readFile).mockRejectedValue(failure)
   process.argv = ['node', 'perf/baseline.ts', '--base-url', 'https://test.asuka', '--label', 'baseline', '--runs', '3']
   try {
     await import('../perf/baseline')
@@ -37,13 +44,13 @@ it('reports a guarded failure without writing or logging its private cause', asy
     expect(launch).not.toHaveBeenCalled()
     expect(writeFile).toHaveBeenCalledOnce()
     const report = String(vi.mocked(writeFile).mock.calls[0][1])
-    expect(JSON.parse(report)).toMatchObject({ status: 'BLOCKED', failureCode: 'PRODUCTION_BUILD_UNAVAILABLE', medians: null })
+    expect(JSON.parse(report)).toMatchObject({ status, failureCode, failedSeek: stage === 'seek' ? failedSeek : null, medians: null })
     expect(report).not.toContain('confidential-score.mid')
     expect(report).not.toContain('Private file unavailable')
-    expect(output).toHaveBeenCalledWith(expect.stringMatching(/^BLOCKED: PRODUCTION_BUILD_UNAVAILABLE\. Report: /))
+    expect(output).toHaveBeenCalledWith(expect.stringContaining(`${status}: ${failureCode}. Report: `))
     expect(JSON.stringify(output.mock.calls)).not.toContain('confidential-score.mid')
     expect(errors).not.toHaveBeenCalled()
-    expect(process.exitCode).toBe(2)
+    expect(process.exitCode).toBe(stage === 'seek' ? 1 : 2)
   }
   finally {
     process.argv = originalArgv

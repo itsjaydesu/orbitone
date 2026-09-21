@@ -44,8 +44,57 @@ it.each([
     requestAnimationFrame(() => { input.value = '25.016' })
   input.dispatchEvent(new Event('pointerdown'))
   input.value = '25'
+  input.dispatchEvent(new Event('input', { bubbles: true }))
   await vi.advanceTimersByTimeAsync(16)
   expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: nextPosition })
+  expect(window.__orbitonePerf.seekInput).toMatchObject({ requestedPositionSeconds: 25, inputCount: 1, pointerDownCount: 1 })
+
+  window.__orbitonePerf.disarmSeek()
+  window.__orbitonePerf.armSeek()
+  // React can restore the old controlled value after the native input event.
+  input.addEventListener('input', () => {
+    input.value = '12'
+  }, { once: true })
+  input.dispatchEvent(new Event('pointerdown'))
+  input.value = '50'
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  await vi.advanceTimersByTimeAsync(16)
+  expect(window.__orbitonePerf.seekInput?.requestedPositionSeconds).toBe(50)
+
+  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: 12 })
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  input.value = '50'
+  await vi.advanceTimersByTimeAsync(32)
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toMatchObject({ latencyMs: 16, observationElapsedMs: 48, requestedPositionSeconds: 50, observedPositionSeconds: 50 })
+  input.value = '53.1'
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  input.value = '50'
+  await vi.advanceTimersByTimeAsync(1953)
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  window.__orbitonePerf.disarmSeek()
+
+  window.__orbitonePerf.armSeek()
+  input.dispatchEvent(new Event('pointerdown'))
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  await vi.advanceTimersByTimeAsync(16)
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).not.toBeNull()
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  window.__orbitonePerf.disarmSeek()
+  input.value = '75'
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  expect(window.__orbitonePerf.seekInput?.requestedPositionSeconds).toBe(50)
+
+  window.__orbitonePerf.armSeek()
+  input.value = '50'
+  input.dispatchEvent(new Event('pointerdown'))
+  await vi.advanceTimersByTimeAsync(16)
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  input.value = '12'
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  input.value = '50'
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  window.__orbitonePerf.disarmSeek()
 
   Object.defineProperty(PerformanceObserver, 'supportedEntryTypes', { value: [] })
   await expect(window.__orbitonePerf.measure(100)).rejects.toThrow('LONG_TASK_METRICS_UNAVAILABLE')
