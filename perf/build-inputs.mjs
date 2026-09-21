@@ -1,0 +1,16 @@
+export const buildInputPaths = Object.freeze([
+  'app',
+  'components',
+  'hooks',
+  'lib',
+  'public',
+  'scripts',
+  'perf',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'next.config.ts',
+  'tsconfig.json',
+  'postcss.config.mjs',
+  'ecosystem.config.js',
+])

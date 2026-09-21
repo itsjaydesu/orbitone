@@ -1,0 +1,30 @@
+{
+  "run_id": "run_64692bd290f7",
+  "role": "REV-DEPTH",
+  "model": "claude-opus-5",
+  "effort": "high",
+  "stage": "S4",
+  "status": "DONE",
+  "module": "M1 Results doc",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-ui",
+  "target_sha": "d1c24f4",
+  "base_sha": "6fb2db5ef00e9b36ae345e3d740faef75448574a",
+  "task_id": "task_3597609efbf3",
+  "dispatch_id": "ctx_b84d79055e22",
+  "budget_steps": 15,
+  "budget_minutes": 5,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T04:08:04.000000+00:00",
+  "updated_at": "2026-09-21T04:11:39Z",
+  "completed_at": "2026-09-21T04:11:39Z",
+  "verdict": "REVIEW_PASS",
+  "findings": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "report_path": "/Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_64692bd290f7/review/m1-results.md",
+  "original_invalid_completion_timestamp": "2026-09-21T04:11:18.6N+00:00",
+  "timestamp_source": "Orca worker_done msg_701cb87a9e4c; macOS date emitted an unsupported fractional token"
+}

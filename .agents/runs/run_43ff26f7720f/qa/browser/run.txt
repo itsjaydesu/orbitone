@@ -1,0 +1,21 @@
+PASS canvas-present: canvas 1280x720
+PASS upload: Piano Man uploaded; seekbar max > 200
+PASS immediate-play-control: Stop playback visible 2ms after progress; playReadyMs=1773
+PASS play-progress: transport advanced to 1.00s; earlyPeak=0.0005832246388308704 sustainedPeak=0.2610909342765808 sustainedMean=0.041716902511327876 active=89/120
+PASS audio-sustained: sustainedPeak=0.2610909342765808 mean=0.041716902511327876 active=89/120 earlyPeak=0.0005832246388308704; phases=[{"label":"warmup_2s","peak":0.0005832246388308704,"mean":0.0000577690194854541,"active":7,"samples":20,"at":1789969190804},{"label":"sustained_10s","peak":0.2610909342765808,"mean":0.041716902511327876,"active":89,"samples":120,"at":1789969201060}]
+INFO audio-audibility-limit: No hardware listening test performed; claims limited to WebAudio analyser peaks over a 10s window after onset and transport progress.
+PASS continuous-animation: transport advanced while playing 13.80 -> 15.00
+PASS webgl: WebGL context active {"renderer":"ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)","vendor":"Google Inc. (Apple)"}
+PASS smooth-seek-while-playing: before=15.00 after=184.30 expect~192.55 stillPlaying=true
+PASS pause: paused near 184.60s (delta 0.000); start/restart visible
+PASS seek: seek ~40% -> 139.10s of 350.08s
+PASS end-replay: nearEnd=348.60; saw Restart playback; afterRestart=1.00 playing=true
+KNOWN_DEFECT focused-range-arrows: DIG-3951: ArrowRight switched track "Piano Man" -> "Mira's Theme" (pos 103.20 -> 0.00); not endorsed as seek
+INFO track-restore-after-defect: after Previous track title="Yamanote New JRE-IKST Melody"
+PASS tempo: BPM changed 110 -> 140 immediately
+PASS midi-roll-toggle: MIDI Roll Off -> On
+PASS track-switch: track "Yamanote New JRE-IKST Melody" -> "Mira's Theme"
+INFO sample-failure-known: DIG-3950 sample-download failure stays known pending; not re-exercised as success path.
+PASS audio-analyser: analyser peak=0.2610909342765808 mean=0.041716902511327876 active=89/120
+PASS browser-errors: no pageerror/console error; no non-analytics HTTP failures
+BROWSER_EXIT=0

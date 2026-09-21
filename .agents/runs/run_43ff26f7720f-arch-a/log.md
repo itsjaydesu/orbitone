@@ -1,0 +1,10 @@
+AGENTS_MD_ACK
+2026-09-21T04:55:00+00:00 ARCH-A session bound to task_ec355d4ea400: bounded PR7 repair and release specification draft only. No app edits.
+2026-09-21T04:57:00+00:00 Delivered SPEC-draft.md (R1 seek target-reach gate, R2 automation navigation, R3 public/ pathspec, re-measurement).
+2026-09-21T04:58:00+00:00 Coordinator msg_661b889699ca processed: created arch-a manifest; added release-verification section with rollout delta (production fbbac4d vs origin/master 3ee74f3) and full-control production smoke contract to SPEC-draft.md.
+2026-09-21T05:10:00+00:00 ARCH-B round 1 (SPEC_REVIEW_FAIL) and coordinator directives processed. Draft r2 written: target-reach latency is the primary compared seek metric under the existing 10%/16.7ms allowance; 34ms grace removed; first-frame kept as named diagnostic; full build-input pathspec with documented exclusions and UNCOMMITTED_BUILD_INPUTS in both entry points; red tests committed first; identical-harness 3x3 re-measurement with recorded identities; exact-head merge, Vercel deployment-commit gate, signed-out production smoke over the fbbac4d delta with WebAudio evidence limits disclosed; gh pr comment disposition fallback.
+2026-09-21T05:12:00+00:00 Coordinator msg_6bb9667c8425: preamble lost at startup; no worker_done retry without capability. Draft r2 status sent (msg_a772700fb17d). ARCH-A idles for dispatch recovery.
+2026-09-21T05:24:00+00:00 Recovery dispatch ctx_172e35b6ebe9 adopted this run per PIPELINE §3. Verified worktree state against the log.
+2026-09-21T05:26:00+00:00 Re-verified SPEC-draft.md r2 against c876838: probe first-frame latency (perf/probe.ts:68), automation guard (app/page.tsx:626), incomplete pathspec (perf/baseline.ts:182, perf/service.mjs:11), C1 allowance (docs/performance.md:182). Draft hash equals the ARCH-B PASS hash 59ca1bac. Draft unchanged.
+2026-09-21T05:27:00+00:00 Wrote report.md with verified facts, binary acceptance, single-writer ownership, risks and limits. Manifest set DONE.
+ARCH_A_COMPLETE

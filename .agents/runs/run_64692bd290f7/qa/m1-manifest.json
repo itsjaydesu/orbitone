@@ -1,0 +1,20 @@
+{
+  "run_id": "run_64692bd290f7",
+  "module": "M1",
+  "role": "QA-MECH",
+  "model": "grok-4.5",
+  "effort": "medium",
+  "stage": "S3",
+  "status": "DONE",
+  "gate": "QA_PASS",
+  "signals": ["QA_PASS", "MEASURE_BASELINE_OK"],
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core",
+  "target_sha": "14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9",
+  "budget_minutes": 60,
+  "budget_steps": 100,
+  "qa_cycles": 1,
+  "started_at": "2026-09-21T02:26:10Z",
+  "updated_at": "2026-09-21T02:40:30Z",
+  "baseline_report": "perf/baseline/baseline-2026-09-21T02-29-58.205Z.json",
+  "resolved_url": "https://run-64692bd290f7-core.orbitone-perf-3937.asuka"
+}

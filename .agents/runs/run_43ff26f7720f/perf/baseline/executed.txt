@@ -1,0 +1,7 @@
+baseline start 2026-09-21T05:32:23Z url=https://pr7-repaired-baseline.orbitone-perf-3937.asuka
+$ tsx perf/baseline.ts -- --base-url https://pr7-repaired-baseline.orbitone-perf-3937.asuka --label baseline-pr7 --runs 3 --output-dir /Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_43ff26f7720f/perf/baseline
+Completed measurement 1/3.
+Completed measurement 2/3.
+Completed measurement 3/3.
+PASS: THREE_RUNS_CAPTURED. Report: /Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_43ff26f7720f/perf/baseline/baseline-pr7-2026-09-21T05-32-24.482Z.json
+BASELINE_EXIT=0

@@ -1,0 +1,40 @@
+red=93757608816b7d1f23d7d46312be20fa64e33245
+repair=4bd0c89bebb86ca89cc2294cb4a336f9e66c186e
+RED_ANCESTOR_OF_REPAIR=yes
+--- red test assertions (key expects) ---
+15:async function boundary(reachMs: number | null, repeatedEvent?: 'pointerdown' | 'input') {
+23:  const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText
+35:    if (reachMs !== null)
+36:      setTimeout(() => { input.value = '50' }, reachMs)
+52:      throw new Error('Private timeout: confidential-score.mid')
+58:it.each(['playing', 'paused'] as const)('passes prompt %s target reach with separate first-frame diagnostics', async (state) => {
+68:it.each(['playing', 'paused'] as const)('fails the C1 allowance for delayed %s target reach despite a prompt first frame', async (state) => {
+76:it.each([null, 2001])('fails the run when target reach at %s misses the observation timeout', async (reachMs) => {
+77:  const { page } = await boundary(reachMs)
+78:  const failure = await measureSeek(page, 100, 'playing', 0.5).catch(error => error as SeekFailure)
+79:  expect(failure).toBeInstanceOf(SeekFailure)
+80:  expect(failure).toMatchObject({
+85:  expect(JSON.stringify(failure)).not.toContain('confidential-score.mid')
+89:it.each(['pointerdown', 'input'] as const)('fails the run after repeated %s events', async (event) => {
+91:  await expect(measureSeek(page, 100, 'playing', 0.5)).rejects.toMatchObject({ status: 'FAIL', code: 'PLAYBACK_SEEK_INPUT_REPEATED' })
+--- red-tests.txt summary ---
+ FAIL  tests/perf-probe.test.ts > bounds metric windows and reads the next frame during paused seeking
+ FAIL  tests/perf-probe.test.ts > bounds metric windows and reads the next frame during playing seeking
+ FAIL  tests/perf-seek-target.test.ts > passes prompt playing target reach with separate first-frame diagnostics
+ FAIL  tests/perf-seek-target.test.ts > passes prompt paused target reach with separate first-frame diagnostics
+ FAIL  tests/perf-seek-target.test.ts > fails the C1 allowance for delayed playing target reach despite a prompt first frame
+ FAIL  tests/perf-seek-target.test.ts > fails the C1 allowance for delayed paused target reach despite a prompt first frame
+ FAIL  tests/perf-seek-target.test.ts > fails the run when target reach at null misses the observation timeout
+ FAIL  tests/perf-seek-target.test.ts > fails the run when target reach at 2001 misses the observation timeout
+AssertionError: expected Error: PLAYBACK_SEEK_POSITION_FAILED { …(3) } to match object { status: 'FAIL', …(2) }
+    "code": "PLAYBACK_SEEK_POSITION_FAILED",
+    "status": "FAIL",
+     81|     status: 'FAIL',
+     82|     code: 'PLAYBACK_SEEK_POSITION_FAILED',
+ FAIL  tests/perf-seek.test.ts > retains numeric evidence when playing completion times out
+-   "code": "PLAYBACK_SEEK_POSITION_FAILED",
+ FAIL  tests/perf-seek.test.ts > retains numeric evidence when paused completion times out
+-   "code": "PAUSED_SEEK_POSITION_FAILED",
+ Test Files  5 failed | 5 passed (10)
+      Tests  42 failed | 75 passed (117)
+[ELIFECYCLE] Test failed. See above for more details.

@@ -1,0 +1,28 @@
+{
+  "run_id": "run_64692bd290f7",
+  "role": "REV-DEPTH",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "stage": "S4",
+  "status": "DONE",
+  "module": "M2 Standards",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-ui",
+  "target_sha": "6fb2db5ef00e9b36ae345e3d740faef75448574a",
+  "base_sha": "3ee74f349f70074aba0ee0f9daf4ec39398c541d",
+  "task_id": "task_ac0719231960",
+  "dispatch_id": "ctx_4ba5c95880d3",
+  "budget_steps": 40,
+  "budget_minutes": 15,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T03:59:10.690102+00:00",
+  "updated_at": "2026-09-21T04:00:55.305854+00:00",
+  "completed_at": "2026-09-21T04:00:55.305854+00:00",
+  "verdict": "REVIEW_PASS",
+  "findings": {
+    "P1": 0,
+    "P2": 0,
+    "P3": 1
+  },
+  "report_path": "/Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_64692bd290f7/review/m2-standards.md"
+}

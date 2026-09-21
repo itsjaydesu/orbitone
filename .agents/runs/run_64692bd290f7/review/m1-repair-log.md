@@ -1,0 +1,26 @@
+# REV-DEPTH m1-repair log
+
+- AGENTS_MD_ACK
+- Read PIPELINE.md. Role REV-DEPTH. Model claude-opus-5 high. No substitution.
+- Scope: verify repairs in 14e608e..70332ae. Read-only review.
+- Read SPEC.md, review/m1-standards.md, review/m1-spec.md.
+- Read diff 14e608e..70332ae. Read perf/probe.ts, perf/baseline.ts, tests/tone-boundary.ts, tests/use-music.test.ts, hooks/useMusic.ts.
+- Verified all five accepted repairs. Verified withdrawn findings stay withdrawn.
+- Verified ownership: no app/, components/, hooks/, lib/ file changed.
+- Found 1 P2 (active seek gate blind to a lagging seek bar), 3 P3. No P1.
+- REVIEW_PASS
+- Coordinator reported new QA failure SEEK_POSITION_FAILED at run 2. Reopened review.
+- Read QA evidence baseline-c1-2026-09-21T03-26-21.967Z.json and failure-note.txt.
+- Deduced failure path: guard rethrows HarnessFailure, so a missed pointer gives PLAYBACK_SEEK_FAILED.
+- Observed code is SEEK_POSITION_FAILED. The click landed. The read-back disagreed.
+- P1: active seek reads input.value while app/page.tsx:2826 re-asserts it during playback.
+- Gate changed to REVIEW_FAIL. 1 P1, 4 P2, 3 P3.
+- REVIEW_FAIL
+- CORRECTION 2026-09-21T03:35Z after msg_ca216549ca44.
+- Removed invented manifest timestamps. started_at was 03:30:00Z, updated_at was 03:48:00Z, which is future.
+- Real values: start 03:26, completion 03:34:04, correction 03:35.
+- Withdrew the active-seek attribution. SEEK_POSITION_FAILED is shared by both measureSeek call sites.
+- The race is now a named hypothesis, not a proof. Retained the confirmed harness failure and the missing evidence.
+- Kept the frozen input-to-next-rAF metric and its gate. Added its limitation and the independent position proof.
+- Removed the retry wording. No silent input retries.
+- P2 count 4 to 2. Gate unchanged: REVIEW_FAIL.

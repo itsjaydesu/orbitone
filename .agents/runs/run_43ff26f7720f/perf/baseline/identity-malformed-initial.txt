@@ -1,0 +1,40 @@
+recorded_at=2026-09-21T05:32:22Z
+baseline_head=e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a
+candidate_head=e456081266ad58928e09963dbae56e3141f3c38b
+pre_repair_c876838=c8768387680085100db5658f9b9fe9c26022c8e4
+=== harness/config/fixture/scripts file hashes BASE vs CAND ===
+perf/baseline.ts base=f8ef5bd51ee437d7b3be4b70f8feaff20ed99324 cand=f8ef5bd51ee437d7b3be4b70f8feaff20ed99324 equal=yes
+perf/build-inputs.mjs base=2d98446ed9aaaa323ec7800ceb06bff71f60c1df cand=2d98446ed9aaaa323ec7800ceb06bff71f60c1df equal=yes
+perf/contracts.ts base=fc1a4a00c282430193400f0d75e86f36c6d94861 cand=fc1a4a00c282430193400f0d75e86f36c6d94861 equal=yes
+perf/probe-types.d.ts base=adc5bd9ee6a4431af80c94f8c399988eee10b187 cand=adc5bd9ee6a4431af80c94f8c399988eee10b187 equal=yes
+perf/probe.ts base=019fdfc263d0542481ca5f20f2897b53c9df9938 cand=019fdfc263d0542481ca5f20f2897b53c9df9938 equal=yes
+perf/seek.ts base=d56b3094cdc34c465699e3e80231cd309abddd78 cand=d56b3094cdc34c465699e3e80231cd309abddd78 equal=yes
+perf/service.mjs base=98ed37d2d5f668114f3e22129b75f970a1f1d872 cand=98ed37d2d5f668114f3e22129b75f970a1f1d872 equal=yes
+package.json base=039b3ef58ba7904956fa2c4fd5c57b3c1593ecb3 cand=039b3ef58ba7904956fa2c4fd5c57b3c1593ecb3 equal=yes
+pnpm-lock.yaml base=8ea8d2a5e9499a69053d3bacacfa033faec5ccb8 cand=8ea8d2a5e9499a69053d3bacacfa033faec5ccb8 equal=yes
+pnpm-workspace.yaml base=0791cd93917033e5aa9ba8ea71a780992d0afd4b cand=0791cd93917033e5aa9ba8ea71a780992d0afd4b equal=yes
+ecosystem.config.js base=8cc274d34b4871b43d02ac8957215911e032914a cand=8cc274d34b4871b43d02ac8957215911e032914a equal=yes
+next.config.ts base=fc772bf2a84ad4c6608ec73c38b26315d7ddf6a9 cand=fc772bf2a84ad4c6608ec73c38b26315d7ddf6a9 equal=yes
+tsconfig.json base=2a441c67ef6042dd19e0b0aa296509dc6acdbbec cand=2a441c67ef6042dd19e0b0aa296509dc6acdbbec equal=yes
+postcss.config.mjs base=6658496a47569d7f838d9047090e2dbafadca92d cand=6658496a47569d7f838d9047090e2dbafadca92d equal=yes
+vitest.config.ts base=9dc341751ca23de426bac3863f3dfd731852ba60 cand=9dc341751ca23de426bac3863f3dfd731852ba60 equal=yes
+docs/performance.md base=fcbb3521b98a7366795b4402eb3e96b4b44a3154 cand=fcbb3521b98a7366795b4402eb3e96b4b44a3154 equal=yes
+=== public fixture sha256 ===
+4d3a338a97f7bcb1d6cf3f7f5a88477e72f02d41f2728889e50f1617a68d5e4b  /Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/public/midi/pop-electronic/piano-man.mid
+4d3a338a97f7bcb1d6cf3f7f5a88477e72f02d41f2728889e50f1617a68d5e4b  /Users/dev/orca/workspaces/orbitone/pr7-benchmark-repair/public/midi/pop-electronic/piano-man.mid
+=== scripts/ tree blobs ===
+scripts/export-midi-library.mjs base=78f221ab29ca488f380d03f1886f989fd216445c cand=MISSING equal=no
+scripts/save-latest-playwright-export.mjs base=ebc6d2ec81b447ade55569d737a29a37abff4141 cand=MISSING equal=no
+scripts/sync-midi-library.mjs base=f92daec198653308b5d9eb72d850999019ee0d7e cand=MISSING equal=no
+=== app/components/hooks/lib trees ===
+BASE vs 3ee74f3:
+app base= 3ee74f3= equal=yes
+components base= 3ee74f3= equal=yes
+hooks base= 3ee74f3= equal=yes
+lib base= 3ee74f3= equal=yes
+CAND vs c876838 (pre-repair PR7 head):
+app cand= c876838= equal=yes
+components cand= c876838= equal=yes
+hooks cand= c876838= equal=yes
+lib cand= c876838= equal=yes
+BUILD_ID_BASE=missing

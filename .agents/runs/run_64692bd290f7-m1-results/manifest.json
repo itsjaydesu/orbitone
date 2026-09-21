@@ -1,0 +1,43 @@
+{
+  "run_id": "run_64692bd290f7-m1-results",
+  "role": "IMPL-CORE",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "stage": "S2",
+  "status": "DONE",
+  "module": "M1 documentation results",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-ui",
+  "budget_minutes": 15,
+  "budget_steps": 30,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T04:00:25.344642+00:00",
+  "updated_at": "2026-09-21T04:05:57.099827+00:00",
+  "baseline_commit": "6fb2db5ef00e9b36ae345e3d740faef75448574a",
+  "task_id": "task_7fcf9e1d3db7",
+  "dispatch_id": "ctx_576933109f7e",
+  "ownership": [
+    "docs/performance.md",
+    ".agents/runs/run_64692bd290f7-m1-results/"
+  ],
+  "implementation_signal": "IMPL_COMPLETE",
+  "docs_lint": "PASS",
+  "diffcheck": "PASS",
+  "evidence_links": "9 QA links resolve in coordinator checkout; 1 owned lint disclosure link",
+  "test_rerun": "NOT RUN; prose-only task",
+  "report_path": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-ui/.agents/runs/run_64692bd290f7-m1-results/report.md",
+  "remaining": [
+    "ORCH adds linked QA files in the final integration commit",
+    "Independent source reviews remain ORCH-owned"
+  ],
+  "coordinator_lint_correction": "msg_a6b0a9ceddf9",
+  "baseline_full_lint": {
+    "errors": 35,
+    "warnings": 31
+  },
+  "candidate_source_lint": {
+    "errors": 35,
+    "warnings": 32
+  },
+  "candidate_touched_lint_warnings": 21
+}

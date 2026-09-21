@@ -1,0 +1,43 @@
+{
+  "run_id": "run_43ff26f7720f",
+  "role": "REV-DEPTH",
+  "model": "claude-opus-5",
+  "effort": "high",
+  "stage": "S4",
+  "status": "DONE",
+  "module": "perf",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/gar",
+  "rounds": 2,
+  "round1": {
+    "review_range": "c8768387680085100db5658f9b9fe9c26022c8e4..e456081266ad58928e09963dbae56e3141f3c38b",
+    "docs_range": "e456081266ad58928e09963dbae56e3141f3c38b..bb18837",
+    "gate": "REVIEW_FAIL",
+    "report": "report-round1.md",
+    "started_at": "2026-09-21T05:47:00Z",
+    "report_written_at": "2026-09-21T05:57:20Z",
+    "records_written_at": "2026-09-21T05:57:45Z",
+    "completed_at": "2026-09-21T05:58:17Z"
+  },
+  "round2": {
+    "scope": "bounded re-review of evidence integration and ORCH dispositions",
+    "evidence_range": "bb18837..367097dbd53963653a519d52aa7519bc3670448d",
+    "source_unchanged_vs": "e456081266ad58928e09963dbae56e3141f3c38b",
+    "docs_unchanged_vs": "bb18837",
+    "gate": "REVIEW_PASS",
+    "report": "report.md",
+    "started_at": "2026-09-21T05:59:04Z",
+    "completed_at": "2026-09-21T06:01:52Z"
+  },
+  "author_family": "astra",
+  "reviewer_family": "claude",
+  "advisory_breadth": "unavailable",
+  "findings_round1": { "P1": 1, "P2": 1, "P3": 6 },
+  "findings_open": { "P1": 0, "P2": 0, "P3": 0 },
+  "disposition_source": ".agents/runs/run_43ff26f7720f/review-disposition.md",
+  "followup_issue": "DIG-3964",
+  "followup_verified_independently": false,
+  "gate": "REVIEW_PASS",
+  "qa_cycles": 0,
+  "retries": 0,
+  "updated_at": "2026-09-21T06:01:52Z"
+}

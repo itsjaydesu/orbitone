@@ -1,0 +1,43 @@
+baseline_head=e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a
+candidate_head=e456081266ad58928e09963dbae56e3141f3c38b
+=== harness blob equality BASE vs CAND ===
+OK docs/performance.md
+OK ecosystem.config.js
+OK package.json
+OK perf/baseline.ts
+OK perf/build-inputs.mjs
+OK perf/contracts.ts
+OK perf/probe-types.d.ts
+OK perf/probe.ts
+OK perf/seek.ts
+OK perf/service.mjs
+OK pnpm-lock.yaml
+OK tests/export.test.ts
+OK tests/midi-fixture.ts
+OK tests/music.test.ts
+OK tests/perf-cli.test.ts
+OK tests/perf-contract.test.ts
+OK tests/perf-inputs.test.ts
+OK tests/perf-probe.test.ts
+OK tests/perf-seek-target.test.ts
+OK tests/perf-seek.test.ts
+OK tests/tone-boundary.ts
+OK tests/use-music.test.ts
+OK tests/use-video-export.test.ts
+OK tests/web-audio-boundary.ts
+OK vitest.config.ts
+=== app identity vs 3ee74f3 on BASE ===
+OK BASE app == 3ee74f3
+OK BASE components == 3ee74f3
+OK BASE hooks == 3ee74f3
+OK BASE lib == 3ee74f3
+=== app identity vs 3ee74f3 on CAND ===
+DIFF CAND app cand=ebe081b73f70707edbb23ae8b1a6fd9c24c83e1e 3ee=606ef764bf5a58645f875ec3bc040991d40eeed5
+DIFF CAND components cand=f54f6a3e5484997106559de938faf4c83f33ecf6 3ee=9b6e7aeaf22bd4d851cb2684f60c2e72245a589b
+DIFF CAND hooks cand=fa00cbfd3a95b28769a1d3ef220b164183464a82 3ee=b811e7d2fb1eaaf4e7cc5f8403d0190dd685a1a6
+OK CAND lib == 3ee74f3
+=== BASE vs CAND app trees ===
+DIFF app
+DIFF components
+DIFF hooks
+OK lib equal
