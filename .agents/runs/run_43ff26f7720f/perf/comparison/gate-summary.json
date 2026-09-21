@@ -1,0 +1,623 @@
+{
+  "baseline": {
+    "sha": "e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a",
+    "buildId": "GMWOu80n6BAT2Vr7FmV4R",
+    "browser": "153.0.8010.48",
+    "rendering": {
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+      "mode": "hardware"
+    },
+    "status": "PASS",
+    "file": "/Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_43ff26f7720f/perf/baseline/baseline-pr7-2026-09-21T05-32-24.482Z.json",
+    "startedAt": "2026-09-21T05:32:24.482Z",
+    "endedAt": "2026-09-21T05:35:08.461Z",
+    "url": "https://pr7-repaired-baseline.orbitone-perf-3937.asuka"
+  },
+  "candidate": {
+    "sha": "e456081266ad58928e09963dbae56e3141f3c38b",
+    "buildId": "TUIzWFOJBexqOZmnl0Tz4",
+    "browser": "153.0.8010.48",
+    "rendering": {
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+      "mode": "hardware"
+    },
+    "status": "PASS",
+    "file": "/Users/dev/orca/workspaces/orbitone/gar/.agents/runs/run_43ff26f7720f/perf/candidate/candidate-pr7-2026-09-21T05-36-26.661Z.json",
+    "startedAt": "2026-09-21T05:36:26.661Z",
+    "endedAt": "2026-09-21T05:39:04.566Z",
+    "url": "https://pr7-benchmark-repair.orbitone-perf-3937.asuka"
+  },
+  "medians": {
+    "baseline": {
+      "playbackCpuFraction": 0.3828687623613073,
+      "pausedCpuFraction": 0.10215570056482984,
+      "playbackRafP50Ms": 8.30000000000291,
+      "playbackRafP95Ms": 9.19999999999709,
+      "playbackIntervalsOver50Ms": 0,
+      "playbackLongTaskCount": 0,
+      "playbackLongTaskDurationMs": 0,
+      "pausedRafP50Ms": 8.30000000000291,
+      "pausedRafP95Ms": 9.200000000004366,
+      "pausedIntervalsOver50Ms": 0,
+      "pausedLongTaskCount": 0,
+      "pausedLongTaskDurationMs": 0,
+      "playbackSeekLatencyMs": 3.0999999046325684,
+      "playbackObservedSeekPositionSeconds": 175,
+      "pausedSeekLatencyMs": 5.200000286102295,
+      "pausedObservedSeekPositionSeconds": 85.2,
+      "heapAfterPauseBytes": 119324436,
+      "audioReadyMs": 687.4442080000008,
+      "playbackProgressSeconds": 30
+    },
+    "candidate": {
+      "playbackCpuFraction": 0.16797053156765743,
+      "pausedCpuFraction": 0.09375272975235918,
+      "playbackRafP50Ms": 8.30000000000291,
+      "playbackRafP95Ms": 9.19999999999709,
+      "playbackIntervalsOver50Ms": 0,
+      "playbackLongTaskCount": 0,
+      "playbackLongTaskDurationMs": 0,
+      "pausedRafP50Ms": 8.30000000000291,
+      "pausedRafP95Ms": 9.19999999999709,
+      "pausedIntervalsOver50Ms": 0,
+      "pausedLongTaskCount": 0,
+      "pausedLongTaskDurationMs": 0,
+      "playbackSeekLatencyMs": 6.800000190734863,
+      "playbackObservedSeekPositionSeconds": 175,
+      "pausedSeekLatencyMs": 4.900000095367432,
+      "pausedObservedSeekPositionSeconds": 85.2,
+      "heapAfterPauseBytes": 41155208,
+      "audioReadyMs": 673.9135000000097,
+      "playbackProgressSeconds": 30
+    }
+  },
+  "individual": {
+    "baseline": {
+      "playbackCpu": {
+        "min": 0.34554331162374474,
+        "max": 0.4525728504582216,
+        "spread": 0.10702953883447686,
+        "values": [
+          0.34554331162374474,
+          0.3828687623613073,
+          0.4525728504582216
+        ]
+      },
+      "pausedCpu": {
+        "min": 0.08861374876706145,
+        "max": 0.12637785380681885,
+        "spread": 0.0377641050397574,
+        "values": [
+          0.08861374876706145,
+          0.10215570056482984,
+          0.12637785380681885
+        ]
+      },
+      "rafP95": {
+        "min": 9.199999999982538,
+        "max": 9.19999999999709,
+        "spread": 1.4551915228366852e-11,
+        "values": [
+          9.19999999999709,
+          9.19999999999709,
+          9.199999999982538
+        ]
+      },
+      "playbackSeek": {
+        "min": 3,
+        "max": 3.5,
+        "spread": 0.5,
+        "values": [
+          3.0999999046325684,
+          3,
+          3.5
+        ]
+      },
+      "pausedSeek": {
+        "min": 3.3000001907348633,
+        "max": 6.099999904632568,
+        "spread": 2.799999713897705,
+        "values": [
+          3.3000001907348633,
+          6.099999904632568,
+          5.200000286102295
+        ]
+      },
+      "firstFramePlayback": {
+        "min": 3,
+        "max": 3.5,
+        "spread": 0.5,
+        "values": [
+          3.0999999046325684,
+          3,
+          3.5
+        ]
+      },
+      "firstFramePaused": {
+        "min": 3.3000001907348633,
+        "max": 6.099999904632568,
+        "spread": 2.799999713897705,
+        "values": [
+          3.3000001907348633,
+          6.099999904632568,
+          5.200000286102295
+        ]
+      }
+    },
+    "candidate": {
+      "playbackCpu": {
+        "min": 0.1674784084683484,
+        "max": 0.17912847579515984,
+        "spread": 0.011650067326811425,
+        "values": [
+          0.16797053156765743,
+          0.17912847579515984,
+          0.1674784084683484
+        ]
+      },
+      "pausedCpu": {
+        "min": 0.09047888923374196,
+        "max": 0.10543750070362758,
+        "spread": 0.014958611469885613,
+        "values": [
+          0.09047888923374196,
+          0.09375272975235918,
+          0.10543750070362758
+        ]
+      },
+      "rafP95": {
+        "min": 9.19999999999709,
+        "max": 9.199999999998909,
+        "spread": 1.8189894035458565e-12,
+        "values": [
+          9.199999999998909,
+          9.19999999999709,
+          9.19999999999709
+        ]
+      },
+      "playbackSeek": {
+        "min": 6.5,
+        "max": 12.400000095367432,
+        "spread": 5.900000095367432,
+        "values": [
+          12.400000095367432,
+          6.5,
+          6.800000190734863
+        ]
+      },
+      "pausedSeek": {
+        "min": 4.900000095367432,
+        "max": 6.199999809265137,
+        "spread": 1.299999713897705,
+        "values": [
+          4.900000095367432,
+          6.199999809265137,
+          4.900000095367432
+        ]
+      },
+      "firstFramePlayback": {
+        "min": 5.200000286102295,
+        "max": 6.800000190734863,
+        "spread": 1.5999999046325684,
+        "values": [
+          5.200000286102295,
+          6.5,
+          6.800000190734863
+        ]
+      },
+      "firstFramePaused": {
+        "min": 4.900000095367432,
+        "max": 6.199999809265137,
+        "spread": 1.299999713897705,
+        "values": [
+          4.900000095367432,
+          6.199999809265137,
+          4.900000095367432
+        ]
+      }
+    }
+  },
+  "seekDiagnostics": {
+    "baseline": [
+      {
+        "run": 1,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 53162.2000002861,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 3.0999999046325684,
+          "firstFrameLatencyMs": 3.0999999046325684,
+          "nextFramePositionSeconds": 175,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 8
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 52770.5,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 3.3000001907348633,
+          "firstFrameLatencyMs": 3.3000001907348633,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 8.900000095367432
+        }
+      },
+      {
+        "run": 2,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 104702.90000009537,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 3,
+          "firstFrameLatencyMs": 3,
+          "nextFramePositionSeconds": 175,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 5.700000286102295
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 104325.30000019073,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 6.099999904632568,
+          "firstFrameLatencyMs": 6.099999904632568,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 6.099999904632568
+        }
+      },
+      {
+        "run": 3,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 156340.40000009537,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 3.5,
+          "firstFrameLatencyMs": 3.5,
+          "nextFramePositionSeconds": 175,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 6.700000286102295
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 155946.90000009537,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 5.200000286102295,
+          "firstFrameLatencyMs": 5.200000286102295,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 5.200000286102295
+        }
+      }
+    ],
+    "candidate": [
+      {
+        "run": 1,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 53311.90000009537,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 12.400000095367432,
+          "firstFrameLatencyMs": 5.200000286102295,
+          "nextFramePositionSeconds": 85.5,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 12.400000095367432
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 52936.40000009537,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 4.900000095367432,
+          "firstFrameLatencyMs": 4.900000095367432,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 8.400000095367432
+        }
+      },
+      {
+        "run": 2,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 104838.5,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 6.5,
+          "firstFrameLatencyMs": 6.5,
+          "nextFramePositionSeconds": 175,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 6.5
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 104488.10000038147,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 6.199999809265137,
+          "firstFrameLatencyMs": 6.199999809265137,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 6.199999809265137
+        }
+      },
+      {
+        "run": 3,
+        "playbackSeek": {
+          "state": "playing",
+          "requestedFraction": 0.5,
+          "expectedPositionSeconds": 175.04114583333333,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 156288,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 175,
+          "pointerX": 640,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 6.800000190734863,
+          "firstFrameLatencyMs": 6.800000190734863,
+          "nextFramePositionSeconds": 175,
+          "observedPositionSeconds": 175,
+          "observationElapsedMs": 6.800000190734863
+        },
+        "pausedSeek": {
+          "state": "paused",
+          "requestedFraction": 0.25,
+          "expectedPositionSeconds": 87.52057291666667,
+          "toleranceSeconds": 10.50246875,
+          "completionTimeoutMs": 2000,
+          "controlBox": {
+            "x": 368,
+            "y": 578,
+            "width": 544,
+            "height": 6
+          },
+          "pointerDownMs": 155938.5,
+          "pointerDownCount": 1,
+          "inputCount": 1,
+          "requestedPositionSeconds": 85.2,
+          "pointerX": 504,
+          "pointerY": 581,
+          "controlX": 368,
+          "controlY": 578,
+          "controlWidth": 544,
+          "controlHeight": 6,
+          "latencyMs": 4.900000095367432,
+          "firstFrameLatencyMs": 4.900000095367432,
+          "nextFramePositionSeconds": 85.2,
+          "observedPositionSeconds": 85.2,
+          "observationElapsedMs": 5
+        }
+      }
+    ]
+  },
+  "pausedSeekMedians": {
+    "baseline": 5.200000286102295,
+    "candidate": 4.900000095367432
+  },
+  "browserErrors": {
+    "baseline": 0,
+    "candidate": 0
+  },
+  "gates": [
+    {
+      "id": "playbackCpu",
+      "need": ">=10% reduction",
+      "baseline": 0.3828687623613073,
+      "candidate": 0.16797053156765743,
+      "reduction": 0.5612843144169953,
+      "pass": true
+    },
+    {
+      "id": "rafP95",
+      "need": "increase <= 1",
+      "baseline": 9.19999999999709,
+      "candidate": 9.19999999999709,
+      "increase": 0,
+      "pass": true
+    },
+    {
+      "id": "playbackSeekLatencyMs_targetReach",
+      "need": "increase <= 16.7",
+      "baseline": 3.0999999046325684,
+      "candidate": 6.800000190734863,
+      "increase": 3.700000286102295,
+      "pass": true
+    },
+    {
+      "id": "pausedCpu",
+      "need": "increase <= 0.010215570056482985",
+      "baseline": 0.10215570056482984,
+      "candidate": 0.09375272975235918,
+      "increase": -0.008402970812470656,
+      "pass": true
+    }
+  ],
+  "allPass": true
+}

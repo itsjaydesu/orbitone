@@ -1,0 +1,475 @@
+{
+  "status": "PASS",
+  "failureCode": null,
+  "failedSeek": null,
+  "stage": "run-3",
+  "label": "baseline-pr7",
+  "sha": "e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a",
+  "buildId": "GMWOu80n6BAT2Vr7FmV4R",
+  "buildMode": "production",
+  "browserVersion": "153.0.8010.48",
+  "rendering": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+    "mode": "hardware"
+  },
+  "scenario": {
+    "id": "DIG-3937-upload-01",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "dpr": 1,
+    "camera": "default",
+    "midiRoll": false,
+    "warmupSeconds": 10,
+    "playbackSeconds": 30,
+    "pauseSeconds": 10,
+    "seek": {
+      "comparisonState": "playing",
+      "playbackFraction": 0.5,
+      "pausedFraction": 0.25
+    },
+    "runs": 3
+  },
+  "startedAt": "2026-09-21T05:32:24.482Z",
+  "endedAt": "2026-09-21T05:35:08.461Z",
+  "browserErrors": 0,
+  "analyticsIntercepts": {
+    "scripts": 1,
+    "events": 0
+  },
+  "runs": [
+    {
+      "run": 1,
+      "startedAt": "2026-09-21T05:32:32.254Z",
+      "endedAt": "2026-09-21T05:33:24.905Z",
+      "audioReadyMs": 1519.3073750000003,
+      "durationSeconds": 350.08229166666666,
+      "warmupProgressSeconds": 10,
+      "playback": {
+        "startedAt": "2026-09-21T05:32:44.309Z",
+        "endedAt": "2026-09-21T05:33:14.329Z",
+        "requestedSeconds": 30,
+        "cpu": {
+          "taskCpuSeconds": 10.372657,
+          "threadCpuSeconds": 10.526643,
+          "wallSeconds": 30.018398999702185,
+          "cpuFraction": 0.34554331162374474,
+          "startCdpWallSeconds": 2203716.759407,
+          "endCdpWallSeconds": 2203746.777806,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.19999999999709,
+          "over50Ms": 0,
+          "count": 3599,
+          "startPerformanceMs": 12627.800000190735,
+          "endPerformanceMs": 42629,
+          "elapsedMs": 30001.199999809265
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.3976917862892151,
+          "activeSamples": 272,
+          "samples": 290
+        },
+        "positionStartSeconds": 0,
+        "positionEndSeconds": 30,
+        "heapBytes": 175213324
+      },
+      "paused": {
+        "startedAt": "2026-09-21T05:33:14.367Z",
+        "endedAt": "2026-09-21T05:33:24.377Z",
+        "requestedSeconds": 10,
+        "cpu": {
+          "taskCpuSeconds": 0.8869530000000001,
+          "threadCpuSeconds": 0.9408750000000001,
+          "wallSeconds": 10.009202999994159,
+          "cpuFraction": 0.08861374876706145,
+          "startCdpWallSeconds": 2203746.816209,
+          "endCdpWallSeconds": 2203756.825412,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.200000000004366,
+          "over50Ms": 0,
+          "count": 1199,
+          "startPerformanceMs": 42684.300000190735,
+          "endPerformanceMs": 52685.10000038147,
+          "elapsedMs": 10000.800000190735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.16612517833709717,
+          "activeSamples": 21,
+          "samples": 96
+        },
+        "positionStartSeconds": 30.1,
+        "positionEndSeconds": 30.1,
+        "heapBytes": 74969472
+      },
+      "playbackSeek": {
+        "state": "playing",
+        "requestedFraction": 0.5,
+        "expectedPositionSeconds": 175.04114583333333,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 53162.2000002861,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 175,
+        "pointerX": 640,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 3.0999999046325684,
+        "firstFrameLatencyMs": 3.0999999046325684,
+        "nextFramePositionSeconds": 175,
+        "observedPositionSeconds": 175,
+        "observationElapsedMs": 8
+      },
+      "pausedSeek": {
+        "state": "paused",
+        "requestedFraction": 0.25,
+        "expectedPositionSeconds": 87.52057291666667,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 52770.5,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 85.2,
+        "pointerX": 504,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 3.3000001907348633,
+        "firstFrameLatencyMs": 3.3000001907348633,
+        "nextFramePositionSeconds": 85.2,
+        "observedPositionSeconds": 85.2,
+        "observationElapsedMs": 8.900000095367432
+      },
+      "browserErrors": 0
+    },
+    {
+      "run": 2,
+      "startedAt": "2026-09-21T05:33:24.905Z",
+      "endedAt": "2026-09-21T05:34:16.447Z",
+      "audioReadyMs": 672.0614579999965,
+      "durationSeconds": 350.08229166666666,
+      "warmupProgressSeconds": 10,
+      "playback": {
+        "startedAt": "2026-09-21T05:33:35.889Z",
+        "endedAt": "2026-09-21T05:34:05.908Z",
+        "requestedSeconds": 30,
+        "cpu": {
+          "taskCpuSeconds": 11.492576999999997,
+          "threadCpuSeconds": 11.644814999999998,
+          "wallSeconds": 30.017014000099152,
+          "cpuFraction": 0.3828687623613073,
+          "startCdpWallSeconds": 2203768.338265,
+          "endCdpWallSeconds": 2203798.355279,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.19999999999709,
+          "over50Ms": 0,
+          "count": 3599,
+          "startPerformanceMs": 64204.60000038147,
+          "endPerformanceMs": 94205.60000038147,
+          "elapsedMs": 30001
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.6688858866691589,
+          "activeSamples": 276,
+          "samples": 289
+        },
+        "positionStartSeconds": 0,
+        "positionEndSeconds": 30,
+        "heapBytes": 203408244
+      },
+      "paused": {
+        "startedAt": "2026-09-21T05:34:05.945Z",
+        "endedAt": "2026-09-21T05:34:15.953Z",
+        "requestedSeconds": 10,
+        "cpu": {
+          "taskCpuSeconds": 1.0222959999999972,
+          "threadCpuSeconds": 1.078158000000002,
+          "wallSeconds": 10.007234000135213,
+          "cpuFraction": 0.10215570056482984,
+          "startCdpWallSeconds": 2203798.393475,
+          "endCdpWallSeconds": 2203808.400709,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.19999999999709,
+          "over50Ms": 0,
+          "count": 1200,
+          "startPerformanceMs": 94260.2000002861,
+          "endPerformanceMs": 104260.7000002861,
+          "elapsedMs": 10000.5
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.1507820188999176,
+          "activeSamples": 21,
+          "samples": 96
+        },
+        "positionStartSeconds": 30.1,
+        "positionEndSeconds": 30.1,
+        "heapBytes": 119324436
+      },
+      "playbackSeek": {
+        "state": "playing",
+        "requestedFraction": 0.5,
+        "expectedPositionSeconds": 175.04114583333333,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 104702.90000009537,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 175,
+        "pointerX": 640,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 3,
+        "firstFrameLatencyMs": 3,
+        "nextFramePositionSeconds": 175,
+        "observedPositionSeconds": 175,
+        "observationElapsedMs": 5.700000286102295
+      },
+      "pausedSeek": {
+        "state": "paused",
+        "requestedFraction": 0.25,
+        "expectedPositionSeconds": 87.52057291666667,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 104325.30000019073,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 85.2,
+        "pointerX": 504,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 6.099999904632568,
+        "firstFrameLatencyMs": 6.099999904632568,
+        "nextFramePositionSeconds": 85.2,
+        "observedPositionSeconds": 85.2,
+        "observationElapsedMs": 6.099999904632568
+      },
+      "browserErrors": 0
+    },
+    {
+      "run": 3,
+      "startedAt": "2026-09-21T05:34:16.447Z",
+      "endedAt": "2026-09-21T05:35:08.084Z",
+      "audioReadyMs": 687.4442080000008,
+      "durationSeconds": 350.08229166666666,
+      "warmupProgressSeconds": 10,
+      "playback": {
+        "startedAt": "2026-09-21T05:34:27.497Z",
+        "endedAt": "2026-09-21T05:34:57.521Z",
+        "requestedSeconds": 30,
+        "cpu": {
+          "taskCpuSeconds": 13.587148000000006,
+          "threadCpuSeconds": 13.764885,
+          "wallSeconds": 30.02201300021261,
+          "cpuFraction": 0.4525728504582216,
+          "startCdpWallSeconds": 2203819.945614,
+          "endCdpWallSeconds": 2203849.967627,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.199999999982538,
+          "over50Ms": 0,
+          "count": 3595,
+          "startPerformanceMs": 115812.60000038147,
+          "endPerformanceMs": 145813.80000019073,
+          "elapsedMs": 30001.199999809265
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.5245051383972168,
+          "activeSamples": 276,
+          "samples": 288
+        },
+        "positionStartSeconds": 0,
+        "positionEndSeconds": 30,
+        "heapBytes": 317769984
+      },
+      "paused": {
+        "startedAt": "2026-09-21T05:34:57.565Z",
+        "endedAt": "2026-09-21T05:35:07.576Z",
+        "requestedSeconds": 10,
+        "cpu": {
+          "taskCpuSeconds": 1.2651050000000055,
+          "threadCpuSeconds": 1.3338900000000038,
+          "wallSeconds": 10.010495999827981,
+          "cpuFraction": 0.12637785380681885,
+          "startCdpWallSeconds": 2203850.012335,
+          "endCdpWallSeconds": 2203860.022831,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.300000000017462,
+          "p95Ms": 9.200000000011642,
+          "over50Ms": 0,
+          "count": 1199,
+          "startPerformanceMs": 145879,
+          "endPerformanceMs": 155880.30000019073,
+          "elapsedMs": 10001.300000190735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.15859560668468475,
+          "activeSamples": 21,
+          "samples": 97
+        },
+        "positionStartSeconds": 30.1,
+        "positionEndSeconds": 30.1,
+        "heapBytes": 289409492
+      },
+      "playbackSeek": {
+        "state": "playing",
+        "requestedFraction": 0.5,
+        "expectedPositionSeconds": 175.04114583333333,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 156340.40000009537,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 175,
+        "pointerX": 640,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 3.5,
+        "firstFrameLatencyMs": 3.5,
+        "nextFramePositionSeconds": 175,
+        "observedPositionSeconds": 175,
+        "observationElapsedMs": 6.700000286102295
+      },
+      "pausedSeek": {
+        "state": "paused",
+        "requestedFraction": 0.25,
+        "expectedPositionSeconds": 87.52057291666667,
+        "toleranceSeconds": 10.50246875,
+        "completionTimeoutMs": 2000,
+        "controlBox": {
+          "x": 368,
+          "y": 578,
+          "width": 544,
+          "height": 6
+        },
+        "pointerDownMs": 155946.90000009537,
+        "pointerDownCount": 1,
+        "inputCount": 1,
+        "requestedPositionSeconds": 85.2,
+        "pointerX": 504,
+        "pointerY": 581,
+        "controlX": 368,
+        "controlY": 578,
+        "controlWidth": 544,
+        "controlHeight": 6,
+        "latencyMs": 5.200000286102295,
+        "firstFrameLatencyMs": 5.200000286102295,
+        "nextFramePositionSeconds": 85.2,
+        "observedPositionSeconds": 85.2,
+        "observationElapsedMs": 5.200000286102295
+      },
+      "browserErrors": 0
+    }
+  ],
+  "medians": {
+    "playbackCpuFraction": 0.3828687623613073,
+    "pausedCpuFraction": 0.10215570056482984,
+    "playbackRafP50Ms": 8.30000000000291,
+    "playbackRafP95Ms": 9.19999999999709,
+    "playbackIntervalsOver50Ms": 0,
+    "playbackLongTaskCount": 0,
+    "playbackLongTaskDurationMs": 0,
+    "pausedRafP50Ms": 8.30000000000291,
+    "pausedRafP95Ms": 9.200000000004366,
+    "pausedIntervalsOver50Ms": 0,
+    "pausedLongTaskCount": 0,
+    "pausedLongTaskDurationMs": 0,
+    "playbackSeekLatencyMs": 3.0999999046325684,
+    "playbackObservedSeekPositionSeconds": 175,
+    "pausedSeekLatencyMs": 5.200000286102295,
+    "pausedObservedSeekPositionSeconds": 85.2,
+    "heapAfterPauseBytes": 119324436,
+    "audioReadyMs": 687.4442080000008,
+    "playbackProgressSeconds": 30
+  },
+  "limits": [
+    "Main renderer thread only; no GPU or device CPU claim.",
+    "Heap is one point after pause; no leak claim.",
+    "Audio output probes do not prove the absence of audible gaps.",
+    "Independent browser QA remains required."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "run_id": "run_43ff26f7720f",
+  "module": "QA",
+  "role": "QA-MECH",
+  "model": "grok-4.5",
+  "effort": "medium",
+  "stage": "S3",
+  "status": "DONE",
+  "gate": "QA_PASS",
+  "signals": ["QA_PASS"],
+  "candidate": "/Users/dev/orca/workspaces/orbitone/pr7-benchmark-repair",
+  "baseline": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair",
+  "candidate_sha": "e456081266ad58928e09963dbae56e3141f3c38b",
+  "baseline_sha": "e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a",
+  "baseline_report": "perf/baseline/baseline-pr7-2026-09-21T05-32-24.482Z.json",
+  "candidate_report": "perf/candidate/candidate-pr7-2026-09-21T05-36-26.661Z.json",
+  "gate_summary": "perf/comparison/gate-summary.json",
+  "report": "qa/report.md",
+  "started_at": "2026-09-21T05:23:00Z",
+  "updated_at": "2026-09-21T05:41:17Z"
+}

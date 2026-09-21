@@ -1,0 +1,128 @@
+{
+  "findings": [
+    {
+      "id": "canvas-present",
+      "status": "PASS",
+      "detail": "canvas 1280x720",
+      "at": "2026-09-21T05:39:46.311Z"
+    },
+    {
+      "id": "upload",
+      "status": "PASS",
+      "detail": "Piano Man uploaded; seekbar max > 200",
+      "at": "2026-09-21T05:39:46.695Z"
+    },
+    {
+      "id": "immediate-play-control",
+      "status": "PASS",
+      "detail": "Stop playback visible 2ms after progress; playReadyMs=1773",
+      "at": "2026-09-21T05:39:48.738Z"
+    },
+    {
+      "id": "play-progress",
+      "status": "PASS",
+      "detail": "transport advanced to 1.00s; earlyPeak=0.0005832246388308704 sustainedPeak=0.2610909342765808 sustainedMean=0.041716902511327876 active=89/120",
+      "at": "2026-09-21T05:40:01.061Z"
+    },
+    {
+      "id": "audio-sustained",
+      "status": "PASS",
+      "detail": "sustainedPeak=0.2610909342765808 mean=0.041716902511327876 active=89/120 earlyPeak=0.0005832246388308704; phases=[{\"label\":\"warmup_2s\",\"peak\":0.0005832246388308704,\"mean\":0.0000577690194854541,\"active\":7,\"samples\":20,\"at\":1789969190804},{\"label\":\"sustained_10s\",\"peak\":0.2610909342765808,\"mean\":0.041716902511327876,\"active\":89,\"samples\":120,\"at\":1789969201060}]",
+      "at": "2026-09-21T05:40:01.061Z"
+    },
+    {
+      "id": "audio-audibility-limit",
+      "status": "INFO",
+      "detail": "No hardware listening test performed; claims limited to WebAudio analyser peaks over a 10s window after onset and transport progress.",
+      "at": "2026-09-21T05:40:01.061Z"
+    },
+    {
+      "id": "continuous-animation",
+      "status": "PASS",
+      "detail": "transport advanced while playing 13.80 -> 15.00",
+      "at": "2026-09-21T05:40:02.771Z"
+    },
+    {
+      "id": "webgl",
+      "status": "PASS",
+      "detail": "WebGL context active {\"renderer\":\"ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)\",\"vendor\":\"Google Inc. (Apple)\"}",
+      "at": "2026-09-21T05:40:02.776Z"
+    },
+    {
+      "id": "smooth-seek-while-playing",
+      "status": "PASS",
+      "detail": "before=15.00 after=184.30 expect~192.55 stillPlaying=true",
+      "at": "2026-09-21T05:40:03.160Z"
+    },
+    {
+      "id": "pause",
+      "status": "PASS",
+      "detail": "paused near 184.60s (delta 0.000); start/restart visible",
+      "at": "2026-09-21T05:40:04.279Z"
+    },
+    {
+      "id": "seek",
+      "status": "PASS",
+      "detail": "seek ~40% -> 139.10s of 350.08s",
+      "at": "2026-09-21T05:40:04.587Z"
+    },
+    {
+      "id": "end-replay",
+      "status": "PASS",
+      "detail": "nearEnd=348.60; saw Restart playback; afterRestart=1.00 playing=true",
+      "at": "2026-09-21T05:40:07.914Z"
+    },
+    {
+      "id": "focused-range-arrows",
+      "status": "KNOWN_DEFECT",
+      "detail": "DIG-3951: ArrowRight switched track \"Piano Man\" -> \"Mira's Theme\" (pos 103.20 -> 0.00); not endorsed as seek",
+      "at": "2026-09-21T05:40:09.111Z"
+    },
+    {
+      "id": "track-restore-after-defect",
+      "status": "INFO",
+      "detail": "after Previous track title=\"Yamanote New JRE-IKST Melody\"",
+      "at": "2026-09-21T05:40:10.902Z"
+    },
+    {
+      "id": "tempo",
+      "status": "PASS",
+      "detail": "BPM changed 110 -> 140 immediately",
+      "at": "2026-09-21T05:40:11.155Z"
+    },
+    {
+      "id": "midi-roll-toggle",
+      "status": "PASS",
+      "detail": "MIDI Roll Off -> On",
+      "at": "2026-09-21T05:40:11.461Z"
+    },
+    {
+      "id": "track-switch",
+      "status": "PASS",
+      "detail": "track \"Yamanote New JRE-IKST Melody\" -> \"Mira's Theme\"",
+      "at": "2026-09-21T05:40:13.332Z"
+    },
+    {
+      "id": "sample-failure-known",
+      "status": "INFO",
+      "detail": "DIG-3950 sample-download failure stays known pending; not re-exercised as success path.",
+      "at": "2026-09-21T05:40:13.374Z"
+    },
+    {
+      "id": "audio-analyser",
+      "status": "PASS",
+      "detail": "analyser peak=0.2610909342765808 mean=0.041716902511327876 active=89/120",
+      "at": "2026-09-21T05:40:13.375Z"
+    },
+    {
+      "id": "browser-errors",
+      "status": "PASS",
+      "detail": "no pageerror/console error; no non-analytics HTTP failures",
+      "at": "2026-09-21T05:40:13.376Z"
+    }
+  ],
+  "errors": [],
+  "httpFailures": [],
+  "baseUrl": "https://pr7-benchmark-repair.orbitone-perf-3937.asuka?automation=1",
+  "at": "2026-09-21T05:40:13.376Z"
+}

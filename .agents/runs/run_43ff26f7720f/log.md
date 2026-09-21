@@ -17,3 +17,25 @@ ARCH_A_COMPLETE
 SPEC_REVIEW_PASS
 SPEC_FROZEN
 S2 begins. One Astra core owner repairs tests and harness in an isolated checkout.
+
+Red regression checkpoint9375760 precedes every harness repair.42 tests fail and75 pass.
+Development lint and TypeScript pass at that checkpoint. Independent QA remains pending.
+A dependency postinstall downloaded unused Lightpanda; no browser ran. Require ignore-scripts for further installs.
+
+Verified source4bd0c89 and handoffe456081. Application source remains unchanged from PR7c876838.
+IMPL_COMPLETE
+S3 begins: independent paired benchmarks and real control QA.
+
+QA-MECH S3 RUNNING. AGENTS_MD_ACK. Target e456081 vs baseline e160e11.
+
+Kimi advisory lane is unavailable: no kimi or omp CLI; installed Grok exposes only Grok4.5/4.6.
+Do not substitute a model. Independent opposite-family depth review remains the binding source-review gate.
+
+QA-MECH QA_PASS for run_43ff26f7720f. Paired gates PASS on target-reach seek. Service stopped.
+QA_PASS
+
+ORCH verified QA report, source identity, and clean candidate checkout.
+S4 begins: opposite-family depth review. Results documentation follows accepted measurements.
+
+Local integration advanced to bb18837. Measured application and harness bytes remain unchanged from e456081.
+ORCH corrected the docs manifest timestamp from its future value to the observed completion time.

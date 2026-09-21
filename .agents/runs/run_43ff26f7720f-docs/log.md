@@ -4,3 +4,5 @@ AGENTS_MD_ACK
 2026-09-21T05:55:00Z Historical first-frame evidence preserved and marked superseded.
 2026-09-21T05:55:00Z Touched docs lint and git diff check passed.
 IMPL_COMPLETE
+
+ORCH corrected future timestamps using the observed dispatch interval and worker_done record.

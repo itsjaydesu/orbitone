@@ -1,0 +1,26 @@
+recorded_at=2026-09-21T05:35:33Z
+baseline_head=e160e11cbc1c1aa3bd4f4ad4d458d03f935fa17a
+candidate_head=e456081266ad58928e09963dbae56e3141f3c38b
+pre_repair_c876838=c8768387680085100db5658f9b9fe9c26022c8e4
+origin_master_3ee74f3=3ee74f349f70074aba0ee0f9daf4ec39398c541d
+BUILD_ID_BASE=GMWOu80n6BAT2Vr7FmV4R
+FIXTURE_SHA256=4d3a338a97f7bcb1d6cf3f7f5a88477e72f02d41f2728889e50f1617a68d5e4b
+=== BASE vs 3ee74f3 app trees ===
+app base=606ef764bf5a58645f875ec3bc040991d40eeed5 3ee74f3=606ef764bf5a58645f875ec3bc040991d40eeed5 equal=yes
+components base=9b6e7aeaf22bd4d851cb2684f60c2e72245a589b 3ee74f3=9b6e7aeaf22bd4d851cb2684f60c2e72245a589b equal=yes
+hooks base=b811e7d2fb1eaaf4e7cc5f8403d0190dd685a1a6 3ee74f3=b811e7d2fb1eaaf4e7cc5f8403d0190dd685a1a6 equal=yes
+lib base=e1ac1a9e8d9829b5e7661744c8282ab1fc004c0f 3ee74f3=e1ac1a9e8d9829b5e7661744c8282ab1fc004c0f equal=yes
+=== CAND vs c876838 app trees ===
+app cand=ebe081b73f70707edbb23ae8b1a6fd9c24c83e1e c876838=ebe081b73f70707edbb23ae8b1a6fd9c24c83e1e equal=yes
+components cand=f54f6a3e5484997106559de938faf4c83f33ecf6 c876838=f54f6a3e5484997106559de938faf4c83f33ecf6 equal=yes
+hooks cand=fa00cbfd3a95b28769a1d3ef220b164183464a82 c876838=fa00cbfd3a95b28769a1d3ef220b164183464a82 equal=yes
+lib cand=e1ac1a9e8d9829b5e7661744c8282ab1fc004c0f c876838=e1ac1a9e8d9829b5e7661744c8282ab1fc004c0f equal=yes
+=== scripts presence ===
+100644 blob 78f221ab29ca488f380d03f1886f989fd216445c	scripts/export-midi-library.mjs
+100644 blob ebc6d2ec81b447ade55569d737a29a37abff4141	scripts/save-latest-playwright-export.mjs
+100644 blob f92daec198653308b5d9eb72d850999019ee0d7e	scripts/sync-midi-library.mjs
+100644 blob 78f221ab29ca488f380d03f1886f989fd216445c	scripts/export-midi-library.mjs
+100644 blob ebc6d2ec81b447ade55569d737a29a37abff4141	scripts/save-latest-playwright-export.mjs
+100644 blob f92daec198653308b5d9eb72d850999019ee0d7e	scripts/sync-midi-library.mjs
+=== next-env status (generated) ===
+ M next-env.d.ts
