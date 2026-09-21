@@ -1,0 +1,17 @@
+{
+  "run_id": "run_43ff26f7720f",
+  "role": "ARCH-B",
+  "model": "gpt-6-astra",
+  "stage": "S1",
+  "status": "DONE",
+  "module": "PR7 repair and release spec review",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/gar",
+  "budget_steps": 100,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T04:53:02.276808+00:00",
+  "updated_at": "2026-09-21T04:59:03.193983+00:00",
+  "reviewed_spec_sha256": "59ca1bac272e42cbe1fb8cca36d94f16c4005c02325975361f80714005fa9e91",
+  "verdict": "SPEC_REVIEW_PASS",
+  "review_rounds": 2
+}
