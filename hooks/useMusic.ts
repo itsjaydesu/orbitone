@@ -49,7 +49,14 @@ interface TrackState {
   source: 'default' | 'loaded'
 }
 
+export interface PlaybackClock {
+  getTime: () => number
+  subscribe: (listener: () => void) => () => void
+}
+
 const TRACK_END_EPSILON_SECONDS = 0.05
+// The frozen spec allows text updates at 2 Hz while the clock ref stays per-frame.
+const DISPLAY_UPDATE_INTERVAL_MS = 500
 const IOS_AUDIO_PRIME_DURATION_SECONDS = 0.04
 const IOS_AUDIO_PRIME_TIMEOUT_MS = 150
 
@@ -159,6 +166,9 @@ export function useMusic(settings: MusicSettings) {
   const isPlayingRef = useRef(false)
   const bpmRef = useRef(100)
   const currentTimeRef = useRef(0)
+  // Playback time lives in a ref so per-frame clock reads never re-render the page tree.
+  const timeListenersRef = useRef<Set<() => void>>(new Set())
+  const displayUpdateAtRef = useRef(Number.NEGATIVE_INFINITY)
   const audioDurationRef = useRef(0)
   const animationFrameRef = useRef<number | undefined>(undefined)
   const [requiresExplicitAudioUnlock, setRequiresExplicitAudioUnlock] = useState(false)
@@ -259,10 +269,37 @@ export function useMusic(settings: MusicSettings) {
     return Math.min(Math.max(time, 0), audioDurationRef.current)
   }, [])
 
-  const setPlaybackTime = useCallback((time: number) => {
+  const publishPlaybackTime = useCallback((time: number) => {
     currentTimeRef.current = time
-    setCurrentTime(time)
+    for (const listener of timeListenersRef.current) {
+      listener()
+    }
   }, [])
+
+  // Explicit transport changes re-arm the display throttle so controls never wait on it.
+  const setPlaybackTime = useCallback((time: number) => {
+    publishPlaybackTime(time)
+    displayUpdateAtRef.current = Number.NEGATIVE_INFINITY
+    setCurrentTime(time)
+  }, [publishPlaybackTime])
+
+  const playbackClock = useMemo<PlaybackClock>(() => ({
+    getTime: () => {
+      const time = currentTimeRef.current
+
+      if (!Number.isFinite(time) || audioDurationRef.current <= 0) {
+        return 0
+      }
+
+      return Math.min(Math.max(time, 0), audioDurationRef.current)
+    },
+    subscribe: (listener: () => void) => {
+      timeListenersRef.current.add(listener)
+      return () => {
+        timeListenersRef.current.delete(listener)
+      }
+    },
+  }), [])
 
   const syncTransportTime = useCallback(
     (time: number) => {
@@ -478,12 +515,8 @@ export function useMusic(settings: MusicSettings) {
     Tone.Transport.seconds = newTransportTime
     prevSpeedRef.current = playbackSpeed
 
-    if (!wasPlaying) {
-      currentTimeRef.current = Math.min(
-        Math.max(newTransportTime, 0),
-        audioDurationRef.current,
-      )
-    }
+    // Tempo changes rescale transport time; sync the display now, not on the next throttled tick.
+    setPlaybackTime(clampAudioTime(newTransportTime))
 
     if (partRef.current) {
       partRef.current.dispose()
@@ -532,11 +565,11 @@ export function useMusic(settings: MusicSettings) {
     else {
       partStartedRef.current = false
     }
-  }, [notes, pedalEvents, bpm, originalBpm])
+  }, [notes, pedalEvents, bpm, originalBpm, clampAudioTime, setPlaybackTime])
 
   useEffect(() => {
     if (isPlaying) {
-      const tickPlayback = () => {
+      const tickPlayback = (frameTimestamp: number) => {
         if (!isPlayingRef.current) {
           return
         }
@@ -551,7 +584,13 @@ export function useMusic(settings: MusicSettings) {
           return
         }
 
-        setPlaybackTime(nextTime)
+        publishPlaybackTime(nextTime)
+
+        if (frameTimestamp - displayUpdateAtRef.current >= DISPLAY_UPDATE_INTERVAL_MS) {
+          displayUpdateAtRef.current = frameTimestamp
+          setCurrentTime(nextTime)
+        }
+
         animationFrameRef.current = window.requestAnimationFrame(tickPlayback)
       }
 
@@ -567,7 +606,7 @@ export function useMusic(settings: MusicSettings) {
     clearPlaybackFrame,
     finishPlayback,
     isPlaying,
-    setPlaybackTime,
+    publishPlaybackTime,
   ])
 
   const togglePlay = useCallback(async () => {
@@ -707,6 +746,7 @@ export function useMusic(settings: MusicSettings) {
     loadMidi,
     duration,
     seek,
+    playbackClock,
     bpm,
     setBpm,
     resetBpm,
