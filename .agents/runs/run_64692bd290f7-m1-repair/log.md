@@ -27,3 +27,12 @@ Coordinator message msg_74d30c5a3edf extends ownership to formatting the prior M
 The configured formatter fixes those records without changing their words or evidence.
 The formatter also corrects one Markdown escape in this repair log.
 The final check includes both inherited records and all repair records.
+
+Implementation commit: df62f58bd43cabb9e6f53f39f92e082edc45281c.
+Final checks pass: 42 tests, TypeScript, touched-file lint, inherited-record lint, and git diff --check.
+Full lint now retains only the known 35 errors and 31 warnings under DIG-3939.
+The authorized inherited-record formatting preserves all words and evidence.
+The harness runtime changed; fresh baseline and candidate measurements remain pending independent QA.
+No server, browser, or independent QA operations ran. The worktree retains unchanged application source.
+
+IMPL_COMPLETE
