@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { buildInputPaths } from './build-inputs.mjs'
 
 const cwd = fileURLToPath(new URL('..', import.meta.url))
 if (process.versions.node !== '24.18.0')
@@ -8,9 +9,9 @@ if (process.versions.node !== '24.18.0')
 const sha = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' })
 if (sha.status !== 0)
   throw new Error('Cannot identify the build commit.')
-const dirty = spawnSync('git', ['status', '--porcelain', '--', 'app', 'components', 'hooks', 'lib', 'package.json', 'pnpm-lock.yaml', 'next.config.ts', 'perf', 'ecosystem.config.js'], { cwd, encoding: 'utf8' })
+const dirty = spawnSync('git', ['status', '--porcelain', '--', ...buildInputPaths], { cwd, encoding: 'utf8' })
 if (dirty.status !== 0 || dirty.stdout.trim())
-  throw new Error('Commit application inputs before the performance build.')
+  throw new Error('UNCOMMITTED_BUILD_INPUTS')
 const build = spawnSync('pnpm', ['build'], { cwd, stdio: 'inherit' })
 if (build.status !== 0)
   process.exit(build.status ?? 1)

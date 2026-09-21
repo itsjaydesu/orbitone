@@ -1,0 +1,15 @@
+Initial full lint: 36 errors and 32 warnings.
+The new JSON output file was empty when ESLint read it during the same command.
+Rename the output to a text report, then rerun full lint.
+.agents/runs/run_43ff26f7720f-impl/full-lint.json: 1 errors
+.github/workflows/claude-code-review.yml: 2 errors
+.github/workflows/claude.yml: 1 errors
+app/globals.css: 2 errors
+components/ExportOverlay.tsx: 10 errors
+hooks/useVideoExport.ts: 2 errors
+lib/export-audio.ts: 3 errors
+lib/export.ts: 2 errors
+lib/music.ts: 1 errors
+pnpm-workspace.yaml: 6 errors
+scripts/export-midi-library.mjs: 4 errors
+scripts/save-latest-playwright-export.mjs: 2 errors

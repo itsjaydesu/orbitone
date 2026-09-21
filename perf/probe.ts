@@ -35,16 +35,18 @@ function installProbe() {
   }
 
   let removeSeekListeners = () => {}
+  let targetPositionSeconds: number | null = null
   const emptySeekInput = (): OrbitonePerfSeekInput => ({ pointerDownMs: null, pointerDownCount: 0, inputCount: 0, requestedPositionSeconds: null, pointerX: null, pointerY: null, controlX: null, controlY: null, controlWidth: null, controlHeight: null })
-  const finite = (value: number | undefined) => value !== undefined && Number.isFinite(value) ? value : null
+  const finite = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) ? value : null
   const probe: OrbitonePerfProbe = {
     audio,
     position,
     seek: null,
     seekInput: null,
-    armSeek() {
+    armSeek(toleranceSeconds, timeoutMs) {
       this.disarmSeek()
       this.seek = null
+      targetPositionSeconds = null
       const attempt = emptySeekInput()
       this.seekInput = attempt
       const input = document.querySelector<HTMLInputElement>('input.nm-seekbar')
@@ -64,9 +66,21 @@ function installProbe() {
         attempt.controlY = box.y
         attempt.controlWidth = box.width
         attempt.controlHeight = box.height
-        frame = requestAnimationFrame(() => {
-          probe.seek = { latencyMs: performance.now() - start, nextFramePositionSeconds: position() }
-        })
+        const tick = () => {
+          const elapsedMs = performance.now() - start
+          const observedPositionSeconds = position()
+          probe.seek ??= { latencyMs: null, firstFrameLatencyMs: elapsedMs, nextFramePositionSeconds: observedPositionSeconds }
+          if (elapsedMs <= timeoutMs && attempt.pointerDownCount === 1 && attempt.inputCount === 1
+            && attempt.requestedPositionSeconds !== null
+            && Math.abs(observedPositionSeconds - attempt.requestedPositionSeconds) <= toleranceSeconds) {
+            probe.seek.latencyMs = elapsedMs
+            targetPositionSeconds = observedPositionSeconds
+            return
+          }
+          if (elapsedMs < timeoutMs && attempt.pointerDownCount <= 1 && attempt.inputCount <= 1)
+            frame = requestAnimationFrame(tick)
+        }
+        frame = requestAnimationFrame(tick)
       }
       const onInput = (event: Event) => {
         if (event.target !== input || attempt.pointerDownMs === null)
@@ -93,8 +107,9 @@ function installProbe() {
       return {
         ...input,
         latencyMs: finite(this.seek?.latencyMs),
+        firstFrameLatencyMs: finite(this.seek?.firstFrameLatencyMs),
         nextFramePositionSeconds: finite(this.seek?.nextFramePositionSeconds),
-        observedPositionSeconds: finite(position()),
+        observedPositionSeconds: targetPositionSeconds ?? finite(position()),
         observationElapsedMs: input.pointerDownMs === null ? null : performance.now() - input.pointerDownMs,
       }
     },

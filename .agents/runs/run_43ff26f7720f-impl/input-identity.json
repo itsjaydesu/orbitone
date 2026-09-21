@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-09-21T05:17:50.364786+00:00",
+  "kind": "source identity only; no browser or build measurements",
+  "applicationReference": "c876838",
+  "baselineApplicationReference": "3ee74f3",
+  "applicationTrees": {
+    "app": "ebe081b73f70707edbb23ae8b1a6fd9c24c83e1e",
+    "components": "f54f6a3e5484997106559de938faf4c83f33ecf6",
+    "hooks": "fa00cbfd3a95b28769a1d3ef220b164183464a82",
+    "lib": "e1ac1a9e8d9829b5e7661744c8282ab1fc004c0f"
+  },
+  "sha256": {
+    "perf/baseline.ts": "42fddc6f076a1bcf6bd4185014f620531c9b27b3ab63e101e12deea3dd607ba0",
+    "perf/build-inputs.mjs": "0b7ae93f5a4f08c8488c650b7226c5bf1d7f7f012f758ee86ceeac5058e7eda3",
+    "perf/contracts.ts": "be77af260843ac7c3fb6dc91d9436cfca42dfccc558d173420801330c2760246",
+    "perf/probe-types.d.ts": "ecd4f928408668d1005a555c3838fea97e52fbaa9254b5f43a52743bbe431fc2",
+    "perf/probe.ts": "a0076d2ca0bbfe56d6d43dff01e379ff3da1669ad66fdb5b0aadc82f4b522f5b",
+    "perf/seek.ts": "87c82389e715cd6e39143ed00ecff73a4075fbabee0e058de4bed6987d36afdf",
+    "perf/service.mjs": "6b352907b1e4fa02b44efa79a20b38deb5c0f4b569194cba0f9f1485218b36d9",
+    "tests/perf-cli.test.ts": "a2a1949f72a06769e95bf57edc5584b01840f0243331f27e9e6f02d9e03f2f77",
+    "tests/perf-contract.test.ts": "4362df51b341a5b4492850829d5496b82c7f1807c77eb986f7b38c670bbd4c4a",
+    "tests/perf-inputs.test.ts": "c5a9bb7a7d18f9584d50fb6ca9a56be798922004295fe53ca26bf09cad110d24",
+    "tests/perf-probe.test.ts": "0badc4b1cf89864b6f7b34441c830156cabb971f143d565b5b459aa71a0e41a7",
+    "tests/perf-seek-target.test.ts": "afa37b0f410fa134953db264d7b78f4f567b5cf5cf68e1a9687e1b81b786cd22",
+    "tests/perf-seek.test.ts": "24490cca3811d08f1b184896adc20c88a84acab933bfe6013fa103b160caee68",
+    "public/midi/pop-electronic/piano-man.mid": "4d3a338a97f7bcb1d6cf3f7f5a88477e72f02d41f2728889e50f1617a68d5e4b",
+    "package.json": "c827393e3917ddb07683cf5e070b1287f9cfaa2b3e57541d445c096fe215f5c0",
+    "pnpm-lock.yaml": "b6095cc1091b6fa984ab010c6d547831194b71406acfd07262170530afaeab91",
+    "pnpm-workspace.yaml": "51d3d9323d2a78e2ccb27ba872305a9dd52a5e518a452516fe3062751d31f2d8",
+    "next.config.ts": "5134f081b9451ee94ea75625802345cbc29e62fed94cf61ced1a07395e931291",
+    "tsconfig.json": "7eaf89d3174900606b0c9468bd97e99ef7548be2ebaeae357d19a31fded74c98",
+    "postcss.config.mjs": "529efff7d51d1f0867f9cf32d6c261744aff3914eb353298f320967a416167df",
+    "ecosystem.config.js": "da96141ef6bfb41032c497ce601e916b9bccc62ea758ea4fc097954ae7ee4082",
+    "vitest.config.ts": "71cb45dcf0784d1aaf7538da8cb19dc75613729228a29d7e6de8b8c8027daba9",
+    "eslint.config.mjs": "21138e571a4aa74d99455a8be150639a7c9d7f6e427a701ca221ab65d8fad584"
+  }
+}

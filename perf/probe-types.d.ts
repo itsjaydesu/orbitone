@@ -20,7 +20,11 @@ declare global {
     positionEndSeconds: number
   }
 
-  interface OrbitonePerfSeekReading { latencyMs: number, nextFramePositionSeconds: number }
+  interface OrbitonePerfSeekReading {
+    latencyMs: number | null
+    firstFrameLatencyMs: number
+    nextFramePositionSeconds: number
+  }
 
   interface OrbitonePerfSeekInput {
     pointerDownMs: number | null
@@ -37,6 +41,7 @@ declare global {
 
   interface OrbitonePerfSeekObservation extends OrbitonePerfSeekInput {
     latencyMs: number | null
+    firstFrameLatencyMs: number | null
     nextFramePositionSeconds: number | null
     observedPositionSeconds: number | null
     observationElapsedMs: number | null
@@ -46,7 +51,7 @@ declare global {
     audio: () => OrbitonePerfAudioReading
     position: () => number
     measure: (durationMs: number) => Promise<OrbitonePerfWindowMetrics>
-    armSeek: () => void
+    armSeek: (toleranceSeconds: number, timeoutMs: number) => void
     disarmSeek: () => void
     seekSnapshot: () => OrbitonePerfSeekObservation
     observeSeek: (expectedPositionSeconds: number, toleranceSeconds: number, timeoutMs: number) => OrbitonePerfSeekObservation | null

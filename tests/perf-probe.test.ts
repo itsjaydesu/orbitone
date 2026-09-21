@@ -38,7 +38,7 @@ it.each([
   expect(metrics.intervalsMs).toEqual([16, 16, 16, 16, 16])
   expect(vi.getTimerCount()).toBe(0)
 
-  window.__orbitonePerf.armSeek()
+  window.__orbitonePerf.armSeek(3, 2000)
   const input = document.querySelector<HTMLInputElement>('input')!
   if (state === 'playing')
     requestAnimationFrame(() => { input.value = '25.016' })
@@ -50,7 +50,7 @@ it.each([
   expect(window.__orbitonePerf.seekInput).toMatchObject({ requestedPositionSeconds: 25, inputCount: 1, pointerDownCount: 1 })
 
   window.__orbitonePerf.disarmSeek()
-  window.__orbitonePerf.armSeek()
+  window.__orbitonePerf.armSeek(3, 2000)
   // React can restore the old controlled value after the native input event.
   input.addEventListener('input', () => {
     input.value = '12'
@@ -73,7 +73,7 @@ it.each([
   expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
   window.__orbitonePerf.disarmSeek()
 
-  window.__orbitonePerf.armSeek()
+  window.__orbitonePerf.armSeek(3, 2000)
   input.dispatchEvent(new Event('pointerdown'))
   input.dispatchEvent(new Event('input', { bubbles: true }))
   await vi.advanceTimersByTimeAsync(16)
@@ -85,7 +85,7 @@ it.each([
   input.dispatchEvent(new Event('input', { bubbles: true }))
   expect(window.__orbitonePerf.seekInput?.requestedPositionSeconds).toBe(50)
 
-  window.__orbitonePerf.armSeek()
+  window.__orbitonePerf.armSeek(3, 2000)
   input.value = '50'
   input.dispatchEvent(new Event('pointerdown'))
   await vi.advanceTimersByTimeAsync(16)

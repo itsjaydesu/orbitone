@@ -18,3 +18,15 @@ pnpm exec eslint tests/perf\*.ts: PASS.
 pnpm exec tsc --noEmit: PASS.
 git diff --check: PASS.
 No repair source changed before this checkpoint.
+
+2026-09-21T05:16:40.471551+00:00 Repair development checkpoint.
+Red commit: 93757608816b7d1f23d7d46312be20fa64e33245.
+The probe now records the first target-reaching frame and separate first-frame diagnostics.
+The benchmark URL includes automation=1. Source inspection finds no other measurement state gated by automation.
+Both entry points share perf/build-inputs.mjs and reject the complete frozen pathspec.
+pnpm test: 117 tests PASS. pnpm exec tsc --noEmit: PASS.
+pnpm exec eslint perf tests/perf\*.ts: PASS. Documentation lint: PASS.
+Existing probe tests now pass explicit tolerance and timeout arguments; all red assertions remain unchanged.
+The first full lint parsed its own incomplete JSON output. Use a text report for the corrected check.
+Documentation preserves historical tables and marks new paired results pending independent QA.
+No browser tools, application edits, external mutations, push, merge, or deployment occurred.

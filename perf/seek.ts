@@ -40,11 +40,11 @@ export async function measureSeek(page: Page, duration: number, state: 'playing'
     if (!box)
       throw new SeekFailure('CONTROL_MISSING', diagnostics)
     diagnostics.controlBox = box
-    await page.evaluate(() => {
+    await page.evaluate(({ toleranceSeconds, completionTimeoutMs }) => {
       if (!window.__orbitonePerf)
         throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
-      window.__orbitonePerf.armSeek()
-    })
+      window.__orbitonePerf.armSeek(toleranceSeconds, completionTimeoutMs)
+    }, diagnostics)
     armed = true
     await bar.click({ position: { x: box.width * requestedFraction, y: box.height / 2 }, timeout: 5000 })
     reason = 'POSITION_FAILED'
@@ -74,7 +74,7 @@ export async function measureSeek(page: Page, duration: number, state: 'playing'
             reason = 'INPUT_MISSING'
           else if (snapshot.pointerDownCount !== 1 || snapshot.inputCount !== 1)
             reason = 'INPUT_REPEATED'
-          else if (snapshot.latencyMs === null)
+          else if (snapshot.firstFrameLatencyMs === null)
             reason = 'FRAME_MISSING'
         }
       }

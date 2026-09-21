@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import ts from 'typescript'
+import { buildInputPaths } from './build-inputs.mjs'
 import { assertHealthy, cpuWindow, frameSummary, HarnessFailure, median, metric, networkAction, parseOptions } from './contracts'
 import { measureSeek, SeekFailure } from './seek'
 
@@ -179,7 +180,7 @@ async function main() {
   let failureCode: string | null = null
   let failedSeek: SeekFailure['diagnostics'] | null = null
   try {
-    const dirty = execFileSync('git', ['status', '--porcelain', '--', 'app', 'components', 'hooks', 'lib', 'package.json', 'pnpm-lock.yaml', 'next.config.ts', 'perf', 'ecosystem.config.js'], { cwd: root, encoding: 'utf8' })
+    const dirty = execFileSync('git', ['status', '--porcelain', '--', ...buildInputPaths], { cwd: root, encoding: 'utf8' })
     if (dirty.trim())
       throw new HarnessFailure('BLOCKED', 'UNCOMMITTED_BUILD_INPUTS')
     const build: { sha: string, buildId: string, mode: string } = JSON.parse(await guard('PRODUCTION_BUILD_UNAVAILABLE', () => readFile(resolve(root, '.next/orbitone-performance.json'), 'utf8'), 'BLOCKED'))
@@ -237,7 +238,9 @@ async function main() {
     await guard('CPU_THREAD_TICKS_UNAVAILABLE', () => cdp.send('Performance.enable', { timeDomain: 'threadTicks' }), 'BLOCKED')
     stage = 'production-route'
     const manifestPath = `/_next/static/${buildId}/_buildManifest.js`
-    await guard('PRODUCTION_ROUTE_UNAVAILABLE', () => page.goto(options.baseUrl, { waitUntil: 'domcontentloaded' }), 'BLOCKED')
+    const benchmarkUrl = new URL(options.baseUrl)
+    benchmarkUrl.searchParams.set('automation', '1')
+    await guard('PRODUCTION_ROUTE_UNAVAILABLE', () => page.goto(benchmarkUrl.href, { waitUntil: 'domcontentloaded' }), 'BLOCKED')
     const remoteManifest = await guard('PRODUCTION_ROUTE_MISMATCH', () => page.evaluate(async (path) => {
       const response = await fetch(path)
       return { ok: response.ok, content: await response.text() }
