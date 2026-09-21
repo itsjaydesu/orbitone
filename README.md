@@ -22,29 +22,31 @@ Orbitone renders MIDI files as an interactive 3D visualization. Notes orbit arou
 
 ## Getting started
 
-**Prerequisites:** Node.js 18+
+**Prerequisites:** Node.js 24.18.0, pnpm 11.1.1, PM2, and Portless.
 
 ```bash
 git clone https://github.com/itsjaydesu/orbitone.git
 cd orbitone
-npm install
-npm run dev
+pnpm install --frozen-lockfile --ignore-scripts
+pm2 start ecosystem.config.js --only orbitone-perf-3937
+pm2 logs orbitone-perf-3937 --lines 30 --nostream
+portless list
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+The task service builds the production app before starting it through Portless.
+Open its exact route from `portless list` after the build finishes.
+Portless assigns the app port. Do not start a second server by hand.
+
+See [performance setup and measurement commands](docs/performance.md) for regression tests, system Chrome, and independent QA.
+Stop the task service with `pm2 stop orbitone-perf-3937` when finished.
 
 ## Local-only video export
 
-Video export is intentionally disabled in production deployments, including Vercel. The export UI is hidden unless the client flag is enabled, and the server route returns `404` unless the server flag is enabled.
-
-To use video export on a local machine, create `.env.local`:
-
-```bash
-NEXT_PUBLIC_ENABLE_VIDEO_EXPORT=true
-ENABLE_VIDEO_EXPORT=true
-```
-
-Leave both variables unset in production.
+Video export stays disabled in the performance service and production deployments.
+The export UI requires `NEXT_PUBLIC_ENABLE_VIDEO_EXPORT=true` at build time.
+The server also requires `ENABLE_VIDEO_EXPORT=true` at runtime.
+Inject these flags through the approved non-production Doppler configuration for a separate local export service.
+Use PM2 and Portless for that service. Do not write environment values to disk.
 
 ## Keyboard shortcuts
 
@@ -97,15 +99,15 @@ public/
 
 ## Scripts
 
-| Command                  | Description                                                    |
-| ------------------------ | -------------------------------------------------------------- |
-| `npm run dev`            | Start dev server                                               |
-| `npm run build`          | Production build                                               |
-| `npm start`              | Serve production build                                         |
-| `npm run lint`           | Run ESLint                                                     |
-| `npm run clean`          | Clear `.next` cache                                            |
-| `npm run export:save`    | Copy the latest browser-downloaded export into `video-output/` |
-| `npm run export:library` | Export the built-in MIDI library one file at a time            |
+| Command                                                   | Description                                                    |
+| --------------------------------------------------------- | -------------------------------------------------------------- |
+| `pm2 start ecosystem.config.js --only orbitone-perf-3937` | Build and serve through Portless                               |
+| `pnpm build`                                              | Production build                                               |
+| `pm2 restart orbitone-perf-3937`                          | Rebuild and restart the task service                           |
+| `pnpm lint`                                               | Run ESLint                                                     |
+| `pnpm clean`                                              | Clear `.next` cache                                            |
+| `pnpm export:save`                                        | Copy the latest browser-downloaded export into `video-output/` |
+| `pnpm export:library`                                     | Export the built-in MIDI library one file at a time            |
 
 ## Video export process
 
@@ -120,18 +122,9 @@ All generated videos now live under `video-output/` in the project root. That di
 
 ### Local setup
 
-Create `.env.local` before running the app locally:
-
-```bash
-NEXT_PUBLIC_ENABLE_VIDEO_EXPORT=true
-ENABLE_VIDEO_EXPORT=true
-```
-
-Then start the app normally:
-
-```bash
-pnpm dev
-```
+Use the export-enabled local PM2 service described above.
+Resolve its exact route through `portless list` before running export scripts.
+The performance service intentionally disables this flow.
 
 ### Export defaults
 

@@ -2,6 +2,10 @@
   "name": "orbitone",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "engines": {
+    "node": "24.18.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +14,8 @@
     "clean": "next clean",
     "export:save": "node scripts/save-latest-playwright-export.mjs",
     "export:library": "node scripts/export-midi-library.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "perf:baseline": "tsx perf/baseline.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -48,6 +53,7 @@
     "jsdom": "^30.0.1",
     "playwright-core": "^1.58.2",
     "tailwindcss": "4.1.11",
+    "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vitest": "^5.0.0"
   }

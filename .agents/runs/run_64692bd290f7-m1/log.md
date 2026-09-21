@@ -13,3 +13,16 @@ Regression checkpoint: 29 tests pass across four files on unchanged application 
 Typecheck and touched-file lint pass. Full lint retains 35 errors and 31 warnings, tracked in DIG-3939.
 No browser checks or performance measurements ran.
 TEST_BASELINE_OK
+
+TEST_BASELINE_OK commit: 3a1fa5bd3f5ec35dadc6311570778116233d190b.
+M1 tooling now implements the fixed three-run production scenario and all required local metrics.
+The harness requires actual threadTicks CPU metrics and blocks unsupported clocks.
+Installed Vercel Analytics uses /_vercel/insights/script.js. The harness intercepts its namespace and counts interceptions.
+Final development checks: 38 tests pass across seven files.
+TypeScript, JavaScript service typechecks, touched-file lint, and git diff --check pass.
+Full lint retains 35 errors and 31 warnings under DIG-3939.
+Vite warns about a future native config loader; the current runner passes.
+Application source matches frozen baseline 3ee74f349f70074aba0ee0f9daf4ec39398c541d.
+No browser checks, service start, production measurements, source review, or C1 implementation ran.
+Independent QA must validate real audio, WebGL, browser flows, and the measurement harness.
+IMPL_COMPLETE
