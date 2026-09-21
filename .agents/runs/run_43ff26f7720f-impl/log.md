@@ -30,3 +30,15 @@ Existing probe tests now pass explicit tolerance and timeout arguments; all red 
 The first full lint parsed its own incomplete JSON output. Use a text report for the corrected check.
 Documentation preserves historical tables and marks new paired results pending independent QA.
 No browser tools, application edits, external mutations, push, merge, or deployment occurred.
+
+2026-09-21T05:19:47.609520+00:00 Final source checkpoint.
+Repair commit: 4bd0c89bebb86ca89cc2294cb4a336f9e66c186e.
+Full-directory lint retains 35 existing errors and 32 warnings. Owned formatter findings are fixed.
+Application, fixture, dependency, and configuration bytes remain unchanged.
+Baseline checkout 0a88a96 matches application source 3ee74f3.
+Source hashes appear in input-identity.json. Fresh builds and paired browser evidence remain QA-owned.
+git diff --check: PASS. All owned changes are committed at the final handoff.
+Tracked-file ESLint also retains 35 existing errors and 32 warnings.
+The tracked-file command passes git ls-files output to pnpm exec eslint with --no-warn-ignored.
+Complete output: tracked-lint.txt. No formal QA or review verdict is claimed.
+IMPL_COMPLETE
