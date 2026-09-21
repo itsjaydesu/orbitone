@@ -17,7 +17,7 @@ TEST_BASELINE_OK
 TEST_BASELINE_OK commit: 3a1fa5bd3f5ec35dadc6311570778116233d190b.
 M1 tooling now implements the fixed three-run production scenario and all required local metrics.
 The harness requires actual threadTicks CPU metrics and blocks unsupported clocks.
-Installed Vercel Analytics uses /_vercel/insights/script.js. The harness intercepts its namespace and counts interceptions.
+Installed Vercel Analytics uses /\_vercel/insights/script.js. The harness intercepts its namespace and counts interceptions.
 Final development checks: 38 tests pass across seven files.
 TypeScript, JavaScript service typechecks, touched-file lint, and git diff --check pass.
 Full lint retains 35 errors and 31 warnings under DIG-3939.

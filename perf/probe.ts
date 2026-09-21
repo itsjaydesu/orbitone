@@ -20,7 +20,7 @@ function installProbe() {
     const input = document.querySelector<HTMLInputElement>('input.nm-seekbar')
     return input ? Number(input.value) : Number.NaN
   }
-  const audio = (): AudioReading => {
+  const audio = (): OrbitonePerfAudioReading => {
     let peak = 0
     let contextSeconds = 0
     let running = false
@@ -34,7 +34,7 @@ function installProbe() {
     return { peak, contextSeconds, running }
   }
 
-  window.orbitonePerf = {
+  const probe: OrbitonePerfProbe = {
     audio,
     position,
     seek: null,
@@ -46,7 +46,7 @@ function installProbe() {
       input.addEventListener('pointerdown', () => {
         const start = performance.now()
         requestAnimationFrame(() => {
-          window.orbitonePerf.seek = { latencyMs: performance.now() - start, nextFramePositionSeconds: position() }
+          probe.seek = { latencyMs: performance.now() - start, nextFramePositionSeconds: position() }
         })
       }, { once: true })
     },
@@ -104,6 +104,7 @@ function installProbe() {
       }
     },
   }
+  window.__orbitonePerf = probe
 }
 
 installProbe()

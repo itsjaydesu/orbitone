@@ -18,6 +18,7 @@ const scenario = {
   warmupSeconds: 10,
   playbackSeconds: 30,
   pauseSeconds: 10,
+  seek: { comparisonState: 'playing', playbackFraction: 0.5, pausedFraction: 0.25 },
   runs: 3,
 } as const
 
@@ -31,7 +32,7 @@ async function guard<T>(code: string, action: () => Promise<T>, status: 'FAIL' |
   catch (error) {
     if (error instanceof HarnessFailure)
       throw error
-    throw new HarnessFailure(status, code)
+    throw new HarnessFailure(status, code, { cause: error })
   }
   finally {
     clearTimeout(timer)
@@ -39,7 +40,11 @@ async function guard<T>(code: string, action: () => Promise<T>, status: 'FAIL' |
 }
 
 async function position(page: Page) {
-  return page.evaluate(() => window.orbitonePerf.position())
+  return page.evaluate(() => {
+    if (!window.__orbitonePerf)
+      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
+    return window.__orbitonePerf.position()
+  })
 }
 
 async function clickTransport(page: Page, action: 'Start playback' | 'Stop playback') {
@@ -51,7 +56,11 @@ async function clickTransport(page: Page, action: 'Start playback' | 'Stop playb
 async function captureWindow(page: Page, cdp: CDPSession, seconds: number) {
   const startedAt = new Date().toISOString()
   const before = await guard('CPU_METRICS_UNAVAILABLE', () => cdp.send('Performance.getMetrics'), 'BLOCKED')
-  const frames = await guard('WINDOW_METRICS_UNAVAILABLE', () => page.evaluate(duration => window.orbitonePerf.measure(duration), seconds * 1000), 'BLOCKED', (seconds + 15) * 1000)
+  const frames = await guard('WINDOW_METRICS_UNAVAILABLE', () => page.evaluate((duration) => {
+    if (!window.__orbitonePerf)
+      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
+    return window.__orbitonePerf.measure(duration)
+  }, seconds * 1000), 'BLOCKED', (seconds + 15) * 1000)
   const after = await guard('CPU_METRICS_UNAVAILABLE', () => cdp.send('Performance.getMetrics'), 'BLOCKED')
   const cpuStartSeconds = metric(before.metrics, 'Timestamp')
   const cpuEndSeconds = metric(after.metrics, 'Timestamp')
@@ -75,22 +84,29 @@ async function captureWindow(page: Page, cdp: CDPSession, seconds: number) {
   }
 }
 
-async function measureSeek(page: Page, duration: number) {
+async function measureSeek(page: Page, duration: number, state: 'playing' | 'paused', requestedFraction: number) {
+  const transportButton = page.getByRole('button', { name: state === 'playing' ? 'Stop playback' : 'Start playback', exact: true })
   await page.mouse.move(620, 340)
   await page.mouse.move(640, 360)
   const bar = page.locator('input.nm-seekbar')
   await bar.waitFor({ state: 'visible' })
+  await transportButton.waitFor({ state: 'visible' })
   const box = await bar.boundingBox()
   if (!box)
     throw new HarnessFailure('FAIL', 'SEEK_CONTROL_MISSING')
-  await page.evaluate(() => window.orbitonePerf.armSeek())
-  await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2)
-  await page.waitForFunction(() => window.orbitonePerf.seek !== null)
-  const reading = await page.evaluate(() => window.orbitonePerf.seek)
+  await page.evaluate(() => {
+    if (!window.__orbitonePerf)
+      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
+    window.__orbitonePerf.armSeek()
+  })
+  await page.mouse.click(box.x + box.width * requestedFraction, box.y + box.height / 2)
+  await page.waitForFunction(() => window.__orbitonePerf?.seek != null)
+  const reading = await page.evaluate(() => window.__orbitonePerf?.seek)
   const observedPositionSeconds = await position(page)
-  if (!reading || !Number.isFinite(observedPositionSeconds) || Math.abs(observedPositionSeconds - duration * 0.25) > duration * 0.03)
+  await transportButton.waitFor({ state: 'visible' })
+  if (!reading || !Number.isFinite(observedPositionSeconds) || Math.abs(observedPositionSeconds - duration * requestedFraction) > duration * 0.03)
     throw new HarnessFailure('FAIL', 'SEEK_POSITION_FAILED')
-  return { ...reading, requestedFraction: 0.25, observedPositionSeconds }
+  return { ...reading, state, requestedFraction, observedPositionSeconds }
 }
 
 async function runMeasurement(page: Page, cdp: CDPSession, browserErrors: () => number, run: number) {
@@ -107,16 +123,22 @@ async function runMeasurement(page: Page, cdp: CDPSession, browserErrors: () => 
   const audioStart = performance.now()
   await guard('AUDIO_MISSING', () => clickTransport(page, 'Start playback'))
   await guard('AUDIO_MISSING', () => page.waitForFunction(() => {
-    const audio = window.orbitonePerf.audio()
-    return audio.running && audio.contextSeconds > 0 && audio.peak > 0.00001 && window.orbitonePerf.position() > 0.5
+    if (!window.__orbitonePerf)
+      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
+    const audio = window.__orbitonePerf.audio()
+    return audio.running && audio.contextSeconds > 0 && audio.peak > 0.00001 && window.__orbitonePerf.position() > 0.5
   }, null, { timeout: 60000, polling: 100 }), 'FAIL', 65000)
   const audioReadyMs = performance.now() - audioStart
-  const warmup = await guard('WARMUP_FAILED', () => page.evaluate(duration => window.orbitonePerf.measure(duration), scenario.warmupSeconds * 1000))
+  const warmup = await guard('WARMUP_FAILED', () => page.evaluate((duration) => {
+    if (!window.__orbitonePerf)
+      throw new Error('PERFORMANCE_PROBE_UNAVAILABLE')
+    return window.__orbitonePerf.measure(duration)
+  }, scenario.warmupSeconds * 1000))
   const warmupProgressSeconds = warmup.positionEndSeconds - warmup.positionStartSeconds
   assertHealthy({ uploaded, audioPeak: warmup.audioPeak, progressSeconds: warmupProgressSeconds, expectedProgressSeconds: 10, browserErrors: browserErrors() })
   await clickTransport(page, 'Stop playback')
   await page.locator('input.nm-seekbar').press('Home')
-  await page.waitForFunction(() => window.orbitonePerf.position() === 0)
+  await page.waitForFunction(() => window.__orbitonePerf?.position() === 0)
   await clickTransport(page, 'Start playback')
   const playback = await captureWindow(page, cdp, scenario.playbackSeconds)
   assertHealthy({ uploaded, audioPeak: playback.audio.peak, progressSeconds: playback.positionEndSeconds - playback.positionStartSeconds, expectedProgressSeconds: 30, browserErrors: browserErrors() })
@@ -124,9 +146,16 @@ async function runMeasurement(page: Page, cdp: CDPSession, browserErrors: () => 
   const paused = await captureWindow(page, cdp, scenario.pauseSeconds)
   if (Math.abs(paused.positionEndSeconds - paused.positionStartSeconds) > 0.1)
     throw new HarnessFailure('FAIL', 'PAUSE_PROGRESS_FAILED')
-  const seek = await guard('SEEK_FAILED', () => measureSeek(page, duration))
+  const pausedSeek = await guard('PAUSED_SEEK_FAILED', () => measureSeek(page, duration, 'paused', scenario.seek.pausedFraction))
+  const resumePositionSeconds = await position(page)
+  await guard('AUDIO_MISSING', () => clickTransport(page, 'Start playback'))
+  await guard('PLAYBACK_PROGRESS_FAILED', () => page.waitForFunction((start) => {
+    return window.__orbitonePerf !== undefined && window.__orbitonePerf.position() > start + 0.25
+  }, resumePositionSeconds))
+  const playbackSeek = await guard('PLAYBACK_SEEK_FAILED', () => measureSeek(page, duration, 'playing', scenario.seek.playbackFraction))
+  await clickTransport(page, 'Stop playback')
   assertHealthy({ uploaded, audioPeak: playback.audio.peak, progressSeconds: playback.positionEndSeconds - playback.positionStartSeconds, expectedProgressSeconds: 30, browserErrors: browserErrors() })
-  return { run, startedAt, endedAt: new Date().toISOString(), audioReadyMs, durationSeconds: duration, warmupProgressSeconds, playback, paused, seek, browserErrors: browserErrors() }
+  return { run, startedAt, endedAt: new Date().toISOString(), audioReadyMs, durationSeconds: duration, warmupProgressSeconds, playback, paused, playbackSeek, pausedSeek, browserErrors: browserErrors() }
 }
 
 type RunResult = Awaited<ReturnType<typeof runMeasurement>>
@@ -145,8 +174,10 @@ function summarize(runs: RunResult[]) {
     pausedIntervalsOver50Ms: median(runs.map(run => run.paused.frames.over50Ms)),
     pausedLongTaskCount: median(runs.map(run => run.paused.longTasks.count)),
     pausedLongTaskDurationMs: median(runs.map(run => run.paused.longTasks.durationMs)),
-    seekLatencyMs: median(runs.map(run => run.seek.latencyMs)),
-    observedSeekPositionSeconds: median(runs.map(run => run.seek.observedPositionSeconds)),
+    playbackSeekLatencyMs: median(runs.map(run => run.playbackSeek.latencyMs)),
+    playbackObservedSeekPositionSeconds: median(runs.map(run => run.playbackSeek.observedPositionSeconds)),
+    pausedSeekLatencyMs: median(runs.map(run => run.pausedSeek.latencyMs)),
+    pausedObservedSeekPositionSeconds: median(runs.map(run => run.pausedSeek.observedPositionSeconds)),
     heapAfterPauseBytes: median(runs.map(run => run.paused.heapBytes)),
     audioReadyMs: median(runs.map(run => run.audioReadyMs)),
     playbackProgressSeconds: median(runs.map(run => run.playback.positionEndSeconds - run.playback.positionStartSeconds)),

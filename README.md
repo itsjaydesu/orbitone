@@ -20,7 +20,9 @@ Orbitone renders MIDI files as an interactive 3D visualization. Notes orbit arou
 - Fullscreen mode
 - Keyboard shortcuts for all controls
 
-## Getting started
+## Production performance workflow
+
+This task service supports production performance measurements for DIG-3937. It is not the general development service.
 
 **Prerequisites:** Node.js 24.18.0, pnpm 11.1.1, PM2, and Portless.
 
@@ -99,15 +101,24 @@ public/
 
 ## Scripts
 
-| Command                                                   | Description                                                    |
-| --------------------------------------------------------- | -------------------------------------------------------------- |
-| `pm2 start ecosystem.config.js --only orbitone-perf-3937` | Build and serve through Portless                               |
-| `pnpm build`                                              | Production build                                               |
-| `pm2 restart orbitone-perf-3937`                          | Rebuild and restart the task service                           |
-| `pnpm lint`                                               | Run ESLint                                                     |
-| `pnpm clean`                                              | Clear `.next` cache                                            |
-| `pnpm export:save`                                        | Copy the latest browser-downloaded export into `video-output/` |
-| `pnpm export:library`                                     | Export the built-in MIDI library one file at a time            |
+| Command                                                                   | Description                                                         |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `pm2 start ecosystem.config.js --only orbitone-perf-3937`                 | Build and serve through Portless                                    |
+| `pnpm dev`                                                                | Internal `next dev` command; invoke only through PM2 and Portless   |
+| `pnpm build`                                                              | Production build                                                    |
+| `pnpm start`                                                              | Internal `next start` command; invoke only through PM2 and Portless |
+| `pm2 restart orbitone-perf-3937`                                          | Rebuild and restart the task service                                |
+| `pnpm test`                                                               | Run the Vitest regression suite                                     |
+| `pnpm perf:baseline -- --base-url RESOLVED_URL --label baseline --runs 3` | Measure three runs at the exact Portless route                      |
+| `pnpm lint`                                                               | Run ESLint                                                          |
+| `pnpm clean`                                                              | Clear `.next` cache                                                 |
+| `pnpm export:save`                                                        | Copy the latest browser-downloaded export into `video-output/`      |
+| `pnpm export:library`                                                     | Export the built-in MIDI library one file at a time                 |
+
+The repository configuration defines only the task-scoped production performance service.
+It builds the app and invokes `next start` through Portless directly.
+The internal `dev` and `start` scripts do not configure PM2, Portless, or a development service.
+Start servers through a repository PM2 configuration. Do not run these internal scripts as standalone servers.
 
 ## Video export process
 

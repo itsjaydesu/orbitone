@@ -1,0 +1,21 @@
+{
+  "run_id": "run_64692bd290f7-m1-repair",
+  "role": "IMPL-CORE",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "model_evidence": "Current session turn_context and Orca effective launch agree: gpt-6-astra xhigh.",
+  "stage": "S2",
+  "status": "RUNNING",
+  "module": "M1 CORE-TEST",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair",
+  "budget_minutes": 40,
+  "budget_steps": 80,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T03:08:51.998892+00:00",
+  "updated_at": "2026-09-21T03:19:29.724356+00:00",
+  "baseline_commit": "14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9",
+  "development_tests": 42,
+  "independent_qa": "PENDING; coordinator owns fresh measurements",
+  "harness_runtime_semantics_changed": true
+}

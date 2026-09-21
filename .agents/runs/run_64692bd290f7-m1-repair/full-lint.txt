@@ -1,0 +1,102 @@
+$ eslint .
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/.github/workflows/claude-code-review.yml
+  43:20  error  Must use plain style scalar                                yaml/plain-scalar
+  47:1   error  Too many blank lines at the end of file. Max of 0 allowed  style/no-multiple-empty-lines
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/.github/workflows/claude.yml
+  53:1  error  Too many blank lines at the end of file. Max of 0 allowed  style/no-multiple-empty-lines
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/app/globals.css
+  6:15  error  Replace `·var(--font-sans-custom),·ui-sans-serif,·system-ui,⏎····'Hiragino·Kaku·Gothic·ProN',·'Hiragino·Sans',·'Yu·Gothic',` with `⏎····var(--font-sans-custom),·ui-sans-serif,·system-ui,·'Hiragino·Kaku·Gothic·ProN',·'Hiragino·Sans',·'Yu·Gothic',⏎···`  format/prettier
+  8:77  error  Delete `⏎···`                                                                                                                                                                                                                                               format/prettier
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/app/page.tsx
+   848:7  warning  Do not call the 'set' function 'setIsFullscreen' of 'useState' directly in 'useEffect'             react-hooks-extra/no-direct-set-state-in-use-effect
+   852:9  warning  Do not call the 'set' function 'setShowFullscreenHint' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+   853:9  warning  A 'setTimeout' must be assigned to a variable for proper cleanup                                   react-web-api/no-leaked-timeout
+   878:7  warning  Do not call the 'set' function 'setIsHeaderBrandVisible' of 'useState' directly in 'useEffect'     react-hooks-extra/no-direct-set-state-in-use-effect
+   890:5  warning  Do not call the 'set' function 'setIsHeaderBrandVisible' of 'useState' directly in 'useEffect'     react-hooks-extra/no-direct-set-state-in-use-effect
+   925:7  warning  Do not call the 'set' function 'setIsTrackMetaVisible' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+   944:7  warning  Do not call the 'set' function 'setDisplayTrackMeta' of 'useState' directly in 'useEffect'         react-hooks-extra/no-direct-set-state-in-use-effect
+   945:7  warning  Do not call the 'set' function 'setIsTrackMetaVisible' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+   949:5  warning  Do not call the 'set' function 'setIsTrackMetaVisible' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+   981:9  warning  Do not call the 'set' function 'setActiveLibraryCategoryId' of 'useState' directly in 'useEffect'  react-hooks-extra/no-direct-set-state-in-use-effect
+  1052:7  warning  Do not call the 'set' function 'setSavedCameraPresets' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+  1053:7  warning  Do not call the 'set' function 'setCameraDraftPresets' of 'useState' directly in 'useEffect'       react-hooks-extra/no-direct-set-state-in-use-effect
+  1216:7  warning  Do not call the 'set' function 'setIsMenuVisible' of 'useState' directly in 'useEffect'            react-hooks-extra/no-direct-set-state-in-use-effect
+  1216:7  warning  Do not call the 'set' function 'setIsMenuVisible' of 'useState' directly in 'useEffect'            react-hooks-extra/no-direct-set-state-in-use-effect
+  1338:7  warning  Do not call the 'set' function 'setIsMenuReady' of 'useState' directly in 'useEffect'              react-hooks-extra/no-direct-set-state-in-use-effect
+  1341:7  warning  Do not call the 'set' function 'setIsMenuVisible' of 'useState' directly in 'useEffect'            react-hooks-extra/no-direct-set-state-in-use-effect
+  1350:5  warning  Do not call the 'set' function 'setIsMenuReady' of 'useState' directly in 'useEffect'              react-hooks-extra/no-direct-set-state-in-use-effect
+  1351:5  warning  Do not call the 'set' function 'setIsMenuVisible' of 'useState' directly in 'useEffect'            react-hooks-extra/no-direct-set-state-in-use-effect
+  1366:7  warning  Do not call the 'set' function 'setIsMenuVisible' of 'useState' directly in 'useEffect'            react-hooks-extra/no-direct-set-state-in-use-effect
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/components/ExportOverlay.tsx
+  16:5  error  Inconsistently quoted property 'idle' found       style/quote-props
+  17:5  error  Inconsistently quoted property 'preparing' found  style/quote-props
+  20:5  error  Inconsistently quoted property 'muxing' found     style/quote-props
+  21:5  error  Inconsistently quoted property 'done' found       style/quote-props
+  22:5  error  Inconsistently quoted property 'error' found      style/quote-props
+  25:5  error  Inconsistently quoted property 'idle' found       style/quote-props
+  26:5  error  Inconsistently quoted property 'preparing' found  style/quote-props
+  29:5  error  Inconsistently quoted property 'muxing' found     style/quote-props
+  30:5  error  Inconsistently quoted property 'done' found       style/quote-props
+  31:5  error  Inconsistently quoted property 'error' found      style/quote-props
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/components/Visualizer.tsx
+  1225:9  warning  A ref identifier must be named 'ref' or ending in 'Ref'                                                              react-naming-convention/ref-name
+  1226:9  warning  A ref identifier must be named 'ref' or ending in 'Ref'                                                              react-naming-convention/ref-name
+  1227:9  warning  A ref identifier must be named 'ref' or ending in 'Ref'                                                              react-naming-convention/ref-name
+  1228:9  warning  A ref identifier must be named 'ref' or ending in 'Ref'                                                              react-naming-convention/ref-name
+  1229:9  warning  A ref identifier must be named 'ref' or ending in 'Ref'                                                              react-naming-convention/ref-name
+  1645:7  warning  Do not call the 'set' function 'setDisplayNotes' of 'useState' directly in 'useEffect'                               react-hooks-extra/no-direct-set-state-in-use-effect
+  1664:5  warning  Do not call the 'set' function 'setCrossfadeState' of 'useState' directly in 'useEffect'                             react-hooks-extra/no-direct-set-state-in-use-effect
+  1666:5  warning  Do not call the 'set' function 'setFilterTime' of 'useState' directly in 'useEffect'                                 react-hooks-extra/no-direct-set-state-in-use-effect
+  1667:6  warning  React Hook useLayoutEffect has a missing dependency: 'filterTime'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/hooks/use-mobile.ts
+  11:7  warning  Do not call the 'set' function 'setIsMobile' of 'useState' directly in 'useEffect'  react-hooks-extra/no-direct-set-state-in-use-effect
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/hooks/useMusic.ts
+  226:5  warning  Do not call the 'set' function 'setRequiresExplicitAudioUnlock' of 'useState' directly in 'useEffect'  react-hooks-extra/no-direct-set-state-in-use-effect
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/hooks/useVideoExport.ts
+  434:5  error    Using 'flushSync' is uncommon and can hurt the performance of your app                                                     react-dom/no-flush-sync
+  555:9  error    Using 'flushSync' is uncommon and can hurt the performance of your app                                                     react-dom/no-flush-sync
+  617:6  warning  React Hook useCallback has an unnecessary dependency: 'exportTrackMeta'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/lib/export-audio.ts
+    5:3   error  Expected "getNearestPianoSampleMidi" to come before "GLOBAL_VOLUME_BOOST"        perfectionist/sort-named-imports
+   84:57  error  Should not have line breaks between items, in node CallExpression                antfu/consistent-list-newline
+  166:15  error  `new Error()` is too unspecific for a type check. Use `new TypeError()` instead  unicorn/prefer-type-error
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/lib/export.ts
+  126:1   error  Expected indentation of 4 spaces                               style/indent-binary-ops
+  303:14  error  Use uppercase characters for the value of the escape sequence  unicorn/escape-case
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/lib/music.ts
+  265:1  error  More than 1 blank line not allowed  style/no-multiple-empty-lines
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/pnpm-workspace.yaml
+   1:1  error  Setting "shellEmulator" has mismatch value. Expected: true, Actual: undefined                      pnpm/yaml-enforce-settings
+   8:3  error  Expected mapping keys to be in ascending order. 'esbuild' should be after '@tailwindcss/oxide'     yaml/sort-keys
+   9:3  error  Expected mapping keys to be in ascending order. 'sharp' should be after '@tailwindcss/oxide'       yaml/sort-keys
+  10:3  error  Strings must use singlequote                                                                       yaml/quotes
+  10:3  error  Expected mapping keys to be in ascending order. '@swc/core' should be after '@lightpanda/browser'  yaml/sort-keys
+  11:3  error  Expected mapping keys to be in ascending order. 'bcrypt' should be after '@tailwindcss/oxide'      yaml/sort-keys
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/scripts/export-midi-library.mjs
+   11:1   error  Expected "node:path" to come before "node:process"                                   perfectionist/sort-imports
+  133:13  error  Capturing group number 1 is defined but never used                                   regexp/no-unused-capturing-group
+  280:30  error  Expected parentheses around arrow function argument having a body with curly braces  style/arrow-parens
+  321:11  error  'completed' is not modified in this loop                                             no-unmodified-loop-condition
+
+/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair/scripts/save-latest-playwright-export.mjs
+  50:11  error  Capturing group number 1 is defined but never used  regexp/no-unused-capturing-group
+  50:46  error  Capturing group number 2 is defined but never used  regexp/no-unused-capturing-group
+
+✖ 66 problems (35 errors, 31 warnings)
+  29 errors and 0 warnings potentially fixable with the `--fix` option.
+
+[ELIFECYCLE] Command failed with exit code 1.

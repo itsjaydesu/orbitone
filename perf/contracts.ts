@@ -2,8 +2,8 @@ export class HarnessFailure extends Error {
   status: 'FAIL' | 'BLOCKED'
   code: string
 
-  constructor(status: 'FAIL' | 'BLOCKED', code: string) {
-    super(code)
+  constructor(status: 'FAIL' | 'BLOCKED', code: string, options?: ErrorOptions) {
+    super(code, options)
     this.status = status
     this.code = code
   }

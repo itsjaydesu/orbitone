@@ -1,13 +1,13 @@
 export {}
 
 declare global {
-  interface AudioReading {
+  interface OrbitonePerfAudioReading {
     peak: number
     contextSeconds: number
     running: boolean
   }
 
-  interface BrowserWindowMetrics {
+  interface OrbitonePerfWindowMetrics {
     startMs: number
     endMs: number
     intervalsMs: number[]
@@ -20,15 +20,15 @@ declare global {
     positionEndSeconds: number
   }
 
-  interface SeekReading { latencyMs: number, nextFramePositionSeconds: number }
+  interface OrbitonePerfSeekReading { latencyMs: number, nextFramePositionSeconds: number }
 
-  interface PerformanceProbe {
-    audio: () => AudioReading
+  interface OrbitonePerfProbe {
+    audio: () => OrbitonePerfAudioReading
     position: () => number
-    measure: (durationMs: number) => Promise<BrowserWindowMetrics>
+    measure: (durationMs: number) => Promise<OrbitonePerfWindowMetrics>
     armSeek: () => void
-    seek: SeekReading | null
+    seek: OrbitonePerfSeekReading | null
   }
 
-  interface Window { orbitonePerf: PerformanceProbe }
+  interface Window { __orbitonePerf?: OrbitonePerfProbe }
 }

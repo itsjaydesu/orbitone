@@ -3,9 +3,12 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMusic } from '../hooks/useMusic'
 import { midiFixture } from './midi-fixture'
-import { audio, Transport } from './tone-boundary'
+import { audio, Sampler, Transport } from './tone-boundary'
 
-vi.mock('tone', () => import('./tone-boundary'))
+vi.mock('tone', async () => {
+  const { Frequency } = await vi.importActual<typeof import('tone')>('tone')
+  return { ...await import('./tone-boundary'), Frequency }
+})
 
 const frames = new Map<number, FrameRequestCallback>()
 let frameId = 0
@@ -67,6 +70,24 @@ describe('useMusic', () => {
     expect(result.current.isPlaying).toBe(true)
   })
 
+  it('schedules uploaded notes with their pitch, audio time, duration, and velocity', async () => {
+    const attacks = vi.spyOn(Sampler.prototype, 'triggerAttackRelease')
+    const { result } = renderHook(() => useMusic({ language: 'en', volumePercent: 70 }))
+    await act(async () => {
+      await result.current.loadMidi(midiFixture([
+        { midi: 60, ticks: 0, durationTicks: 480, velocity: 127 },
+        { midi: 69, ticks: 1920, durationTicks: 960, velocity: 64 },
+      ]))
+    })
+    await act(() => result.current.togglePlay())
+    expect(attacks).not.toHaveBeenCalled()
+    act(() => Transport.advance(0.5, 10.5))
+    expect(attacks).toHaveBeenNthCalledWith(1, 'C4', 0.5, 10.5, 1)
+    act(() => Transport.advance(2.5, 12.5))
+    expect(attacks).toHaveBeenNthCalledWith(2, 'A4', 1, 12.5, 64 / 127)
+    expect(attacks).toHaveBeenCalledTimes(2)
+  })
+
   it.each([[-2, 0], [Number.NaN, 0], [Number.POSITIVE_INFINITY, 0], [1.2, 1.2], [99, 3.5]])(
     'seeks and clamps %s to %s seconds',
     async (input, expected) => {
@@ -115,7 +136,7 @@ describe('useMusic', () => {
     expect(audio.activeParts).toBe(0)
   })
 
-  it('kNOWN DEFECT DIG-3950: failed samples leave readiness pending and loading visible', async () => {
+  it('known defect DIG-3950: failed samples leave readiness pending and loading visible', async () => {
     audio.samplesLoad = false
     const { result } = await loadedMusic()
     let settled = false

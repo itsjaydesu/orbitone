@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { assertHealthy, cpuWindow, frameSummary, HarnessFailure, median, networkAction, parseOptions } from '../perf/contracts'
 
 describe('measurement contract', () => {
+  it('retains a private failure cause without including it in JSON or the public message', () => {
+    const cause = new Error('Private upload: confidential-score.mid')
+    const failure = new HarnessFailure('FAIL', 'UPLOAD_FAILED', { cause })
+    expect(failure.cause).toBe(cause)
+    expect(failure.message).toBe('UPLOAD_FAILED')
+    expect(JSON.stringify(failure)).toBe('{"status":"FAIL","code":"UPLOAD_FAILED"}')
+  })
+
   it('requires the resolved URL, a label, and exactly three runs', () => {
     expect(() => parseOptions([])).toThrow(HarnessFailure)
     expect(() => parseOptions(['--base-url', 'https://test.asuka', '--label', 'baseline', '--runs', '2'])).toThrow(HarnessFailure)

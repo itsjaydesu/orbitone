@@ -3,11 +3,16 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, assert, expect, expectTypeOf, it, vi } from 'vitest'
+
+expectTypeOf<Window['__orbitonePerf']>().toEqualTypeOf<OrbitonePerfProbe | undefined>()
 
 afterEach(() => vi.useRealTimers())
 
-it('runs the emitted browser script without compiler helpers and bounds frame and long-task windows', async () => {
+it.each([
+  { state: 'paused', nextPosition: 25 },
+  { state: 'playing', nextPosition: 25.016 },
+])('bounds metric windows and reads the next frame during $state seeking', async ({ state, nextPosition }) => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
   vi.stubGlobal('AudioNode', class { connect() {} })
   vi.stubGlobal('AudioDestinationNode', class {})
@@ -25,22 +30,25 @@ it('runs the emitted browser script without compiler helpers and bounds frame an
   const source = await readFile(resolve('perf/probe.ts'), 'utf8')
   const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText
   runInNewContext(script, { window, document, performance, AudioNode, AudioDestinationNode, PerformanceObserver, requestAnimationFrame, cancelAnimationFrame, setTimeout, clearTimeout })
-  const pending = window.orbitonePerf.measure(100)
+  assert(window.__orbitonePerf)
+  const pending = window.__orbitonePerf.measure(100)
   await vi.advanceTimersByTimeAsync(100)
   const metrics = await pending
   expect(metrics).toMatchObject({ startMs: 0, endMs: 100, longTaskCount: 2, longTaskDurationMs: 80, positionStartSeconds: 12, positionEndSeconds: 12 })
   expect(metrics.intervalsMs).toEqual([16, 16, 16, 16, 16])
   expect(vi.getTimerCount()).toBe(0)
 
-  window.orbitonePerf.armSeek()
+  window.__orbitonePerf.armSeek()
   const input = document.querySelector<HTMLInputElement>('input')!
+  if (state === 'playing')
+    requestAnimationFrame(() => { input.value = '25.016' })
   input.dispatchEvent(new Event('pointerdown'))
   input.value = '25'
   await vi.advanceTimersByTimeAsync(16)
-  expect(window.orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: 25 })
+  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: nextPosition })
 
   Object.defineProperty(PerformanceObserver, 'supportedEntryTypes', { value: [] })
-  await expect(window.orbitonePerf.measure(100)).rejects.toThrow('LONG_TASK_METRICS_UNAVAILABLE')
+  await expect(window.__orbitonePerf.measure(100)).rejects.toThrow('LONG_TASK_METRICS_UNAVAILABLE')
 })
 
 it('observes nonzero output through a parallel connection without replacing the audible destination', async () => {
@@ -67,9 +75,10 @@ it('observes nonzero output through a parallel connection without replacing the 
   const source = await readFile(resolve('perf/probe.ts'), 'utf8')
   const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText
   runInNewContext(script, { window, AudioNode, AudioDestinationNode, Float32Array })
+  assert(window.__orbitonePerf)
   const destination = new ExternalDestination()
   expect(new ExternalAudioNode().connect(destination)).toBe(destination)
   expect(connections).toHaveLength(2)
   expect(connections[0]).toBe(destination)
-  expect(window.orbitonePerf.audio()).toEqual({ peak: 0.25, contextSeconds: 2, running: true })
+  expect(window.__orbitonePerf.audio()).toEqual({ peak: 0.25, contextSeconds: 2, running: true })
 })
