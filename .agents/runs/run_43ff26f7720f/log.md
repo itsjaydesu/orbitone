@@ -39,3 +39,21 @@ S4 begins: opposite-family depth review. Results documentation follows accepted 
 
 Local integration advanced to bb18837. Measured application and harness bytes remain unchanged from e456081.
 ORCH corrected the docs manifest timestamp from its future value to the observed completion time.
+
+First depth review confirms all three original fixes. It requires tracked evidence and a follow-up for later seek reversion.
+REVIEW_FAIL
+Evidence commit c5f03f0 fixes missing targets. DIG-3964 and explicit P3 dispositions are recorded at 367097d.
+Bounded independent re-review starts for these records; source checks carry forward by identical git objects.
+
+REV-DEPTH round 2 verified gar 367097d against the reviewed bytes by git object hash.
+Source trees, eight root config blobs, and docs/performance.md are unchanged from e456081 and bb18837.
+All four docs evidence targets are tracked and resolve. Committed gate numbers match the round-1 recompute.
+SP-1 is closed. SP-2 is ticketed as DIG-3964. Five P3 waivers carry accurate logged reasons.
+DIG-3964 is not verified independently: the Linear MCP is unauthenticated and no sanctioned CLI exists.
+ORCH confirms that issue before merge. No finding remains open against this diff.
+REVIEW_PASS
+
+ORCH verified DIG-3964 through the authenticated Linear get_issue tool. Issue state is Backlog; uuid ea627c50-f52f-42e8-bcc3-1fc135e076c5.
+Independent depth re-review accepted 367097d, with no open findings.
+REVIEW_PASS
+S5 begins. Publish reviewed evidence, record thread dispositions, refresh exact refs, then merge.
