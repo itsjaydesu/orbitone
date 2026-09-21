@@ -1,0 +1,2 @@
+- The frozen tests assert per-tick currentTime through the hook. A pure ref design cannot pass them; the 2 Hz state path is the floor. State this in the spec next time.
+- The prior dispatch's mid-edit stop left a non-typechecking tree. A stop order should allow one small revert-or-finish step to keep the worktree green.
