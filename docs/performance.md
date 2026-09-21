@@ -1,10 +1,10 @@
 # Playback performance: DIG-3937
 
-This harness measures the local production app with system Chrome.
-M1 adds regression tests and measurement tooling without changing application source.
-Independent QA owns browser checks, baseline evidence, and candidate comparisons.
-No performance result exists from implementation checks alone.
-CPU measurement requires CDP `threadTicks`; unavailable metrics block the run.
+Independent QA passed all four numeric C1 gates in paired production runs.
+Median renderer main-thread CPU fell from 32.932% to 14.748%, a 55.216% reduction.
+rAF p95 stayed at 9.2 ms; active seek latency rose from 4.4 to 6.4 ms.
+This result covers the measured Chrome and hardware scenario only.
+QA recorded 48 passing tests; full lint retains known debt.
 
 ## Setup
 
@@ -19,7 +19,9 @@ pnpm exec tsc --noEmit
 pnpm exec eslint tests perf vitest.config.ts ecosystem.config.js package.json docs/performance.md README.md
 ```
 
-Full `pnpm lint` currently fails with **35 errors and 31 warnings**.
+Baseline full lint reports **35 errors and 31 warnings**.
+ORCH's [final integration check][lint-disclosure] reports **35 source errors and 32 warnings** for the candidate.
+M2 adds one acknowledged direct-set-state warning. Candidate touched-file lint passes with **21 warnings**.
 Track that baseline debt in [DIG-3939](https://linear.app/digital-philosophy/issue/DIG-3939/orbitone-repair-existing-lint-baseline-before-performance-changes).
 Touched-file lint and typecheck must pass before commits.
 
@@ -187,13 +189,95 @@ Allow at most two measured C1 attempts. Revert C1 if both fail.
 
 ## Current results and follow-ups
 
-- Regression baseline: **29 passing tests**, committed as `3a1fa5bd3f5ec35dadc6311570778116233d190b`.
-- Original M1 development checks: **38 passing tests** across seven files at `14e608e`.
-- M1 repair development checks: **42 passing tests** across seven files; independent QA remains separate.
-- M1 seek repair development checks: **48 passing tests** across eight files; independent browser reruns remain pending.
-- Original production baseline: independent QA recorded a passing report at `14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9`.
-- Revised harness baseline and candidate comparison: **PENDING independent QA**. Active seek measurements require fresh runs of both builds.
-- C1 implementation and performance gains: **not implemented or claimed**.
+Independent QA records **QA_PASS** for measured C1 attempt 1 in the [final M2 report][qa-report].
+C1 isolates frequent playback updates. The final paired runs use the same repaired harness.
+The [harness identity record][harness-identity] confirms matching harness, tests, configuration, and dependencies across both checkouts.
+
+| Evidence                   | Baseline                                   | Candidate                                  |
+| -------------------------- | ------------------------------------------ | ------------------------------------------ |
+| Raw report                 | [Baseline attempt 1][baseline-report]      | [Candidate attempt 1][candidate-report]    |
+| Commit                     | `0a88a96859b4ce255014a7693b3222358cb09f9a` | `6fb2db5ef00e9b36ae345e3d740faef75448574a` |
+| Production build ID        | `aXgdB5W1MgS2QYMFil8E0`                    | `tag1DQ7aWyu8hmG4Z1Y2-`                    |
+| Capture on 2026-09-21, JST | 12:49:23.128–12:52:05.422                  | 12:52:45.621–12:55:22.553                  |
+| Source capture, UTC        | 03:49:23.128–03:52:05.422                  | 03:52:45.621–03:55:22.553                  |
+
+Both builds used Chrome **153.0.8010.48**, hardware ANGLE Metal rendering on **Apple M3 Max**, and CDP `threadTicks`.
+Scenario `DIG-3937-upload-01` used **1280×720**, **DPR 1**, the default camera, and MIDI roll disabled.
+Each side recorded three runs with ten seconds of warmup, 30 seconds playing, and ten seconds paused.
+
+### Measured C1 gates
+
+The [gate summary][gate-summary] records **PASS for all four numeric gates**.
+CPU percentages describe renderer main-thread time divided by wall time, not device-wide utilization.
+The table rounds values after calculating changes from the raw measurements.
+
+| Gate                | Baseline median | Candidate median | Change                     | Limit for this baseline         | Result |
+| ------------------- | --------------- | ---------------- | -------------------------- | ------------------------------- | ------ |
+| Playback CPU        | 32.932%         | 14.748%          | 55.216% relative reduction | At least 10% reduction          | PASS   |
+| Playback rAF p95    | 9.2 ms          | 9.2 ms           | 0.0 ms                     | At most +1.0 ms                 | PASS   |
+| Active seek latency | 4.4 ms          | 6.4 ms           | +2.0 ms                    | At most +16.7 ms                | PASS   |
+| Paused CPU          | 8.479%          | 8.967%           | +0.489 percentage points   | At most +1.000 percentage point | PASS   |
+
+Paused seek latency remains separate: its median changed from **6.1 ms to 5.8 ms**.
+Both sides recorded a playback rAF p50 of 8.3 ms and zero browser errors.
+All measured playback and pause windows recorded zero intervals over 50 ms and zero long tasks.
+Every playback window showed 30 seconds of progress and nonzero analyser output.
+Median audio-ready time was 684.102 ms for baseline and 666.993 ms for candidate.
+
+### Individual CPU runs and spread
+
+Values below express CPU fractions as percentages. Spread means maximum minus minimum, in percentage points.
+
+| Run                       | Baseline playback | Candidate playback | Baseline paused | Candidate paused |
+| ------------------------- | ----------------- | ------------------ | --------------- | ---------------- |
+| 1                         | 29.941%           | 13.756%            | 7.769%          | 7.993%           |
+| 2                         | 32.932%           | 14.748%            | 8.479%          | 8.967%           |
+| 3                         | 33.231%           | 15.246%            | 10.428%         | 9.453%           |
+| Median                    | 32.932%           | 14.748%            | 8.479%          | 8.967%           |
+| Spread, percentage points | 3.289             | 1.490              | 2.659           | 1.460            |
+
+CPU rose across the three sequential runs on each side. Three runs do not establish longer-term stability or statistical confidence.
+Every candidate playback CPU result was below every baseline result in this sample.
+Paused CPU ranges overlap. Its median increase remains within the frozen gate; this result does not show an idle improvement.
+These measurements establish no device-wide CPU, GPU, battery, or memory-leak result.
+
+### Seek completion and behavior evidence
+
+Active next-frame latency ranged from **3.9–4.4 ms** for baseline and **5.4–7.0 ms** for candidate.
+Paused next-frame latency ranged from **6.1–6.6 ms** for baseline and **4.7–6.3 ms** for candidate.
+All twelve completion observations ranged from **3.9–13.5 ms**; the [QA report][qa-report] lists each reading.
+Completion observations include polling delay. They remain separate from the frozen next-frame latency metric.
+
+Candidate run 3 shows why these measurements differ:
+
+| Active seek reading                 | Value   |
+| ----------------------------------- | ------- |
+| Requested native input position     | 175 s   |
+| Next-frame latency                  | 5.4 ms  |
+| Next-frame position                 | 85.5 s  |
+| Completed observed position         | 175 s   |
+| Completion observation elapsed time | 13.5 ms |
+
+The first recorded frame still showed 85.5 seconds. The observer recorded the 175-second target after 13.5 ms.
+This was a two-frame observation, not completion at the first frame.
+The 2,000 ms diagnostic ceiling remains a timeout, not a user-experience acceptance threshold.
+
+The [QA report][qa-report] records passing playback, pause, seek, tempo, end/replay, track-switch, and MIDI-roll browser checks.
+Those checks ran on pre-repair candidate `a08fd3a`, with application code `1137ea5`.
+The final paired measurements cover baseline `0a88a96` and candidate `6fb2db5` with the repaired harness.
+QA used analyser output and transport progress; it made no hardware listening claim.
+These observations do not prove audible continuity or the absence of audio gaps.
+
+### Regression checks and remaining work
+
+The original regression baseline passed 29 tests before application changes, at `3a1fa5bd3f5ec35dadc6311570778116233d190b`.
+Final independent QA recorded **48 passing tests across eight files** on [baseline][baseline-tests] and [candidate][candidate-tests].
+Final QA and ORCH's integration check record **typecheck PASS** and **touched-file lint PASS**.
+ORCH records **21 warnings** in candidate touched-file lint, including one acknowledged direct-set-state warning from M2.
+Baseline full lint has **35 errors and 31 warnings**; final candidate source has **35 errors and 32 warnings**.
+The source error debt remains in [DIG-3939][lint-issue]. The [final lint disclosure][lint-disclosure] records ORCH's correction.
+This documentation update uses those QA results; it does not rerun tests or browser checks.
+
 - [DIG-3950](https://linear.app/digital-philosophy/issue/DIG-3950/orbitone-recover-when-piano-samples-fail-to-load): sample-download failure leaves readiness pending and loading visible.
 - [DIG-3951](https://linear.app/digital-philosophy/issue/DIG-3951/orbitone-preserve-keyboard-seeking-on-focused-range-controls): focused-range arrow keys can switch tracks instead of seeking.
 - [DIG-3952](https://linear.app/digital-philosophy/issue/DIG-3952/orbitone-measure-midi-roll-rendering-and-idle-animation-costs): MIDI-roll instancing and idle-render design remain separate candidates.
@@ -203,33 +287,23 @@ QA must record focused-range interception as a defect, without treating track sw
 The harness uses pointer input for measured seeking and Home for its reset.
 M1 changes no application files and repairs neither known defect.
 
-### Original baseline evidence
+### Earlier harness evidence and limitation
 
-Source: `.agents/runs/run_64692bd290f7/perf/baseline/baseline-2026-09-21T02-29-58.205Z.json` in the coordinator checkout.
-Independent QA used Chrome 153.0.8010.48 with hardware rendering on Apple M3 Max.
-These measurements precede the active-seek repair. They do not establish a C1 performance gain.
+The [original baseline][original-baseline] predates active-seek measurement. Its 2.2 ms paused-seek median does not enter the final comparison.
+The [failed revised baseline][failed-baseline] at `70332ae` stopped with `SEEK_POSITION_FAILED` in run 2.
+It lacks the failed seek's state and readings. The bounded diagnostic did not reproduce the failure; its cause remains unknown.
+The controlled-input race remains an unproven hypothesis. Preserve this failure record; it does not provide a passing baseline.
+The final paired runs above both **PASS** with the same repaired harness.
+Those passes do not establish the original failure's cause or reliability beyond this sample.
 
-| Run    | Playback CPU fraction | Paused seek latency, ms |
-| ------ | --------------------- | ----------------------- |
-| 1      | 0.2928158             | 2.7                     |
-| 2      | 0.3248689             | 2.1                     |
-| 3      | 0.3177422             | 2.2                     |
-| Median | 0.3177422             | 2.2                     |
-
-The CPU range is 0.0320531, or 3.20531 percentage points and 10.09% of the median.
-That spread matches the scale of the 10% C1 gate. Treat gains near that threshold as uncertain.
-Three runs do not characterize longer-term variation. Inspect individual runs beside the median without adding a new gate.
-
-Original median rAF p95 was 9.2 ms. Median paused CPU fraction was 0.0953147.
-The original 2.2 ms seek median covers paused playback only. Do not compare it against active seek latency.
-Independent QA must rerun the revised harness for both baseline and candidate before applying the active-seek gate.
-
-### Failed revised baseline
-
-The revised baseline at `70332ae` failed with `SEEK_POSITION_FAILED` in run 2.
-Source: `.agents/runs/run_64692bd290f7/perf/comparison/baseline/baseline-c1-2026-09-21T03-26-21.967Z.json` in the coordinator checkout.
-That report does not identify the failed seek's playback state or retain its readings.
-The bounded follow-up diagnostic did not reproduce the failure. The cause remains unknown.
-The controlled-input race remains an unproven hypothesis.
-The seek repair adds actionability checks, independent input capture, bounded observation, and failure diagnostics.
-Development checks cannot establish browser reliability. Independent QA must rerun both builds with the same repaired harness.
+[qa-report]: ../.agents/runs/run_64692bd290f7/qa/m2.md
+[harness-identity]: ../.agents/runs/run_64692bd290f7/qa/m2/mech-seek-repair/harness-identity.txt
+[baseline-report]: ../.agents/runs/run_64692bd290f7/perf/comparison/baseline-attempt1/baseline-c1a-2026-09-21T03-49-23.128Z.json
+[candidate-report]: ../.agents/runs/run_64692bd290f7/perf/comparison/candidate-attempt1/candidate-c1a-2026-09-21T03-52-45.621Z.json
+[gate-summary]: ../.agents/runs/run_64692bd290f7/perf/comparison/gate-summary-attempt1.json
+[baseline-tests]: ../.agents/runs/run_64692bd290f7/qa/m2/mech-seek-repair/test-base.txt
+[candidate-tests]: ../.agents/runs/run_64692bd290f7/qa/m2/mech-seek-repair/test-cand.txt
+[lint-issue]: https://linear.app/digital-philosophy/issue/DIG-3939/orbitone-repair-existing-lint-baseline-before-performance-changes
+[lint-disclosure]: ../.agents/runs/run_64692bd290f7-m1-results/report.md#lint-disclosure
+[original-baseline]: ../.agents/runs/run_64692bd290f7/perf/baseline/baseline-2026-09-21T02-29-58.205Z.json
+[failed-baseline]: ../.agents/runs/run_64692bd290f7/perf/comparison/baseline/baseline-c1-2026-09-21T03-26-21.967Z.json
