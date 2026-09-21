@@ -1,0 +1,142 @@
+{
+  "status": "FAIL",
+  "failureCode": "SEEK_POSITION_FAILED",
+  "stage": "run-2",
+  "label": "baseline-c1",
+  "sha": "70332ae93a96d78e9a4105c4bb61f5c6d598d9a9",
+  "buildId": "3u-5MNXzfXSuavUh8fSAl",
+  "buildMode": "production",
+  "browserVersion": "153.0.8010.48",
+  "rendering": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)",
+    "mode": "hardware"
+  },
+  "scenario": {
+    "id": "DIG-3937-upload-01",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "dpr": 1,
+    "camera": "default",
+    "midiRoll": false,
+    "warmupSeconds": 10,
+    "playbackSeconds": 30,
+    "pauseSeconds": 10,
+    "seek": {
+      "comparisonState": "playing",
+      "playbackFraction": 0.5,
+      "pausedFraction": 0.25
+    },
+    "runs": 3
+  },
+  "startedAt": "2026-09-21T03:26:21.967Z",
+  "endedAt": "2026-09-21T03:28:07.365Z",
+  "browserErrors": 0,
+  "analyticsIntercepts": {
+    "scripts": 1,
+    "events": 0
+  },
+  "runs": [
+    {
+      "run": 1,
+      "startedAt": "2026-09-21T03:26:24.030Z",
+      "endedAt": "2026-09-21T03:27:15.854Z",
+      "audioReadyMs": 1018.8595829999999,
+      "durationSeconds": 350.08229166666666,
+      "warmupProgressSeconds": 10,
+      "playback": {
+        "startedAt": "2026-09-21T03:26:35.393Z",
+        "endedAt": "2026-09-21T03:27:05.407Z",
+        "requestedSeconds": 30,
+        "cpu": {
+          "taskCpuSeconds": 8.036484000000002,
+          "threadCpuSeconds": 8.174345,
+          "wallSeconds": 30.014434000011533,
+          "cpuFraction": 0.2677539746375665,
+          "startCdpWallSeconds": 2196148.075359,
+          "endCdpWallSeconds": 2196178.089793,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.300000000001091,
+          "p95Ms": 9.19999999999709,
+          "over50Ms": 0,
+          "count": 3599,
+          "startPerformanceMs": 11899.599999904633,
+          "endPerformanceMs": 41899.90000009537,
+          "elapsedMs": 30000.300000190735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.447130024433136,
+          "activeSamples": 272,
+          "samples": 289
+        },
+        "positionStartSeconds": 0,
+        "positionEndSeconds": 30,
+        "heapBytes": 81680352
+      },
+      "paused": {
+        "startedAt": "2026-09-21T03:27:05.447Z",
+        "endedAt": "2026-09-21T03:27:15.455Z",
+        "requestedSeconds": 10,
+        "cpu": {
+          "taskCpuSeconds": 0.7267230000000016,
+          "threadCpuSeconds": 0.7656039999999997,
+          "wallSeconds": 10.008419999852777,
+          "cpuFraction": 0.0726111614031677,
+          "startCdpWallSeconds": 2196178.130373,
+          "endCdpWallSeconds": 2196188.138793,
+          "timeDomain": "threadTicks"
+        },
+        "frames": {
+          "p50Ms": 8.30000000000291,
+          "p95Ms": 9.19999999999709,
+          "over50Ms": 0,
+          "count": 1199,
+          "startPerformanceMs": 41956.2999997139,
+          "endPerformanceMs": 51957.2999997139,
+          "elapsedMs": 10001
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": 0
+        },
+        "audio": {
+          "peak": 0.16488850116729736,
+          "activeSamples": 21,
+          "samples": 97
+        },
+        "positionStartSeconds": 30.1,
+        "positionEndSeconds": 30.1,
+        "heapBytes": 80409904
+      },
+      "playbackSeek": {
+        "latencyMs": 7.200000286102295,
+        "nextFramePositionSeconds": 175,
+        "state": "playing",
+        "requestedFraction": 0.5,
+        "observedPositionSeconds": 175
+      },
+      "pausedSeek": {
+        "latencyMs": 6.700000286102295,
+        "nextFramePositionSeconds": 85.2,
+        "state": "paused",
+        "requestedFraction": 0.25,
+        "observedPositionSeconds": 85.2
+      },
+      "browserErrors": 0
+    }
+  ],
+  "medians": null,
+  "limits": [
+    "Main renderer thread only; no GPU or device CPU claim.",
+    "Heap is one point after pause; no leak claim.",
+    "Audio output probes do not prove the absence of audible gaps.",
+    "Independent browser QA remains required."
+  ]
+}

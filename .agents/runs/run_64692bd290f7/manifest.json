@@ -1,0 +1,15 @@
+{
+  "run_id": "run_64692bd290f7",
+  "role": "ORCH",
+  "model": "gpt-6-astra",
+  "stage": "S5",
+  "status": "RUNNING",
+  "module": "PR preparation",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/gar",
+  "budget_tokens": 0,
+  "budget_steps": 100,
+  "qa_cycles": 1,
+  "retries": 0,
+  "started_at": "2026-09-20T07:55:25.630822+00:00",
+  "updated_at": "2026-09-21T04:12:47.939366+00:00"
+}

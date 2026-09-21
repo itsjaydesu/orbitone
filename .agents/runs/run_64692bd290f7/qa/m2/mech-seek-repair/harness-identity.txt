@@ -1,0 +1,23 @@
+baseline=0a88a96859b4ce255014a7693b3222358cb09f9a
+candidate=6fb2db5ef00e9b36ae345e3d740faef75448574a
+OK ecosystem.config.js
+OK package.json
+OK perf/baseline.ts
+OK perf/contracts.ts
+OK perf/probe-types.d.ts
+OK perf/probe.ts
+OK perf/seek.ts
+OK perf/service.mjs
+OK pnpm-lock.yaml
+OK tests/export.test.ts
+OK tests/midi-fixture.ts
+OK tests/music.test.ts
+OK tests/perf-cli.test.ts
+OK tests/perf-contract.test.ts
+OK tests/perf-probe.test.ts
+OK tests/perf-seek.test.ts
+OK tests/tone-boundary.ts
+OK tests/use-music.test.ts
+OK tests/use-video-export.test.ts
+OK tests/web-audio-boundary.ts
+OK vitest.config.ts

@@ -1,0 +1,40 @@
+{
+  "run_id": "run_64692bd290f7",
+  "role": "REV-DEPTH",
+  "axis": "spec",
+  "stage": "S4",
+  "module": "M1",
+  "status": "DONE",
+  "issue": "DIG-3937",
+  "model": "claude-opus-5",
+  "effort": "high",
+  "target_checkout": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core",
+  "target_sha": "14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9",
+  "base_sha": "3ee74f349f70074aba0ee0f9daf4ec39398c541d",
+  "author_lane": "IMPL-CORE (gpt-6-astra)",
+  "read_only": true,
+  "report": "m1-spec.md",
+  "started_utc": "2026-09-21T02:55:41Z",
+  "signal": "REVIEW_PASS",
+  "findings": {
+    "p1": 0,
+    "p2": 5,
+    "p3": 4
+  },
+  "ended_utc": "2026-09-21T03:06:57Z",
+  "steps_used": 34,
+  "budget_steps": 60,
+  "worker_done_utc": "2026-09-21T03:07:21Z",
+  "timestamp_source": "filesystem mtime and coordinator record; not estimated",
+  "revision": {
+    "dispatch": "ctx_c4e4ed5d5ab2",
+    "at_utc": "2026-09-21T03:13:06Z",
+    "changes": [
+      "corrected estimated ended_utc",
+      "reframed P2-1 fix to benchmark-only labelling",
+      "softened P2-3 to uncertainty plus disclosure",
+      "findings trimmed to 398 words"
+    ]
+  },
+  "findings_words": 398
+}

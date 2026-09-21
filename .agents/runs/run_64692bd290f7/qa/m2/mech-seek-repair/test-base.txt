@@ -1,0 +1,24 @@
+$ vitest run
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core-repair
+
+ ✓ tests/perf-contract.test.ts (7 tests) 7ms
+ ✓ tests/perf-seek.test.ts (5 tests) 10ms
+ ✓ tests/export.test.ts (8 tests) 9ms
+ ✓ tests/music.test.ts (9 tests) 151ms
+ ✓ tests/use-video-export.test.ts (1 test) 71ms
+ ✓ tests/perf-probe.test.ts (3 tests) 155ms
+ ✓ tests/perf-cli.test.ts (3 tests) 1052ms
+   ✓ fails before browser launch when the explicit base URL is absent 798ms
+stdout | tests/use-music.test.ts
+ * Tone.js v15.1.22 *
+
+ ✓ tests/use-music.test.ts (12 tests) 77ms
+
+ Test Files  8 passed (8)
+      Tests  48 passed (48)
+   Start at  12:48:34
+   Duration  1.95s (environment 48%, tests 21%, import 21%, transform 10%)

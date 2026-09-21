@@ -1,0 +1,27 @@
+{
+  "run_id": "run_64692bd290f7",
+  "role": "REV-DEPTH",
+  "axis": "standards",
+  "model": "claude-opus-5",
+  "stage": "S4",
+  "status": "DONE",
+  "module": "M1",
+  "worktree": "/Users/dev/orca/workspaces/orbitone/run-64692bd290f7-core",
+  "target_sha": "14e608e0624dbbc8a7c64e22d701c2fd41fa4cd9",
+  "base_sha": "3ee74f349f70074aba0ee0f9daf4ec39398c541d",
+  "budget_minutes": 30,
+  "budget_steps": 60,
+  "qa_cycles": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T02:46:00Z",
+  "updated_at": "2026-09-21T03:02:46Z",
+  "gate": "REVIEW_PASS",
+  "findings": {
+    "P1": 0,
+    "P2": 4,
+    "P3": 8,
+    "withdrawn": 2
+  },
+  "report": ".agents/runs/run_64692bd290f7/review/m1-standards.md",
+  "revision": 2
+}
