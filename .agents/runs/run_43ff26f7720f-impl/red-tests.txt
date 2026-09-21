@@ -1,0 +1,401 @@
+$ vitest run
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /Users/dev/orca/workspaces/orbitone/pr7-benchmark-repair
+
+ ❯ tests/perf-seek.test.ts (5 tests | 2 failed) 15ms
+   × retains numeric evidence when playing completion times out 8ms
+   × retains numeric evidence when paused completion times out 1ms
+ ❯ tests/perf-probe.test.ts (3 tests | 2 failed) 167ms
+   × bounds metric windows and reads the next frame during paused seeking 122ms
+   × bounds metric windows and reads the next frame during playing seeking 30ms
+ ❯ tests/perf-seek-target.test.ts (8 tests | 6 failed) 404ms
+   × passes prompt playing target reach with separate first-frame diagnostics 95ms
+   × passes prompt paused target reach with separate first-frame diagnostics 24ms
+   × fails the C1 allowance for delayed playing target reach despite a prompt first frame 23ms
+   × fails the C1 allowance for delayed paused target reach despite a prompt first frame 18ms
+   × fails the run when target reach at null misses the observation timeout 37ms
+   × fails the run when target reach at 2001 misses the observation timeout 61ms
+ ❯ tests/perf-cli.test.ts (4 tests | 1 failed) 1331ms
+   × navigates the production benchmark with automation enabled before uploading the fixture 58ms
+ ❯ tests/perf-inputs.test.ts (60 tests | 31 failed) 10161ms
+   × baseline blocks dirty public/fixture.mid 604ms
+   × baseline blocks deleted public/fixture.mid 242ms
+   × baseline blocks untracked public/fixture.mid 129ms
+   × baseline blocks dirty tsconfig.json 240ms
+   × baseline blocks deleted tsconfig.json 237ms
+   × baseline blocks untracked tsconfig.json 91ms
+   × service blocks dirty public/fixture.mid 187ms
+   × service blocks deleted public/fixture.mid 177ms
+   × service blocks untracked public/fixture.mid 82ms
+   × service blocks dirty tsconfig.json 181ms
+   × service blocks deleted tsconfig.json 163ms
+   × service blocks untracked tsconfig.json 82ms
+   × baseline blocks build input public/fixture.mid 228ms
+   × baseline blocks build input scripts/build.mjs 208ms
+   × baseline blocks build input pnpm-workspace.yaml 200ms
+   × baseline blocks build input tsconfig.json 201ms
+   × baseline blocks build input postcss.config.mjs 187ms
+   × service blocks build input app/page.tsx 184ms
+   × service blocks build input components/Scene.tsx 163ms
+   × service blocks build input hooks/useMusic.ts 154ms
+   × service blocks build input lib/music.ts 155ms
+   × service blocks build input public/fixture.mid 155ms
+   × service blocks build input scripts/build.mjs 161ms
+   × service blocks build input perf/probe.ts 187ms
+   × service blocks build input package.json 206ms
+   × service blocks build input pnpm-lock.yaml 168ms
+   × service blocks build input pnpm-workspace.yaml 162ms
+   × service blocks build input next.config.ts 187ms
+   × service blocks build input tsconfig.json 180ms
+   × service blocks build input postcss.config.mjs 152ms
+   × service blocks build input ecosystem.config.js 137ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 42 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/perf-cli.test.ts > navigates the production benchmark with automation enabled before uploading the fixture
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/perf-cli.test.ts:98:51
+     96|     expect(target.origin).toBe('https://test.asuka')
+     97|     expect(target.pathname).toBe('/')
+     98|     expect(target.searchParams.has('automation')).toBe(true)
+       |                                                   ^
+     99|     expect(goto.mock.calls[0][1]).toEqual({ waitUntil: 'domcontentload…
+    100|     expect(browser.close).toHaveBeenCalledOnce()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/42]⎯
+
+ FAIL  tests/perf-inputs.test.ts > baseline blocks dirty public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > baseline blocks deleted public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > baseline blocks untracked public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > baseline blocks dirty tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > baseline blocks deleted tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > baseline blocks untracked tsconfig.json
+AssertionError: expected { status: 'BLOCKED', …(17) } to match object { status: 'BLOCKED', …(2) }
+(27 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "failureCode": "UNCOMMITTED_BUILD_INPUTS",
++   "failureCode": "PRODUCTION_BUILD_UNAVAILABLE",
+    "medians": null,
+    "status": "BLOCKED",
+  }
+
+ ❯ checkEntry tests/perf-inputs.test.ts:70:22
+     68|       await vi.waitFor(() => expect(output).toHaveBeenCalledOnce())
+     69|       const report = JSON.parse(String(vi.mocked(writeFile).mock.calls…
+     70|       expect(report).toMatchObject({ status: 'BLOCKED', failureCode: b…
+       |                      ^
+     71|       expect(readFile).toHaveBeenCalledTimes(blocked ? 0 : 1)
+     72|       expect(process.exitCode).toBe(2)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/42]⎯
+
+ FAIL  tests/perf-inputs.test.ts > service blocks dirty public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > service blocks deleted public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > service blocks untracked public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > service blocks dirty tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > service blocks deleted tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > service blocks untracked tsconfig.json
+AssertionError: expected [Function] to throw error including 'UNCOMMITTED_BUILD_INPUTS' but got 'TEST_BUILD_BOUNDARY'
+
+Expected: "UNCOMMITTED_BUILD_INPUTS"
+Received: "TEST_BUILD_BOUNDARY"
+
+ ❯ checkEntry tests/perf-inputs.test.ts:63:27
+     61|   try {
+     62|     if (entry === 'service') {
+     63|       await expect(import('../perf/service.mjs')).rejects.toThrow(bloc…
+       |                           ^
+     64|       expect(build).toHaveBeenCalledTimes(blocked ? 0 : 1)
+     65|     }
+ ❯ tests/perf-inputs.test.ts:87:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/42]⎯
+
+ FAIL  tests/perf-inputs.test.ts > baseline blocks build input public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > baseline blocks build input scripts/build.mjs
+ FAIL  tests/perf-inputs.test.ts > baseline blocks build input pnpm-workspace.yaml
+ FAIL  tests/perf-inputs.test.ts > baseline blocks build input tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > baseline blocks build input postcss.config.mjs
+AssertionError: expected { status: 'BLOCKED', …(17) } to match object { status: 'BLOCKED', …(2) }
+(27 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "failureCode": "UNCOMMITTED_BUILD_INPUTS",
++   "failureCode": "PRODUCTION_BUILD_UNAVAILABLE",
+    "medians": null,
+    "status": "BLOCKED",
+  }
+
+ ❯ checkEntry tests/perf-inputs.test.ts:70:22
+     68|       await vi.waitFor(() => expect(output).toHaveBeenCalledOnce())
+     69|       const report = JSON.parse(String(vi.mocked(writeFile).mock.calls…
+     70|       expect(report).toMatchObject({ status: 'BLOCKED', failureCode: b…
+       |                      ^
+     71|       expect(readFile).toHaveBeenCalledTimes(blocked ? 0 : 1)
+     72|       expect(process.exitCode).toBe(2)
+ ❯ tests/perf-inputs.test.ts:91:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/42]⎯
+
+ FAIL  tests/perf-inputs.test.ts > service blocks build input app/page.tsx
+ FAIL  tests/perf-inputs.test.ts > service blocks build input components/Scene.tsx
+ FAIL  tests/perf-inputs.test.ts > service blocks build input hooks/useMusic.ts
+ FAIL  tests/perf-inputs.test.ts > service blocks build input lib/music.ts
+ FAIL  tests/perf-inputs.test.ts > service blocks build input perf/probe.ts
+ FAIL  tests/perf-inputs.test.ts > service blocks build input package.json
+ FAIL  tests/perf-inputs.test.ts > service blocks build input pnpm-lock.yaml
+ FAIL  tests/perf-inputs.test.ts > service blocks build input next.config.ts
+ FAIL  tests/perf-inputs.test.ts > service blocks build input ecosystem.config.js
+AssertionError: expected [Function] to throw error including 'UNCOMMITTED_BUILD_INPUTS' but got 'Commit application inputs before the …'
+
+Expected: "UNCOMMITTED_BUILD_INPUTS"
+Received: "Commit application inputs before the performance build."
+
+ ❯ checkEntry tests/perf-inputs.test.ts:63:27
+     61|   try {
+     62|     if (entry === 'service') {
+     63|       await expect(import('../perf/service.mjs')).rejects.toThrow(bloc…
+       |                           ^
+     64|       expect(build).toHaveBeenCalledTimes(blocked ? 0 : 1)
+     65|     }
+ ❯ tests/perf-inputs.test.ts:91:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/42]⎯
+
+ FAIL  tests/perf-inputs.test.ts > service blocks build input public/fixture.mid
+ FAIL  tests/perf-inputs.test.ts > service blocks build input scripts/build.mjs
+ FAIL  tests/perf-inputs.test.ts > service blocks build input pnpm-workspace.yaml
+ FAIL  tests/perf-inputs.test.ts > service blocks build input tsconfig.json
+ FAIL  tests/perf-inputs.test.ts > service blocks build input postcss.config.mjs
+AssertionError: expected [Function] to throw error including 'UNCOMMITTED_BUILD_INPUTS' but got 'TEST_BUILD_BOUNDARY'
+
+Expected: "UNCOMMITTED_BUILD_INPUTS"
+Received: "TEST_BUILD_BOUNDARY"
+
+ ❯ checkEntry tests/perf-inputs.test.ts:63:27
+     61|   try {
+     62|     if (entry === 'service') {
+     63|       await expect(import('../perf/service.mjs')).rejects.toThrow(bloc…
+       |                           ^
+     64|       expect(build).toHaveBeenCalledTimes(blocked ? 0 : 1)
+     65|     }
+ ❯ tests/perf-inputs.test.ts:91:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/42]⎯
+
+ FAIL  tests/perf-probe.test.ts > bounds metric windows and reads the next frame during paused seeking
+AssertionError: expected Object{ latencyMs: 16, …(1) } to deeply equal { latencyMs: 16, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "firstFrameLatencyMs": 16,
+    "latencyMs": 16,
+    "nextFramePositionSeconds": 25,
+  }
+
+ ❯ tests/perf-probe.test.ts:49:38
+     47|   input.dispatchEvent(new Event('input', { bubbles: true }))
+     48|   await vi.advanceTimersByTimeAsync(16)
+     49|   expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, firstFra…
+       |                                      ^
+     50|   expect(window.__orbitonePerf.seekInput).toMatchObject({ requestedPos…
+     51|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/42]⎯
+
+ FAIL  tests/perf-probe.test.ts > bounds metric windows and reads the next frame during playing seeking
+AssertionError: expected Object{ latencyMs: 16, …(1) } to deeply equal { latencyMs: 16, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "firstFrameLatencyMs": 16,
+    "latencyMs": 16,
+    "nextFramePositionSeconds": 25.016,
+  }
+
+ ❯ tests/perf-probe.test.ts:49:38
+     47|   input.dispatchEvent(new Event('input', { bubbles: true }))
+     48|   await vi.advanceTimersByTimeAsync(16)
+     49|   expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, firstFra…
+       |                                      ^
+     50|   expect(window.__orbitonePerf.seekInput).toMatchObject({ requestedPos…
+     51|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/42]⎯
+
+ FAIL  tests/perf-seek-target.test.ts > passes prompt playing target reach with separate first-frame diagnostics
+AssertionError: expected { state: 'playing', …(19) } to match object { latencyMs: 16, …(3) }
+(21 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "firstFrameLatencyMs": 16,
+    "latencyMs": 16,
+    "nextFramePositionSeconds": 50,
+    "observedPositionSeconds": 50,
+  }
+
+ ❯ tests/perf-seek-target.test.ts:61:18
+     59|   const { page, click } = await boundary(0)
+     60|   const result = await measureSeek(page, 100, state, 0.5)
+     61|   expect(result).toMatchObject({ latencyMs: 16, firstFrameLatencyMs: 1…
+       |                  ^
+     62|   // A 16 ms baseline allows at most 32.7 ms under the frozen C1 allow…
+     63|   expect(result.latencyMs).toBeLessThanOrEqual(32.7)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/42]⎯
+
+ FAIL  tests/perf-seek-target.test.ts > passes prompt paused target reach with separate first-frame diagnostics
+AssertionError: expected { state: 'paused', …(19) } to match object { latencyMs: 16, …(3) }
+(21 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "firstFrameLatencyMs": 16,
+    "latencyMs": 16,
+    "nextFramePositionSeconds": 50,
+    "observedPositionSeconds": 50,
+  }
+
+ ❯ tests/perf-seek-target.test.ts:61:18
+     59|   const { page, click } = await boundary(0)
+     60|   const result = await measureSeek(page, 100, state, 0.5)
+     61|   expect(result).toMatchObject({ latencyMs: 16, firstFrameLatencyMs: 1…
+       |                  ^
+     62|   // A 16 ms baseline allows at most 32.7 ms under the frozen C1 allow…
+     63|   expect(result.latencyMs).toBeLessThanOrEqual(32.7)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/42]⎯
+
+ FAIL  tests/perf-seek-target.test.ts > fails the C1 allowance for delayed playing target reach despite a prompt first frame
+ FAIL  tests/perf-seek-target.test.ts > fails the C1 allowance for delayed paused target reach despite a prompt first frame
+AssertionError: expected 16 to be greater than 32.7
+ ❯ tests/perf-seek-target.test.ts:71:28
+     69|   const { page } = await boundary(60)
+     70|   const result = await measureSeek(page, 100, state, 0.5)
+     71|   expect(result.latencyMs).toBeGreaterThan(32.7)
+       |                            ^
+     72|   expect(result).toMatchObject({ latencyMs: 64, firstFrameLatencyMs: 1…
+     73|   expect(vi.getTimerCount()).toBe(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/42]⎯
+
+ FAIL  tests/perf-seek-target.test.ts > fails the run when target reach at null misses the observation timeout
+ FAIL  tests/perf-seek-target.test.ts > fails the run when target reach at 2001 misses the observation timeout
+AssertionError: expected Error: PLAYBACK_SEEK_POSITION_FAILED { …(3) } to match object { status: 'FAIL', …(2) }
+(21 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
++ SeekFailure {
+    "code": "PLAYBACK_SEEK_POSITION_FAILED",
+    "diagnostics": {
+      "completionTimeoutMs": 2000,
+-     "firstFrameLatencyMs": 16,
+-     "latencyMs": null,
++     "latencyMs": 16,
+      "nextFramePositionSeconds": 12,
+    },
+    "status": "FAIL",
+  }
+
+ ❯ tests/perf-seek-target.test.ts:80:19
+     78|   const failure = await measureSeek(page, 100, 'playing', 0.5).catch(e…
+     79|   expect(failure).toBeInstanceOf(SeekFailure)
+     80|   expect(failure).toMatchObject({
+       |                   ^
+     81|     status: 'FAIL',
+     82|     code: 'PLAYBACK_SEEK_POSITION_FAILED',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/42]⎯
+
+ FAIL  tests/perf-seek.test.ts > retains numeric evidence when playing completion times out
+AssertionError: expected Error: PLAYBACK_SEEK_FRAME_MISSING { …(3) } to match object { …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+@@ -1,7 +1,7 @@
+- {
+-   "code": "PLAYBACK_SEEK_POSITION_FAILED",
++ SeekFailure {
++   "code": "PLAYBACK_SEEK_FRAME_MISSING",
+    "diagnostics": {
+      "completionTimeoutMs": 2000,
+      "firstFrameLatencyMs": 7,
+      "latencyMs": null,
+      "observedPositionSeconds": 87,
+
+ ❯ tests/perf-seek.test.ts:47:19
+     45|   })
+     46|   const failure = await measureSeek(page, 350, state, 0.5).catch(error…
+     47|   expect(failure).toMatchObject({
+       |                   ^
+     48|     code: `${state === 'playing' ? 'PLAYBACK' : 'PAUSED'}_SEEK_POSITIO…
+     49|     diagnostics: { state, requestedPositionSeconds: 175, observedPosit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/42]⎯
+
+ FAIL  tests/perf-seek.test.ts > retains numeric evidence when paused completion times out
+AssertionError: expected Error: PAUSED_SEEK_FRAME_MISSING { …(3) } to match object { …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+@@ -1,7 +1,7 @@
+- {
+-   "code": "PAUSED_SEEK_POSITION_FAILED",
++ SeekFailure {
++   "code": "PAUSED_SEEK_FRAME_MISSING",
+    "diagnostics": {
+      "completionTimeoutMs": 2000,
+      "firstFrameLatencyMs": 7,
+      "latencyMs": null,
+      "observedPositionSeconds": 87,
+
+ ❯ tests/perf-seek.test.ts:47:19
+     45|   })
+     46|   const failure = await measureSeek(page, 350, state, 0.5).catch(error…
+     47|   expect(failure).toMatchObject({
+       |                   ^
+     48|     code: `${state === 'playing' ? 'PLAYBACK' : 'PAUSED'}_SEEK_POSITIO…
+     49|     diagnostics: { state, requestedPositionSeconds: 175, observedPosit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/42]⎯
+
+
+ Test Files  5 failed | 5 passed (10)
+      Tests  42 failed | 75 passed (117)
+   Start at  14:11:05
+   Duration  11.26s (tests 60%, environment 22%, import 11%, transform 7%)
+
+[ELIFECYCLE] Test failed. See above for more details.

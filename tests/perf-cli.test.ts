@@ -57,3 +57,50 @@ it.each(['setup', 'seek'] as const)('reports a %s failure without writing or log
     process.exitCode = originalExitCode
   }
 })
+
+it('navigates the production benchmark with automation enabled before uploading the fixture', async () => {
+  vi.resetModules()
+  vi.clearAllMocks()
+  const originalArgv = process.argv
+  const originalExitCode = process.exitCode
+  const output = vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const goto = vi.fn().mockRejectedValue(new Error('Stop at the external navigation boundary'))
+  const page = { setDefaultTimeout: vi.fn(), on: vi.fn(), goto }
+  const context = {
+    route: vi.fn(),
+    addInitScript: vi.fn(),
+    newPage: vi.fn().mockResolvedValue(page),
+    newCDPSession: vi.fn().mockResolvedValue({ send: vi.fn() }),
+  }
+  const browser = {
+    version: () => 'test-browser',
+    newContext: vi.fn().mockResolvedValue(context),
+    close: vi.fn().mockResolvedValue(undefined),
+  }
+  vi.spyOn(chromium, 'launch').mockResolvedValue(browser as object as Awaited<ReturnType<typeof chromium.launch>>)
+  vi.mocked(execFileSync).mockReturnValueOnce('test-commit').mockReturnValueOnce('')
+  vi.mocked(readFile).mockImplementation(async (path) => {
+    if (String(path).endsWith('orbitone-performance.json'))
+      return JSON.stringify({ sha: 'test-commit', buildId: 'test-build', mode: 'production' })
+    if (String(path).endsWith('BUILD_ID'))
+      return 'test-build'
+    return ''
+  })
+  process.argv = ['node', 'perf/baseline.ts', '--base-url', 'https://test.asuka/', '--label', 'baseline', '--runs', '3']
+  try {
+    await import('../perf/baseline')
+    await vi.waitFor(() => expect(output).toHaveBeenCalledOnce())
+    expect(goto).toHaveBeenCalledOnce()
+    const target = new URL(goto.mock.calls[0][0])
+    expect(target.origin).toBe('https://test.asuka')
+    expect(target.pathname).toBe('/')
+    expect(target.searchParams.has('automation')).toBe(true)
+    expect(goto.mock.calls[0][1]).toEqual({ waitUntil: 'domcontentloaded' })
+    expect(browser.close).toHaveBeenCalledOnce()
+  }
+  finally {
+    process.argv = originalArgv
+    process.exitCode = originalExitCode
+  }
+})

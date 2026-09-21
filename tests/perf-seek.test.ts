@@ -37,7 +37,8 @@ it.each(['playing', 'paused'] as const)('retains numeric evidence when %s comple
     requestedPositionSeconds: 175,
     observedPositionSeconds: 87,
     nextFramePositionSeconds: 87,
-    latencyMs: 7,
+    latencyMs: null,
+    firstFrameLatencyMs: 7,
     observationElapsedMs: 2001,
     pointerDownCount: 1,
     inputCount: 1,
@@ -45,7 +46,7 @@ it.each(['playing', 'paused'] as const)('retains numeric evidence when %s comple
   const failure = await measureSeek(page, 350, state, 0.5).catch(error => error as SeekFailure)
   expect(failure).toMatchObject({
     code: `${state === 'playing' ? 'PLAYBACK' : 'PAUSED'}_SEEK_POSITION_FAILED`,
-    diagnostics: { state, requestedPositionSeconds: 175, observedPositionSeconds: 87, latencyMs: 7, completionTimeoutMs: 2000 },
+    diagnostics: { state, requestedPositionSeconds: 175, observedPositionSeconds: 87, latencyMs: null, firstFrameLatencyMs: 7, completionTimeoutMs: 2000 },
   })
   expect(bar.click).toHaveBeenCalledTimes(2)
   expect(bar.click).toHaveBeenLastCalledWith({ position: { x: 272, y: 3 }, timeout: 5000 })
@@ -53,12 +54,12 @@ it.each(['playing', 'paused'] as const)('retains numeric evidence when %s comple
   expect(JSON.stringify(failure)).not.toContain('Private timeout detail')
 })
 
-it('keeps the next-frame metric separate from a later successful observation', async () => {
+it('reports target-reach latency separately from the first-frame diagnostic', async () => {
   const { page, bar } = boundary()
-  const observation = { requestedPositionSeconds: 175, observedPositionSeconds: 175.1, nextFramePositionSeconds: 87, latencyMs: 7, observationElapsedMs: 48, pointerDownCount: 1, inputCount: 1 }
+  const observation = { requestedPositionSeconds: 175, observedPositionSeconds: 175.1, nextFramePositionSeconds: 87, latencyMs: 32, firstFrameLatencyMs: 7, observationElapsedMs: 48, pointerDownCount: 1, inputCount: 1 }
   vi.mocked(page.waitForFunction).mockResolvedValue({ jsonValue: async () => observation, dispose: vi.fn() } as Awaited<ReturnType<Page['waitForFunction']>>)
   const result = await measureSeek(page, 350, 'playing', 0.5)
-  expect(result).toMatchObject({ latencyMs: 7, nextFramePositionSeconds: 87, observedPositionSeconds: 175.1, observationElapsedMs: 48 })
+  expect(result).toMatchObject({ latencyMs: 32, firstFrameLatencyMs: 7, nextFramePositionSeconds: 87, observedPositionSeconds: 175.1, observationElapsedMs: 48 })
   expect(bar.click).toHaveBeenCalledTimes(2)
   expect(vi.mocked(bar.click).mock.calls.filter(([options]) => !options?.trial)).toHaveLength(1)
 })

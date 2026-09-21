@@ -46,7 +46,7 @@ it.each([
   input.value = '25'
   input.dispatchEvent(new Event('input', { bubbles: true }))
   await vi.advanceTimersByTimeAsync(16)
-  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: nextPosition })
+  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, firstFrameLatencyMs: 16, nextFramePositionSeconds: nextPosition })
   expect(window.__orbitonePerf.seekInput).toMatchObject({ requestedPositionSeconds: 25, inputCount: 1, pointerDownCount: 1 })
 
   window.__orbitonePerf.disarmSeek()
@@ -61,13 +61,13 @@ it.each([
   await vi.advanceTimersByTimeAsync(16)
   expect(window.__orbitonePerf.seekInput?.requestedPositionSeconds).toBe(50)
 
-  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: 16, nextFramePositionSeconds: 12 })
+  expect(window.__orbitonePerf.seek).toEqual({ latencyMs: null, firstFrameLatencyMs: 16, nextFramePositionSeconds: 12 })
   expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
   input.value = '50'
   await vi.advanceTimersByTimeAsync(32)
-  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toMatchObject({ latencyMs: 16, observationElapsedMs: 48, requestedPositionSeconds: 50, observedPositionSeconds: 50 })
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toMatchObject({ latencyMs: 32, firstFrameLatencyMs: 16, observationElapsedMs: 48, requestedPositionSeconds: 50, observedPositionSeconds: 50 })
   input.value = '53.1'
-  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
+  expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toMatchObject({ latencyMs: 32, observedPositionSeconds: 50 })
   input.value = '50'
   await vi.advanceTimersByTimeAsync(1953)
   expect(window.__orbitonePerf.observeSeek(50, 3, 2000)).toBeNull()
