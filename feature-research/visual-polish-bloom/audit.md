@@ -4,14 +4,15 @@
 - components/Visualizer.tsx (modified)
 - components/PlaybackTimeline.tsx (modified)
 - app/globals.css (modified)
-- app/page.tsx (modified, rounds 2 and 4)
+- app/page.tsx (modified, rounds 2, 4 and 5)
 - ecosystem.config.js (modified)
 - lib/keyboard.ts (created, round 2)
 - lib/strike-ripple.ts (created round 2, removed round 3)
 - tests/playback-timeline.test.ts (created)
 - tests/keyboard.test.ts (created, round 2)
-- lib/playback-chrome.ts (created, round 4)
-- tests/playback-chrome.test.ts (created, round 4)
+- lib/playback-chrome.ts (created round 4, modified round 5)
+- hooks/usePlaybackChromeAutoHide.ts (created, round 5)
+- tests/playback-chrome.test.ts (created round 4, rewritten round 5)
 - tests/strike-ripple.test.ts (created round 2, removed round 3)
 - feature-research/visual-polish-bloom/audit.md (created)
 - feature-research/visual-polish-bloom/feedback.md (created)
@@ -220,6 +221,85 @@ Open risks:
   0.6 s for 5 s; chrome must stay, track must not change. Then click the
   canvas; chrome must hide after about 2 s. Also check mouse-only idle hide
   after a seekbar click.
+
+## Round 5 (REVIEW_FAIL fixes for the chrome hold)
+
+Cross-family review (GPT-6 Astra) of a01a1b8 gave four findings:
+1. P2: the hold needed a DOM keydown. Screen-reader or programmatic focus
+   after mouse use still hid the chrome.
+2. P2: a held timeout left no timer. An unmounted focused control moves
+   focus to <body> without a focusout, so the auto-hide stalled.
+3. P3: every keydown set the keyboard flag, modifier-only keys too.
+4. P3: the tests passed booleans into the helper, not the page behaviour.
+
+Fix:
+- lib/playback-chrome.ts: `shouldHoldPlaybackChrome` is removed. New
+  `matchesFocusVisible(element)` calls `element.matches(':focus-visible')`
+  in a try/catch and returns false when the engine rejects the selector.
+  The browser heuristic covers keyboard, screen-reader and programmatic
+  focus and ignores modifier-only keys after a click (findings 1 and 3).
+- hooks/usePlaybackChromeAutoHide.ts (new): owns the idle timer. Returns
+  `{ clearIdleTimer, scheduleIdleHide }`. The timeout holds when
+  `document.activeElement` is inside `[data-playback-chrome]` and matches
+  the focus-visible predicate. A hold re-arms the same check, so a removed
+  control releases the chrome on the next check (finding 2). A window
+  `focusout` that leaves the chrome restarts a full timeout, but only when
+  a timer is armed; open panels and persistent chrome clear the timer, so
+  the hook does not need the panel state. Unmount clears the timer.
+  `isFocusVisible` is an optional parameter; it defaults to
+  `matchesFocusVisible`.
+- app/page.tsx: the inline `clearIdleTimer`/`scheduleIdleHide`, the
+  keyboard-modality ref, and the keydown/pointerdown/focusout effect are
+  removed. The page calls the hook with `disabled: shouldPersistChrome`,
+  `PLAYBACK_CHROME_TIMEOUT_MS`, and a stable `hidePlaybackChrome`. All
+  other callers (shortcut reveal, panel effect, pointer activity) are
+  unchanged.
+
+Deviation: the keydown-inside-chrome timer restart is removed. The re-armed
+hold keeps the chrome up while keyboard focus stays inside, so the restart
+has no effect.
+
+Tests (tests/playback-chrome.test.ts, 11 tests, real hook via `renderHook`,
+vitest fake timers, real DOM focus/pointer/key events):
+- (a) keyboard focus inside the chrome holds past 5 timeouts;
+- (b) pointer focus hides after one timeout, no timer left;
+- (c) focused control removed -> hides on the next re-armed check;
+- (d) Meta/Alt/Control/Shift keydown after a click -> still hides;
+- (e) focus leaves the chrome -> hide lands one full timeout later;
+- (f) unmount clears the hook timer; later focusout arms nothing;
+- disabled -> no timer; `matchesFocusVisible` returns false on a throw;
+- default predicate: `Element.prototype.matches(':focus-visible')` is
+  called, and its true/false result decides hold/hide.
+jsdom matches `:focus-visible` for any focused element and its state leaks
+between tests, so behaviour tests inject the predicate and the default
+test stubs `matches`.
+
+Red step: with the a01a1b8 logic ported into the hook unchanged, 7 of the
+10 then-present tests failed (throw guard, keyboard hold via predicate,
+removed control, modifier key, focusout timing, unmount, default
+selector). Against a01a1b8 itself the suite fails on import.
+Mutation checks on the final hook: dropping the re-arm fails (a), (c) and
+(e); dropping the focusout listener fails (e).
+
+Results:
+- `pnpm test`: 13 files, 140 tests passed. The new file passed 5 of 5
+  repeat runs.
+- `pnpm exec tsc --noEmit`: exit 0, no output.
+- `pnpm exec eslint app/page.tsx hooks/usePlaybackChromeAutoHide.ts
+  lib/playback-chrome.ts tests/playback-chrome.test.ts`: 0 errors,
+  17 warnings, all in app/page.tsx. HEAD a01a1b8 page.tsx has 19 of the
+  same rules. The new and changed non-page files have 0 problems.
+
+Open risks:
+- The hold now follows each engine's `:focus-visible` heuristic. Chromium,
+  WebKit and Gecko match it for keyboard and programmatic focus after
+  keyboard use. After a mouse click, a later non-modifier key on the focused
+  control also makes it match, so the chrome then holds.
+- The re-armed check runs every 2 s while keyboard focus stays in the
+  chrome. The cost is one DOM query per tick.
+- QA repro: as in round 4, plus: Tab to Upload, resize across the mobile
+  breakpoint so Upload unmounts; the chrome must hide within about 4 s.
+  Click the seekbar, press Meta alone; the chrome must hide after about 2 s.
 
 ## QA verification
 QA verification: PENDING — orchestrator to attach browser-qa/ios-qa verdicts

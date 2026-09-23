@@ -58,6 +58,7 @@ import { PlaybackTimeline } from '@/components/PlaybackTimeline'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMusic } from '@/hooks/useMusic'
+import { usePlaybackChromeAutoHide } from '@/hooks/usePlaybackChromeAutoHide'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
@@ -78,10 +79,6 @@ import {
   getLocalizedTrackSubtitle,
   getLocalizedTrackTitle,
 } from '@/lib/library-translations'
-import {
-  isInPlaybackChrome,
-  shouldHoldPlaybackChrome,
-} from '@/lib/playback-chrome'
 import { cn } from '@/lib/utils'
 import { isVideoExportClientEnabled } from '@/lib/video-export-env'
 
@@ -702,8 +699,6 @@ export default function Home() {
   const shouldPersistChrome = !playbackChromeManaged
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const idleTimerRef = useRef<number | undefined>(undefined)
-  const lastInputWasKeyboardRef = useRef(false)
   const brandSwapTimerRef = useRef<number | undefined>(undefined)
   const brandRevealTimerRef = useRef<number | undefined>(undefined)
   const uploadDragDepthRef = useRef(0)
@@ -1206,27 +1201,15 @@ export default function Home() {
     }
   }, [currentLibraryTrackId, isLoadingLibrary, loadLibraryMidi])
 
-  const clearIdleTimer = useCallback(() => {
-    if (idleTimerRef.current !== undefined) {
-      window.clearTimeout(idleTimerRef.current)
-      idleTimerRef.current = undefined
-    }
+  const hidePlaybackChrome = useCallback(() => {
+    setIsMenuVisible(false)
   }, [])
 
-  const scheduleIdleHide = useCallback(() => {
-    clearIdleTimer()
-    if (shouldPersistChrome) {
-      return
-    }
-
-    idleTimerRef.current = window.setTimeout(() => {
-      // The focusout listener reschedules once keyboard focus leaves the chrome.
-      if (shouldHoldPlaybackChrome(document.activeElement, lastInputWasKeyboardRef.current)) {
-        return
-      }
-      setIsMenuVisible(false)
-    }, PLAYBACK_CHROME_TIMEOUT_MS)
-  }, [clearIdleTimer, shouldPersistChrome])
+  const { clearIdleTimer, scheduleIdleHide } = usePlaybackChromeAutoHide({
+    disabled: shouldPersistChrome,
+    timeoutMs: PLAYBACK_CHROME_TIMEOUT_MS,
+    onHide: hidePlaybackChrome,
+  })
 
   const handlePlaybackToggle = useCallback(() => {
     if (hasEnded) {
@@ -1418,40 +1401,6 @@ export default function Home() {
     isMobile,
     scheduleIdleHide,
     shouldPersistChrome,
-    showCameraLab,
-    showInfo,
-    showLibrary,
-    showSettings,
-  ])
-
-  useEffect(() => {
-    // Open panels keep the chrome shown on their own; see the effect above.
-    const hasOpenPanel = showSettings || showCameraLab || showInfo || showLibrary
-    const handleKeyDown = (e: KeyboardEvent) => {
-      lastInputWasKeyboardRef.current = true
-      if (!hasOpenPanel && isInPlaybackChrome(e.target)) {
-        scheduleIdleHide()
-      }
-    }
-    const handlePointerDown = () => {
-      lastInputWasKeyboardRef.current = false
-    }
-    const handleFocusOut = (e: FocusEvent) => {
-      if (!hasOpenPanel && isInPlaybackChrome(e.target) && !isInPlaybackChrome(e.relatedTarget)) {
-        scheduleIdleHide()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown, true)
-    window.addEventListener('pointerdown', handlePointerDown, true)
-    window.addEventListener('focusout', handleFocusOut)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true)
-      window.removeEventListener('pointerdown', handlePointerDown, true)
-      window.removeEventListener('focusout', handleFocusOut)
-    }
-  }, [
-    scheduleIdleHide,
     showCameraLab,
     showInfo,
     showLibrary,
