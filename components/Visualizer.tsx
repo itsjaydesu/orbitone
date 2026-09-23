@@ -22,6 +22,7 @@ import {
 import * as THREE from 'three'
 import * as Tone from 'tone'
 import { getExportCameraTransitionState } from '@/lib/export'
+import { getStrikeRipple } from '@/lib/strike-ripple'
 import {
   INTRO_CAMERA_DELAY,
   INTRO_CAMERA_DURATION,
@@ -527,8 +528,10 @@ function getExportResolvedCameraPose(
 
 // Staff rings read brightest at the top (angle 0, where the playhead sits) and
 // fall off toward the back of the orbit. The gradient is baked into a static
-// vertex colour so it costs nothing per frame.
-const STAFF_RING_BACK_BRIGHTNESS = 0.35
+// vertex colour so it costs nothing per frame. Vertex colours are linear, so
+// the floor sits low and the lit arc is narrowed to read on screen.
+const STAFF_RING_BACK_BRIGHTNESS = 0.18
+const STAFF_RING_LIT_ARC_POWER = 1.5
 
 function createCircularLineGeometry(radius: number, segments = 240) {
   const geometry = new THREE.BufferGeometry()
@@ -542,7 +545,9 @@ function createCircularLineGeometry(radius: number, segments = 240) {
     positions[offset + 1] = Math.cos(angle) * radius
     positions[offset + 2] = 0
 
-    const towardPlayhead = smootherStep((Math.cos(angle) + 1) * 0.5)
+    const towardPlayhead = smootherStep(
+      ((Math.cos(angle) + 1) * 0.5) ** STAFF_RING_LIT_ARC_POWER,
+    )
     const brightness = THREE.MathUtils.lerp(
       STAFF_RING_BACK_BRIGHTNESS,
       1,
@@ -689,12 +694,10 @@ const noteInstanceMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
 })
-// Strike ripple: a thin ring that expands out of each note as the playhead
-// crosses it. Shares the note loop and positions; only notes inside the ripple
-// window get an instance, so the mesh draws nothing while idle.
-const NOTE_RIPPLE_DURATION = 0.7
-const NOTE_RIPPLE_MAX_SCALE = 3
-const NOTE_RIPPLE_PEAK_BRIGHTNESS = 0.35
+// Strike ripple: a thin ring that expands from the playhead column where a
+// note was struck. It stays pinned there instead of following the note, so
+// consecutive strikes do not leave a trail of rings past the playhead. Only
+// notes inside the ripple window get an instance, so idle frames draw nothing.
 const noteRippleGeo = new THREE.RingGeometry(0.15, 0.165, 48)
 const noteRippleMaterial = new THREE.MeshBasicMaterial({
   color: 0xFFFFFF,
@@ -762,15 +765,17 @@ function InstancedNotes({
   )
 
   // Avoid a one-frame flash of capacity-count identity instances before the
-  // first useFrame writes real transforms.
+  // first useFrame writes real transforms. Writing one colour up front also
+  // allocates instanceColor now, so three.js does not compile a second shader
+  // variant on the first strike.
   useLayoutEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.count = 0
+    for (const mesh of [meshRef.current, rippleRef.current]) {
+      if (mesh) {
+        mesh.setColorAt(0, scratch.color.setScalar(0))
+        mesh.count = 0
+      }
     }
-    if (rippleRef.current) {
-      rippleRef.current.count = 0
-    }
-  }, [])
+  }, [scratch])
 
   useFrame(({ clock, camera }) => {
     const mesh = meshRef.current
@@ -852,19 +857,19 @@ function InstancedNotes({
       scratch.color.setScalar(Math.max(brightness, 0))
       mesh.setColorAt(i, scratch.color)
 
-      if (timeDiff >= 0 && timeDiff <= NOTE_RIPPLE_DURATION && visibility > 0) {
-        const rippleProgress = easeOutCubic(timeDiff / NOTE_RIPPLE_DURATION)
-        const rippleScale
-          = introScale * (1 + rippleProgress * (NOTE_RIPPLE_MAX_SCALE - 1))
-        const rippleBrightness
-          = visibility
-            * NOTE_RIPPLE_PEAK_BRIGHTNESS
-            * note.velocity
-            * (1 - rippleProgress)
-        scratch.scale.setScalar(Math.max(rippleScale, 0.0001))
+      const strikeRipple = displayProgress > 0
+        ? getStrikeRipple(timeDiff, note.velocity, animatedRadius)
+        : null
+      if (strikeRipple) {
+        scratch.position.set(
+          strikeRipple.x,
+          strikeRipple.y + (1 - displayProgress) * 0.22,
+          (1 - displayProgress) * -1.9,
+        )
+        scratch.scale.setScalar(Math.max(introScale * strikeRipple.scale, 0.0001))
         scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
         ripple.setMatrixAt(rippleCount, scratch.matrix)
-        scratch.color.setScalar(Math.max(rippleBrightness, 0))
+        scratch.color.setScalar(displayProgress * strikeRipple.brightness)
         ripple.setColorAt(rippleCount, scratch.color)
         rippleCount += 1
       }
@@ -1972,10 +1977,10 @@ function Scene({
       />
 
       <EffectComposer>
-        {/* Threshold sits above idle-note luminance (~0.68) so only struck
-            notes and the playhead bloom; idle discs and staff rings stay crisp. */}
+        {/* Threshold sits above idle-note luminance (0.68) and the playhead
+            (0.55), so only struck notes bloom; everything else stays crisp. */}
         <Bloom
-          luminanceThreshold={0.66}
+          luminanceThreshold={0.7}
           luminanceSmoothing={0.4}
           intensity={DEFAULT_BLOOM_INTENSITY}
           mipmapBlur
