@@ -78,6 +78,10 @@ import {
   getLocalizedTrackSubtitle,
   getLocalizedTrackTitle,
 } from '@/lib/library-translations'
+import {
+  isInPlaybackChrome,
+  shouldHoldPlaybackChrome,
+} from '@/lib/playback-chrome'
 import { cn } from '@/lib/utils'
 import { isVideoExportClientEnabled } from '@/lib/video-export-env'
 
@@ -699,6 +703,7 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const idleTimerRef = useRef<number | undefined>(undefined)
+  const lastInputWasKeyboardRef = useRef(false)
   const brandSwapTimerRef = useRef<number | undefined>(undefined)
   const brandRevealTimerRef = useRef<number | undefined>(undefined)
   const uploadDragDepthRef = useRef(0)
@@ -1215,6 +1220,10 @@ export default function Home() {
     }
 
     idleTimerRef.current = window.setTimeout(() => {
+      // The focusout listener reschedules once keyboard focus leaves the chrome.
+      if (shouldHoldPlaybackChrome(document.activeElement, lastInputWasKeyboardRef.current)) {
+        return
+      }
       setIsMenuVisible(false)
     }, PLAYBACK_CHROME_TIMEOUT_MS)
   }, [clearIdleTimer, shouldPersistChrome])
@@ -1409,6 +1418,40 @@ export default function Home() {
     isMobile,
     scheduleIdleHide,
     shouldPersistChrome,
+    showCameraLab,
+    showInfo,
+    showLibrary,
+    showSettings,
+  ])
+
+  useEffect(() => {
+    // Open panels keep the chrome shown on their own; see the effect above.
+    const hasOpenPanel = showSettings || showCameraLab || showInfo || showLibrary
+    const handleKeyDown = (e: KeyboardEvent) => {
+      lastInputWasKeyboardRef.current = true
+      if (!hasOpenPanel && isInPlaybackChrome(e.target)) {
+        scheduleIdleHide()
+      }
+    }
+    const handlePointerDown = () => {
+      lastInputWasKeyboardRef.current = false
+    }
+    const handleFocusOut = (e: FocusEvent) => {
+      if (!hasOpenPanel && isInPlaybackChrome(e.target) && !isInPlaybackChrome(e.relatedTarget)) {
+        scheduleIdleHide()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('pointerdown', handlePointerDown, true)
+    window.addEventListener('focusout', handleFocusOut)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('pointerdown', handlePointerDown, true)
+      window.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [
+    scheduleIdleHide,
     showCameraLab,
     showInfo,
     showLibrary,
@@ -1673,6 +1716,7 @@ export default function Home() {
 
       <div
         className={cn('pointer-events-none', topChromeClass)}
+        data-playback-chrome
         inert={!chromeVisible}
         style={topChromeStyle}
       >
@@ -2795,6 +2839,7 @@ export default function Home() {
           chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
           'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
         )}
+        data-playback-chrome
         inert={!chromeVisible}
         style={timelineChromeStyle}
       >
@@ -2807,6 +2852,7 @@ export default function Home() {
 
       <div
         className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
+        data-playback-chrome
         inert={!chromeVisible}
         style={playChromeStyle}
       >

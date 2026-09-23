@@ -4,12 +4,14 @@
 - components/Visualizer.tsx (modified)
 - components/PlaybackTimeline.tsx (modified)
 - app/globals.css (modified)
-- app/page.tsx (modified, round 2)
+- app/page.tsx (modified, rounds 2 and 4)
 - ecosystem.config.js (modified)
 - lib/keyboard.ts (created, round 2)
 - lib/strike-ripple.ts (created round 2, removed round 3)
 - tests/playback-timeline.test.ts (created)
 - tests/keyboard.test.ts (created, round 2)
+- lib/playback-chrome.ts (created, round 4)
+- tests/playback-chrome.test.ts (created, round 4)
 - tests/strike-ripple.test.ts (created round 2, removed round 3)
 - feature-research/visual-polish-bloom/audit.md (created)
 - feature-research/visual-polish-bloom/feedback.md (created)
@@ -177,6 +179,47 @@ sections above (round 1 item 2, round 2 ripple notes and tests) are
 historical only. Kept unchanged: bloom and glow numbers, the instanceColor
 pre-create on the note mesh, the staff ring gradient, the seekbar work and
 the keyboard fix. Round 3 results are in the final report.
+
+## Round 4 (chrome hides under keyboard focus)
+Bug (also on master): a keyboard user on the seekbar pressed ArrowLeft. The
+chrome hid after 2 s and became `inert`. Focus dropped to BODY, so later
+arrows switched the track.
+
+Fix:
+- lib/playback-chrome.ts: `isInPlaybackChrome(target)` checks for a
+  `[data-playback-chrome]` ancestor. `shouldHoldPlaybackChrome(active,
+  lastInputWasKeyboard)` is the hold decision.
+- app/page.tsx: the three chrome wrappers (top bar, timeline, play button)
+  get `data-playback-chrome`. The idle timeout skips the hide when the
+  helper says hold. A new effect tracks input type (capture `keydown` sets
+  keyboard, capture `pointerdown` sets pointer). A keydown inside the chrome
+  restarts the timer. A `focusout` that leaves the chrome restarts the
+  timer, so the idle hide resumes. Both skip while a panel is open, because
+  the panel effect already keeps the chrome shown.
+- Pointer activity already restarts the timer through the existing window
+  `pointermove`/`pointerdown` listener; unchanged.
+
+Deviation: the hold needs the last input to be the keyboard. Without that,
+a mouse click on the seekbar leaves focus on it and the chrome never hides.
+That would change the mouse-idle behaviour, which the task said to keep.
+
+Tests: tests/playback-chrome.test.ts (4 tests) covers the helper in jsdom.
+The page wiring (timer + listeners) has no automated test: rendering
+app/page.tsx in jsdom needs WebGL and audio. Browser QA must run the repro.
+
+Results:
+- `pnpm test`: 13 files, 133 tests passed.
+- `pnpm exec tsc --noEmit`: exit 0, no output.
+- `pnpm exec eslint app/page.tsx`: 0 errors, 19 warnings; same rule set as
+  HEAD e29c41d. New files: 0 problems.
+
+Open risks:
+- After a keyboard user moves focus into the chrome, the chrome stays
+  visible until focus leaves or a pointerdown happens. This is intended.
+- QA repro to run: start playback, Tab to the seekbar, press ArrowLeft every
+  0.6 s for 5 s; chrome must stay, track must not change. Then click the
+  canvas; chrome must hide after about 2 s. Also check mouse-only idle hide
+  after a seekbar click.
 
 ## QA verification
 QA verification: PENDING — orchestrator to attach browser-qa/ios-qa verdicts
