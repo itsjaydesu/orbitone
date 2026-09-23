@@ -51,7 +51,7 @@ export interface ExportFrameController {
 }
 
 const DEFAULT_TIME_WINDOW = 10
-const DEFAULT_BLOOM_INTENSITY = 1.2
+const DEFAULT_BLOOM_INTENSITY = 0.8
 const CLEF_FONT_STACK
   = '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif'
 const TREBLE_CLEF_SCALE = 1.05
@@ -525,9 +525,15 @@ function getExportResolvedCameraPose(
   return effectivePose
 }
 
+// Staff rings read brightest at the top (angle 0, where the playhead sits) and
+// fall off toward the back of the orbit. The gradient is baked into a static
+// vertex colour so it costs nothing per frame.
+const STAFF_RING_BACK_BRIGHTNESS = 0.35
+
 function createCircularLineGeometry(radius: number, segments = 240) {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array((segments + 1) * 3)
+  const colors = new Float32Array((segments + 1) * 3)
 
   for (let index = 0; index <= segments; index += 1) {
     const angle = (index / segments) * Math.PI * 2
@@ -535,9 +541,20 @@ function createCircularLineGeometry(radius: number, segments = 240) {
     positions[offset] = -Math.sin(angle) * radius
     positions[offset + 1] = Math.cos(angle) * radius
     positions[offset + 2] = 0
+
+    const towardPlayhead = smootherStep((Math.cos(angle) + 1) * 0.5)
+    const brightness = THREE.MathUtils.lerp(
+      STAFF_RING_BACK_BRIGHTNESS,
+      1,
+      towardPlayhead,
+    )
+    colors[offset] = brightness
+    colors[offset + 1] = brightness
+    colors[offset + 2] = brightness
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geometry.setDrawRange(0, 0)
 
   return geometry
@@ -592,6 +609,7 @@ function StaffRing({
           depthWrite: false,
           opacity: 0,
           transparent: true,
+          vertexColors: true,
         }),
       ),
     [geometry],
@@ -671,6 +689,19 @@ const noteInstanceMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
 })
+// Strike ripple: a thin ring that expands out of each note as the playhead
+// crosses it. Shares the note loop and positions; only notes inside the ripple
+// window get an instance, so the mesh draws nothing while idle.
+const NOTE_RIPPLE_DURATION = 0.7
+const NOTE_RIPPLE_MAX_SCALE = 3
+const NOTE_RIPPLE_PEAK_BRIGHTNESS = 0.35
+const noteRippleGeo = new THREE.RingGeometry(0.15, 0.165, 48)
+const noteRippleMaterial = new THREE.MeshBasicMaterial({
+  color: 0xFFFFFF,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+})
 
 interface NoteRenderItem {
   note: NoteEvent
@@ -719,6 +750,7 @@ function InstancedNotes({
   timeline?: VisualizerRenderTimeline
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
+  const rippleRef = useRef<THREE.InstancedMesh>(null)
   const scratch = useMemo(
     () => ({
       matrix: new THREE.Matrix4(),
@@ -735,16 +767,21 @@ function InstancedNotes({
     if (meshRef.current) {
       meshRef.current.count = 0
     }
+    if (rippleRef.current) {
+      rippleRef.current.count = 0
+    }
   }, [])
 
   useFrame(({ clock, camera }) => {
     const mesh = meshRef.current
-    if (!mesh) {
+    const ripple = rippleRef.current
+    if (!mesh || !ripple) {
       return
     }
 
     const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const count = Math.min(items.length, NOTE_INSTANCE_CAPACITY)
+    let rippleCount = 0
 
     for (let i = 0; i < count; i += 1) {
       const item = items[i]
@@ -788,8 +825,8 @@ function InstancedNotes({
         duration: note.duration,
         idleGlow: 0.18,
         opacity: 1,
-        peakGlow: 1.6 + note.velocity * 1.4,
-        sustainGlow: 0.52 + note.velocity * 0.44,
+        peakGlow: 0.9 + note.velocity * 0.8,
+        sustainGlow: 0.35 + note.velocity * 0.3,
         timeDiff,
         centered: true,
       })
@@ -807,13 +844,30 @@ function InstancedNotes({
 
       const brightness = visibility * (NOTE_DISK_BASE + glow)
       const introScale = 0.28 + displayProgress * 0.72
-      const playScale = 1 + strike * (0.5 + note.velocity)
+      const playScale = 1 + strike * (0.25 + note.velocity * 0.45)
       scratch.scale.setScalar(Math.max(introScale * playScale, 0.0001))
 
       scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
       mesh.setMatrixAt(i, scratch.matrix)
       scratch.color.setScalar(Math.max(brightness, 0))
       mesh.setColorAt(i, scratch.color)
+
+      if (timeDiff >= 0 && timeDiff <= NOTE_RIPPLE_DURATION && visibility > 0) {
+        const rippleProgress = easeOutCubic(timeDiff / NOTE_RIPPLE_DURATION)
+        const rippleScale
+          = introScale * (1 + rippleProgress * (NOTE_RIPPLE_MAX_SCALE - 1))
+        const rippleBrightness
+          = visibility
+            * NOTE_RIPPLE_PEAK_BRIGHTNESS
+            * note.velocity
+            * (1 - rippleProgress)
+        scratch.scale.setScalar(Math.max(rippleScale, 0.0001))
+        scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
+        ripple.setMatrixAt(rippleCount, scratch.matrix)
+        scratch.color.setScalar(Math.max(rippleBrightness, 0))
+        ripple.setColorAt(rippleCount, scratch.color)
+        rippleCount += 1
+      }
     }
 
     mesh.count = count
@@ -821,15 +875,29 @@ function InstancedNotes({
     if (mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true
     }
+
+    ripple.count = rippleCount
+    ripple.instanceMatrix.needsUpdate = true
+    if (ripple.instanceColor) {
+      ripple.instanceColor.needsUpdate = true
+    }
   })
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[noteGeo, noteInstanceMaterial, NOTE_INSTANCE_CAPACITY]}
-      frustumCulled={false}
-      renderOrder={10}
-    />
+    <>
+      <instancedMesh
+        ref={meshRef}
+        args={[noteGeo, noteInstanceMaterial, NOTE_INSTANCE_CAPACITY]}
+        frustumCulled={false}
+        renderOrder={10}
+      />
+      <instancedMesh
+        ref={rippleRef}
+        args={[noteRippleGeo, noteRippleMaterial, NOTE_INSTANCE_CAPACITY]}
+        frustumCulled={false}
+        renderOrder={9}
+      />
+    </>
   )
 }
 
@@ -961,8 +1029,8 @@ function MidiRollNote({
       duration: note.duration,
       idleGlow: 0.22,
       opacity,
-      peakGlow: 1.25 + note.velocity * 0.9,
-      sustainGlow: 0.42 + note.velocity * 0.28,
+      peakGlow: 0.7 + note.velocity * 0.5,
+      sustainGlow: 0.3 + note.velocity * 0.2,
       timeDiff: currentTime - note.time,
     })
   })
@@ -1904,12 +1972,14 @@ function Scene({
       />
 
       <EffectComposer>
+        {/* Threshold sits above idle-note luminance (~0.68) so only struck
+            notes and the playhead bloom; idle discs and staff rings stay crisp. */}
         <Bloom
-          luminanceThreshold={0.24}
-          luminanceSmoothing={0.9}
+          luminanceThreshold={0.66}
+          luminanceSmoothing={0.4}
           intensity={DEFAULT_BLOOM_INTENSITY}
           mipmapBlur
-          radius={0.72}
+          radius={0.6}
         />
         {/* Filmic depth: darken the edges so the frame reads as a lit stage
             rather than a flat void. Kept subtle to stay minimal. */}
