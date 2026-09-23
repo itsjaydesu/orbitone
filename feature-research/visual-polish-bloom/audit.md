@@ -4,8 +4,13 @@
 - components/Visualizer.tsx (modified)
 - components/PlaybackTimeline.tsx (modified)
 - app/globals.css (modified)
+- app/page.tsx (modified, round 2)
 - ecosystem.config.js (modified)
+- lib/keyboard.ts (created, round 2)
+- lib/strike-ripple.ts (created, round 2)
 - tests/playback-timeline.test.ts (created)
+- tests/keyboard.test.ts (created, round 2)
+- tests/strike-ripple.test.ts (created, round 2)
 - feature-research/visual-polish-bloom/audit.md (created)
 - feature-research/visual-polish-bloom/feedback.md (created)
 
@@ -99,6 +104,70 @@
   the thumb follows the pointer, same as the previous controlled input.
 - Dev server `orbitone` (PM2 id 188) is running at https://orbitone.asuka.
   Stop with `pm2 stop orbitone` when QA is done.
+
+## Round 2 (QA + review fixes)
+
+### lib/strike-ripple.ts (new) and components/Visualizer.tsx
+- Ripple envelope moved to a pure helper `getStrikeRipple(timeDiff,
+  velocity, radius)`: null outside 0..0.5 s, position pinned at the playhead
+  column `(0, radius)`, scale 1x -> 2.2x (easeOutCubic), brightness
+  `0.28 * velocity * (1 - progress)`. Visualizer multiplies brightness by
+  `displayProgress` and applies the same intro lift/depth offsets as the
+  note. The ripple no longer follows the note along the orbit.
+- `useLayoutEffect` now calls `setColorAt(0, black)` on both the note mesh
+  and the ripple mesh before zeroing `count`, so `instanceColor` exists
+  before the first strike and three.js compiles one shader variant only.
+- Bloom threshold 0.66 -> 0.7; comment corrected (idle 0.68 and playhead
+  0.55 both sit below it).
+- Staff ring gradient: floor 0.35 -> 0.18, lit arc narrowed with
+  `((cos+1)/2) ** 1.5` before smootherStep. Linear brightness: top 1.0,
+  sides (90 deg) ~0.35, bottom 0.18.
+
+### components/PlaybackTimeline.tsx
+- `aria-valuetext={formatTime(wholeSecond)}` on the range input.
+
+### app/globals.css
+- Fill alpha 0.22 -> 0.45.
+- `.nm-seekbar:focus-visible`: keeps the inset track shadows and adds a
+  2px bg gap + 1px rgba(255,255,255,0.28) ring.
+
+### lib/keyboard.ts (new) and app/page.tsx
+- Bug from master: with the seekbar focused, ArrowLeft/ArrowRight loaded the
+  adjacent track because the global keydown handler only skipped
+  text/number/password/email inputs. `isGlobalShortcutTarget(target, key)`
+  now also returns false for arrow keys on any `<input>` or `<select>`.
+  Letter shortcuts still work from a focused range input. page.tsx calls
+  the helper in place of the inline checks.
+- Reproduced first: the test file was run against the master predicate
+  (extracted verbatim) and the two arrow-key tests failed; after the fix
+  all pass.
+
+### Tests (round 2)
+- tests/strike-ripple.test.ts: null outside window; anchored at (0, radius)
+  for all timeDiff; scale strictly increasing and brightness strictly
+  decreasing across 20 steps, ending at 2.2x and 0; velocity scaling.
+- tests/playback-timeline.test.ts: + duration change while paused rewrites
+  max/value/--nm-progress; a bare listener publish (no rAF, no act) updates
+  value and fill; aria-valuetext tracks the displayed time; unmount leaves
+  zero clock listeners.
+- tests/keyboard.test.ts: range/checkbox/select keep arrows; range still
+  routes 'f'; text/textarea ignore all keys; body/null route everything.
+
+### Round 2 results
+`pnpm test`: 13 files, 133 tests passed.
+`pnpm exec tsc --noEmit`: clean.
+eslint on touched files (Visualizer.tsx, PlaybackTimeline.tsx, globals.css,
+page.tsx, lib/keyboard.ts, lib/strike-ripple.ts, three test files):
+2 errors + 28 warnings, identical to the same three legacy files on HEAD
+(globals.css lines 6-8 prettier; page.tsx/Visualizer.tsx warnings in
+untouched regions). New files are clean.
+
+### Round 2 open risks
+- Gradient and fill values are chosen by reasoning, not by eye. If the
+  staff arc still reads flat, drop the floor to 0.12; if the fill is too
+  loud, use 0.38.
+- Arrow keys on a focused `<button>` still reach the global handler; buttons
+  do not consume arrows, so this matches native behaviour.
 
 ## QA verification
 QA verification: PENDING — orchestrator to attach browser-qa/ios-qa verdicts
