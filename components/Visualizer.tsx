@@ -22,7 +22,6 @@ import {
 import * as THREE from 'three'
 import * as Tone from 'tone'
 import { getExportCameraTransitionState } from '@/lib/export'
-import { getStrikeRipple } from '@/lib/strike-ripple'
 import {
   INTRO_CAMERA_DELAY,
   INTRO_CAMERA_DURATION,
@@ -694,17 +693,6 @@ const noteInstanceMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
 })
-// Strike ripple: a thin ring that expands from the playhead column where a
-// note was struck. It stays pinned there instead of following the note, so
-// consecutive strikes do not leave a trail of rings past the playhead. Only
-// notes inside the ripple window get an instance, so idle frames draw nothing.
-const noteRippleGeo = new THREE.RingGeometry(0.15, 0.165, 48)
-const noteRippleMaterial = new THREE.MeshBasicMaterial({
-  color: 0xFFFFFF,
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-})
 
 interface NoteRenderItem {
   note: NoteEvent
@@ -753,7 +741,6 @@ function InstancedNotes({
   timeline?: VisualizerRenderTimeline
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
-  const rippleRef = useRef<THREE.InstancedMesh>(null)
   const scratch = useMemo(
     () => ({
       matrix: new THREE.Matrix4(),
@@ -769,24 +756,21 @@ function InstancedNotes({
   // allocates instanceColor now, so three.js does not compile a second shader
   // variant on the first strike.
   useLayoutEffect(() => {
-    for (const mesh of [meshRef.current, rippleRef.current]) {
-      if (mesh) {
-        mesh.setColorAt(0, scratch.color.setScalar(0))
-        mesh.count = 0
-      }
+    const mesh = meshRef.current
+    if (mesh) {
+      mesh.setColorAt(0, scratch.color.setScalar(0))
+      mesh.count = 0
     }
   }, [scratch])
 
   useFrame(({ clock, camera }) => {
     const mesh = meshRef.current
-    const ripple = rippleRef.current
-    if (!mesh || !ripple) {
+    if (!mesh) {
       return
     }
 
     const elapsed = getResolvedGlobalTime(clock.getElapsedTime(), timeline)
     const count = Math.min(items.length, NOTE_INSTANCE_CAPACITY)
-    let rippleCount = 0
 
     for (let i = 0; i < count; i += 1) {
       const item = items[i]
@@ -856,23 +840,6 @@ function InstancedNotes({
       mesh.setMatrixAt(i, scratch.matrix)
       scratch.color.setScalar(Math.max(brightness, 0))
       mesh.setColorAt(i, scratch.color)
-
-      const strikeRipple = displayProgress > 0
-        ? getStrikeRipple(timeDiff, note.velocity, animatedRadius)
-        : null
-      if (strikeRipple) {
-        scratch.position.set(
-          strikeRipple.x,
-          strikeRipple.y + (1 - displayProgress) * 0.22,
-          (1 - displayProgress) * -1.9,
-        )
-        scratch.scale.setScalar(Math.max(introScale * strikeRipple.scale, 0.0001))
-        scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
-        ripple.setMatrixAt(rippleCount, scratch.matrix)
-        scratch.color.setScalar(displayProgress * strikeRipple.brightness)
-        ripple.setColorAt(rippleCount, scratch.color)
-        rippleCount += 1
-      }
     }
 
     mesh.count = count
@@ -880,29 +847,15 @@ function InstancedNotes({
     if (mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true
     }
-
-    ripple.count = rippleCount
-    ripple.instanceMatrix.needsUpdate = true
-    if (ripple.instanceColor) {
-      ripple.instanceColor.needsUpdate = true
-    }
   })
 
   return (
-    <>
-      <instancedMesh
-        ref={meshRef}
-        args={[noteGeo, noteInstanceMaterial, NOTE_INSTANCE_CAPACITY]}
-        frustumCulled={false}
-        renderOrder={10}
-      />
-      <instancedMesh
-        ref={rippleRef}
-        args={[noteRippleGeo, noteRippleMaterial, NOTE_INSTANCE_CAPACITY]}
-        frustumCulled={false}
-        renderOrder={9}
-      />
-    </>
+    <instancedMesh
+      ref={meshRef}
+      args={[noteGeo, noteInstanceMaterial, NOTE_INSTANCE_CAPACITY]}
+      frustumCulled={false}
+      renderOrder={10}
+    />
   )
 }
 

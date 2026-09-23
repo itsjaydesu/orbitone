@@ -7,10 +7,10 @@
 - app/page.tsx (modified, round 2)
 - ecosystem.config.js (modified)
 - lib/keyboard.ts (created, round 2)
-- lib/strike-ripple.ts (created, round 2)
+- lib/strike-ripple.ts (created round 2, removed round 3)
 - tests/playback-timeline.test.ts (created)
 - tests/keyboard.test.ts (created, round 2)
-- tests/strike-ripple.test.ts (created, round 2)
+- tests/strike-ripple.test.ts (created round 2, removed round 3)
 - feature-research/visual-polish-bloom/audit.md (created)
 - feature-research/visual-polish-bloom/feedback.md (created)
 
@@ -168,6 +168,15 @@ untouched regions). New files are clean.
   loud, use 0.38.
 - Arrow keys on a focused `<button>` still reach the global handler; buttons
   do not consume arrows, so this matches native behaviour.
+
+## Round 3 (ripple removed)
+Jay asked for the strike ripple to go. Removed the ripple InstancedMesh,
+its geometry, material, loop block and import from components/Visualizer.tsx,
+plus lib/strike-ripple.ts and tests/strike-ripple.test.ts. The ripple
+sections above (round 1 item 2, round 2 ripple notes and tests) are
+historical only. Kept unchanged: bloom and glow numbers, the instanceColor
+pre-create on the note mesh, the staff ring gradient, the seekbar work and
+the keyboard fix. Round 3 results are in the final report.
 
 ## QA verification
 QA verification: PENDING — orchestrator to attach browser-qa/ios-qa verdicts
