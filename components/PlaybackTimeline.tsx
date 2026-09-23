@@ -1,7 +1,7 @@
 'use client'
 
 import type { PlaybackClock } from '@/hooks/useMusic'
-import { useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 function formatTime(secs: number) {
   if (!Number.isFinite(secs) || secs < 0) {
@@ -24,26 +24,54 @@ export function PlaybackTimeline({
   duration: number
   onSeek: (time: number) => void
 }) {
-  // Subscribing here confines per-frame clock updates to this small subtree.
-  const currentTime = useSyncExternalStore(
+  const inputRef = useRef<HTMLInputElement>(null)
+  const safeDuration = duration || 100
+
+  // The text only changes once per second, so subscribing to the floored time
+  // keeps per-frame clock ticks from re-rendering even this subtree.
+  const getWholeSecond = useCallback(() => Math.floor(clock.getTime()), [clock])
+  const wholeSecond = useSyncExternalStore(
     clock.subscribe,
-    clock.getTime,
+    getWholeSecond,
     getServerTime,
   )
+
+  // Smooth per-frame progress goes straight to the DOM: the range value and a
+  // CSS variable that paints the played portion of the track.
+  useEffect(() => {
+    const apply = () => {
+      const input = inputRef.current
+      if (!input) {
+        return
+      }
+
+      const time = clock.getTime()
+      input.value = String(time)
+      input.style.setProperty(
+        '--nm-progress',
+        `${Math.min(Math.max(time / safeDuration, 0), 1) * 100}%`,
+      )
+    }
+
+    apply()
+    return clock.subscribe(apply)
+  }, [clock, safeDuration])
 
   return (
     <>
       <input
+        ref={inputRef}
         type="range"
         min={0}
-        max={duration || 100}
-        step={0.1}
-        value={currentTime}
+        max={safeDuration}
+        step="any"
+        defaultValue={0}
+        aria-label="Playback position"
         onChange={event => onSeek(Number.parseFloat(event.target.value))}
         className="nm-seekbar"
       />
       <div className="flex justify-between font-mono text-xs text-[var(--nm-text-dim)]">
-        <span>{formatTime(currentTime)}</span>
+        <span>{formatTime(wholeSecond)}</span>
         <span>{formatTime(duration)}</span>
       </div>
     </>
