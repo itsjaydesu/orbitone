@@ -69,6 +69,7 @@ import {
   mergeCameraPresetMap,
 } from '@/lib/camera-presets'
 import { EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS } from '@/lib/export'
+import { isGlobalShortcutTarget } from '@/lib/keyboard'
 import {
   MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
@@ -1230,14 +1231,7 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       let shouldRevealChrome = false
 
-      if (
-        e.target instanceof HTMLInputElement
-        && ['text', 'number', 'password', 'email'].includes(e.target.type)
-      ) {
-        return
-      }
-
-      if (e.target instanceof HTMLTextAreaElement) {
+      if (!isGlobalShortcutTarget(e.target, e.key)) {
         return
       }
 
