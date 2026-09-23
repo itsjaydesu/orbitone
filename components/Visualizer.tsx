@@ -51,7 +51,7 @@ export interface ExportFrameController {
 }
 
 const DEFAULT_TIME_WINDOW = 10
-const DEFAULT_BLOOM_INTENSITY = 1.2
+const DEFAULT_BLOOM_INTENSITY = 0.8
 const CLEF_FONT_STACK
   = '"Segoe UI Symbol", "Cambria Math", "STIX Two Text", "Noto Music", serif'
 const TREBLE_CLEF_SCALE = 1.05
@@ -525,9 +525,17 @@ function getExportResolvedCameraPose(
   return effectivePose
 }
 
+// Staff rings read brightest at the top (angle 0, where the playhead sits) and
+// fall off toward the back of the orbit. The gradient is baked into a static
+// vertex colour so it costs nothing per frame. Vertex colours are linear, so
+// the floor sits low and the lit arc is narrowed to read on screen.
+const STAFF_RING_BACK_BRIGHTNESS = 0.18
+const STAFF_RING_LIT_ARC_POWER = 1.5
+
 function createCircularLineGeometry(radius: number, segments = 240) {
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array((segments + 1) * 3)
+  const colors = new Float32Array((segments + 1) * 3)
 
   for (let index = 0; index <= segments; index += 1) {
     const angle = (index / segments) * Math.PI * 2
@@ -535,9 +543,22 @@ function createCircularLineGeometry(radius: number, segments = 240) {
     positions[offset] = -Math.sin(angle) * radius
     positions[offset + 1] = Math.cos(angle) * radius
     positions[offset + 2] = 0
+
+    const towardPlayhead = smootherStep(
+      ((Math.cos(angle) + 1) * 0.5) ** STAFF_RING_LIT_ARC_POWER,
+    )
+    const brightness = THREE.MathUtils.lerp(
+      STAFF_RING_BACK_BRIGHTNESS,
+      1,
+      towardPlayhead,
+    )
+    colors[offset] = brightness
+    colors[offset + 1] = brightness
+    colors[offset + 2] = brightness
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geometry.setDrawRange(0, 0)
 
   return geometry
@@ -592,6 +613,7 @@ function StaffRing({
           depthWrite: false,
           opacity: 0,
           transparent: true,
+          vertexColors: true,
         }),
       ),
     [geometry],
@@ -730,12 +752,16 @@ function InstancedNotes({
   )
 
   // Avoid a one-frame flash of capacity-count identity instances before the
-  // first useFrame writes real transforms.
+  // first useFrame writes real transforms. Writing one colour up front also
+  // allocates instanceColor now, so three.js does not compile a second shader
+  // variant on the first strike.
   useLayoutEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.count = 0
+    const mesh = meshRef.current
+    if (mesh) {
+      mesh.setColorAt(0, scratch.color.setScalar(0))
+      mesh.count = 0
     }
-  }, [])
+  }, [scratch])
 
   useFrame(({ clock, camera }) => {
     const mesh = meshRef.current
@@ -788,8 +814,8 @@ function InstancedNotes({
         duration: note.duration,
         idleGlow: 0.18,
         opacity: 1,
-        peakGlow: 1.6 + note.velocity * 1.4,
-        sustainGlow: 0.52 + note.velocity * 0.44,
+        peakGlow: 0.9 + note.velocity * 0.8,
+        sustainGlow: 0.35 + note.velocity * 0.3,
         timeDiff,
         centered: true,
       })
@@ -807,7 +833,7 @@ function InstancedNotes({
 
       const brightness = visibility * (NOTE_DISK_BASE + glow)
       const introScale = 0.28 + displayProgress * 0.72
-      const playScale = 1 + strike * (0.5 + note.velocity)
+      const playScale = 1 + strike * (0.25 + note.velocity * 0.45)
       scratch.scale.setScalar(Math.max(introScale * playScale, 0.0001))
 
       scratch.matrix.compose(scratch.position, camera.quaternion, scratch.scale)
@@ -961,8 +987,8 @@ function MidiRollNote({
       duration: note.duration,
       idleGlow: 0.22,
       opacity,
-      peakGlow: 1.25 + note.velocity * 0.9,
-      sustainGlow: 0.42 + note.velocity * 0.28,
+      peakGlow: 0.7 + note.velocity * 0.5,
+      sustainGlow: 0.3 + note.velocity * 0.2,
       timeDiff: currentTime - note.time,
     })
   })
@@ -1904,12 +1930,14 @@ function Scene({
       />
 
       <EffectComposer>
+        {/* Threshold sits above idle-note luminance (0.68) and the playhead
+            (0.55), so only struck notes bloom; everything else stays crisp. */}
         <Bloom
-          luminanceThreshold={0.24}
-          luminanceSmoothing={0.9}
+          luminanceThreshold={0.7}
+          luminanceSmoothing={0.4}
           intensity={DEFAULT_BLOOM_INTENSITY}
           mipmapBlur
-          radius={0.72}
+          radius={0.6}
         />
         {/* Filmic depth: darken the edges so the frame reads as a lit stage
             rather than a flat void. Kept subtle to stay minimal. */}

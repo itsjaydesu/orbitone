@@ -58,6 +58,7 @@ import { PlaybackTimeline } from '@/components/PlaybackTimeline'
 import { Visualizer } from '@/components/Visualizer'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMusic } from '@/hooks/useMusic'
+import { usePlaybackChromeAutoHide } from '@/hooks/usePlaybackChromeAutoHide'
 import {
   CAMERA_PRESETS_STORAGE_KEY,
   CAMERA_VIEWS,
@@ -69,6 +70,7 @@ import {
   mergeCameraPresetMap,
 } from '@/lib/camera-presets'
 import { EXPORT_CAMERA_CYCLE_INTERVAL_SECONDS } from '@/lib/export'
+import { isGlobalShortcutTarget } from '@/lib/keyboard'
 import {
   MIDI_LIBRARY,
   MIDI_LIBRARY_CATEGORIES,
@@ -697,7 +699,6 @@ export default function Home() {
   const shouldPersistChrome = !playbackChromeManaged
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const idleTimerRef = useRef<number | undefined>(undefined)
   const brandSwapTimerRef = useRef<number | undefined>(undefined)
   const brandRevealTimerRef = useRef<number | undefined>(undefined)
   const uploadDragDepthRef = useRef(0)
@@ -1200,23 +1201,15 @@ export default function Home() {
     }
   }, [currentLibraryTrackId, isLoadingLibrary, loadLibraryMidi])
 
-  const clearIdleTimer = useCallback(() => {
-    if (idleTimerRef.current !== undefined) {
-      window.clearTimeout(idleTimerRef.current)
-      idleTimerRef.current = undefined
-    }
+  const hidePlaybackChrome = useCallback(() => {
+    setIsMenuVisible(false)
   }, [])
 
-  const scheduleIdleHide = useCallback(() => {
-    clearIdleTimer()
-    if (shouldPersistChrome) {
-      return
-    }
-
-    idleTimerRef.current = window.setTimeout(() => {
-      setIsMenuVisible(false)
-    }, PLAYBACK_CHROME_TIMEOUT_MS)
-  }, [clearIdleTimer, shouldPersistChrome])
+  const { clearIdleTimer, scheduleIdleHide } = usePlaybackChromeAutoHide({
+    disabled: shouldPersistChrome,
+    timeoutMs: PLAYBACK_CHROME_TIMEOUT_MS,
+    onHide: hidePlaybackChrome,
+  })
 
   const handlePlaybackToggle = useCallback(() => {
     if (hasEnded) {
@@ -1230,14 +1223,7 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       let shouldRevealChrome = false
 
-      if (
-        e.target instanceof HTMLInputElement
-        && ['text', 'number', 'password', 'email'].includes(e.target.type)
-      ) {
-        return
-      }
-
-      if (e.target instanceof HTMLTextAreaElement) {
+      if (!isGlobalShortcutTarget(e.target, e.key)) {
         return
       }
 
@@ -1679,6 +1665,7 @@ export default function Home() {
 
       <div
         className={cn('pointer-events-none', topChromeClass)}
+        data-playback-chrome
         inert={!chromeVisible}
         style={topChromeStyle}
       >
@@ -2801,6 +2788,7 @@ export default function Home() {
           chromeVisible ? 'pointer-events-auto' : 'pointer-events-none',
           'bottom-28 flex w-full max-w-xl flex-col gap-2 px-4',
         )}
+        data-playback-chrome
         inert={!chromeVisible}
         style={timelineChromeStyle}
       >
@@ -2813,6 +2801,7 @@ export default function Home() {
 
       <div
         className={cn(bottomChromeClass, 'pointer-events-none bottom-10')}
+        data-playback-chrome
         inert={!chromeVisible}
         style={playChromeStyle}
       >

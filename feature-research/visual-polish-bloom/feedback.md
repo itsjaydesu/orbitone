@@ -1,0 +1,2 @@
+- Vitest `include` only matches `tests/**/*.test.ts`; component tests need `createElement`, not JSX. Note this in the plan next time.
+- `app/globals.css` fails `format/prettier` on HEAD (lines 6-8). Any CSS touch reports baseline errors; DIG-3939 should fix them so touched-file lint can be a clean gate.
