@@ -67,6 +67,7 @@ export function PlaybackTimeline({
         step="any"
         defaultValue={0}
         aria-label="Playback position"
+        aria-valuetext={formatTime(wholeSecond)}
         onChange={event => onSeek(Number.parseFloat(event.target.value))}
         className="nm-seekbar"
       />

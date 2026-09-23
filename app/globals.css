@@ -466,7 +466,7 @@ body {
   /* Played portion of the track, driven per frame from the playback clock. */
   background-image: linear-gradient(
     to right,
-    rgba(255, 255, 255, 0.22) var(--nm-progress),
+    rgba(255, 255, 255, 0.45) var(--nm-progress),
     transparent var(--nm-progress)
   );
   border-radius: 9999px;
@@ -474,6 +474,14 @@ body {
     inset 1px 1px 3px var(--nm-shadow-dark),
     inset -1px -1px 3px var(--nm-shadow-light);
   outline: none;
+}
+
+.nm-seekbar:focus-visible {
+  box-shadow:
+    inset 1px 1px 3px var(--nm-shadow-dark),
+    inset -1px -1px 3px var(--nm-shadow-light),
+    0 0 0 2px var(--nm-bg),
+    0 0 0 3px rgba(255, 255, 255, 0.28);
 }
 
 .nm-seekbar::-webkit-slider-thumb {
